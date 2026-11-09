@@ -1,25 +1,46 @@
 import { Application } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import { mundoParaHex, type CoordHex } from '../core/hex';
+import type { LojaMapa } from '../core/loja';
+import type { Manifesto } from '../core/manifesto';
+import { carregarCatalogo, type Catalogo } from './assets';
 import { criarCamadaGrid, criarDestaqueHex } from './camadaGrid';
+import { criarCamadaTiles } from './camadaTiles';
 
 const ZOOM_MINIMO = 0.15;
 const ZOOM_MAXIMO = 2;
 const ZOOM_INICIAL = 0.6;
 
 export interface OpcoesCena {
+  readonly loja: LojaMapa;
+  readonly manifesto: Manifesto;
   /** Chamada quando o hex sob o mouse muda; recebe `null` quando o mouse sai do mapa. */
   readonly aoMudarHexSobMouse: (coord: CoordHex | null) => void;
 }
 
+interface ControlesCena {
+  /** Hex em uma posição da tela, relativa ao canto do mapa. */
+  hexEm(x: number, y: number): CoordHex;
+  mostrarPrevia(assetId: string, coord: CoordHex): void;
+  limparPrevia(): void;
+  cancelarAssinatura(): void;
+}
+
+export interface CenaMapa extends Omit<ControlesCena, 'hexEm' | 'cancelarAssinatura'> {
+  /** Devolve `null` enquanto a cena ainda está carregando. */
+  hexEm(x: number, y: number): CoordHex | null;
+  destruir(): void;
+}
+
 /**
- * Cria a cena do mapa dentro de `container` e devolve uma função que a destrói.
+ * Cria a cena do mapa dentro de `container`.
  * A inicialização é assíncrona, então a cena pode ser destruída antes de ficar pronta.
  */
-export function createMapScene(container: HTMLElement, opcoes: OpcoesCena): () => void {
+export function createMapScene(container: HTMLElement, opcoes: OpcoesCena): CenaMapa {
   const app = new Application();
   let ready = false;
   let disposed = false;
+  let controles: ControlesCena | null = null;
 
   const iniciar = async () => {
     await app.init({
@@ -35,19 +56,30 @@ export function createMapScene(container: HTMLElement, opcoes: OpcoesCena): () =
     }
     ready = true;
     container.appendChild(app.canvas);
-    montarCena(app, opcoes);
+
+    const catalogo = await carregarCatalogo(opcoes.manifesto);
+    if (!disposed) {
+      controles = montarCena(app, catalogo, opcoes);
+    }
   };
   void iniciar();
 
-  return () => {
-    disposed = true;
-    if (ready) {
-      app.destroy(true, { children: true });
-    }
+  return {
+    hexEm: (x, y) => controles?.hexEm(x, y) ?? null,
+    mostrarPrevia: (assetId, coord) => controles?.mostrarPrevia(assetId, coord),
+    limparPrevia: () => controles?.limparPrevia(),
+    destruir() {
+      disposed = true;
+      controles?.cancelarAssinatura();
+      controles = null;
+      if (ready) {
+        app.destroy(true, { children: true });
+      }
+    },
   };
 }
 
-function montarCena(app: Application, opcoes: OpcoesCena): void {
+function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): ControlesCena {
   const camera = new Viewport({
     screenWidth: app.screen.width,
     screenHeight: app.screen.height,
@@ -66,8 +98,12 @@ function montarCena(app: Application, opcoes: OpcoesCena): void {
   app.renderer.on('resize', (largura: number, altura: number) => camera.resize(largura, altura));
 
   const grid = criarCamadaGrid();
+  const tiles = criarCamadaTiles(catalogo);
   const destaque = criarDestaqueHex();
-  camera.addChild(grid.grafico, destaque.grafico);
+  camera.addChild(grid.grafico, tiles.container, destaque.grafico);
+
+  tiles.atualizar(opcoes.loja.obterEstado());
+  const cancelarAssinatura = opcoes.loja.assinar(tiles.atualizar);
 
   let ponteiro: { x: number; y: number } | null = null;
   app.canvas.addEventListener('pointermove', (evento) => {
@@ -94,4 +130,11 @@ function montarCena(app: Application, opcoes: OpcoesCena): void {
       opcoes.aoMudarHexSobMouse(hex);
     }
   });
+
+  return {
+    hexEm: (x, y) => mundoParaHex(camera.toWorld(x, y)),
+    mostrarPrevia: tiles.mostrarPrevia,
+    limparPrevia: tiles.limparPrevia,
+    cancelarAssinatura,
+  };
 }
