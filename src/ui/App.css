@@ -122,6 +122,40 @@ body {
   margin-bottom: 10px;
 }
 
+.seletor-aparencia {
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.seletor-aparencia label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  cursor: pointer;
+}
+
+.seletor-aparencia select {
+  width: 100%;
+  margin: 2px 0 6px;
+  padding: 4px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #14161c;
+  color: #e6e3da;
+  font: inherit;
+  font-size: 12px;
+}
+
+.aparencia-jogador {
+  margin-top: 16px;
+}
+
+.aparencia-jogador h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
 .ajuda-bloco summary {
   color: #a5a79f;
   cursor: pointer;

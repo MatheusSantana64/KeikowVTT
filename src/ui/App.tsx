@@ -20,6 +20,7 @@ import { BarraArquivo, type Mensagem } from './BarraArquivo';
 import { criarControlador, SEM_FERRAMENTA, type Ferramenta } from './controladorFerramentas';
 import { PainelHex } from './PainelHex';
 import { Paleta } from './Paleta';
+import { SeletorAparencia } from './SeletorAparencia';
 
 const BORRACHA: Ferramenta = { tipo: 'apagar' };
 const POSICIONAR: Ferramenta = { tipo: 'posicionar' };
@@ -34,10 +35,14 @@ const FERRAMENTAS_DE_VISAO: ReadonlySet<Ferramenta['tipo']> = new Set([
 const DURACAO_MENSAGEM_MS = 6000;
 
 function ehCampoDeTexto(alvo: EventTarget | null): alvo is HTMLElement {
-  return (
-    alvo instanceof HTMLElement &&
-    (alvo.isContentEditable || alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA')
-  );
+  if (!(alvo instanceof HTMLElement)) {
+    return false;
+  }
+  // Botões de opção são INPUT, mas neles não se digita: os atalhos do mapa continuam valendo.
+  if (alvo instanceof HTMLInputElement) {
+    return alvo.type !== 'radio' && alvo.type !== 'checkbox';
+  }
+  return alvo.isContentEditable || alvo.tagName === 'TEXTAREA';
 }
 
 function iniciarEditor(): { loja: LojaMapa; lojaGrupo: LojaGrupo; aviso: Mensagem | null } {
@@ -277,7 +282,17 @@ export function App() {
     <div className="app">
       <aside className="sidebar">
         <h1>KeikowVTT</h1>
-        {modoJogador && <p>As ferramentas de edição ficam escondidas neste modo.</p>}
+        {modoJogador && (
+          <>
+            <p>As ferramentas de edição ficam escondidas neste modo.</p>
+            {manifesto && (
+              <section className="aparencia-jogador">
+                <h2>Hexes não vistos</h2>
+                <SeletorAparencia loja={loja} manifesto={manifesto} />
+              </section>
+            )}
+          </>
+        )}
         {!modoJogador && (
           <>
         <details className="ajuda-bloco">
@@ -356,6 +371,12 @@ export function App() {
             Ver como jogador
           </button>
         </div>
+        {manifesto && (
+          <details className="ajuda-bloco">
+            <summary>Aparência dos hexes não vistos</summary>
+            <SeletorAparencia loja={loja} manifesto={manifesto} />
+          </details>
+        )}
         <p className="coordenada">
           {hexSobMouse ? `Hex: q ${hexSobMouse.q}, r ${hexSobMouse.r}` : 'Hex: —'}
         </p>
