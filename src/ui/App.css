@@ -281,6 +281,87 @@ body {
   color: #e6e3da;
 }
 
+.painel-hex input,
+.painel-hex textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #14161c;
+  color: #e6e3da;
+  font: inherit;
+  font-size: 13px;
+  field-sizing: content;
+  resize: vertical;
+}
+
+.painel-hex input:focus,
+.painel-hex textarea:focus {
+  border-color: #7fd4ff;
+  outline: none;
+}
+
+.painel-campo {
+  display: block;
+  margin-top: 12px;
+  color: #a5a79f;
+  font-size: 12px;
+}
+
+.painel-secao {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid #333846;
+}
+
+.painel-secao h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.painel-secao ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.painel-secao li {
+  margin-bottom: 10px;
+}
+
+.painel-secretas h3 {
+  color: #e0a0d8;
+}
+
+.painel-secretas textarea {
+  border-color: #5c3f58;
+}
+
+.painel-nota-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 3px;
+}
+
+.painel-nota-acoes button,
+.painel-adicionar {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #a5a79f;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.painel-nota-acoes button:hover,
+.painel-adicionar:hover {
+  color: #7fd4ff;
+}
+
 .map {
   flex: 1;
   min-width: 0;

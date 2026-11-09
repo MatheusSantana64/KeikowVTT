@@ -74,8 +74,8 @@ Cada fase deve funcionar sozinha antes de avançar.
   1. ✅ Regras em `core/`: nome, descrição, notas e visão do jogador.
   2. ✅ Formato do arquivo com as informações, convertendo mapas antigos.
   3. ✅ Seleção de hex: sem ferramenta, um clique marca o hex e abre o painel.
-  4. Painel de edição, com as notas (próximo). Atalhos do mapa não podem agir enquanto se digita.
-  5. Marcador no mapa para hexes com anotações e aviso ao apagar um deles.
+  4. ✅ Painel de edição, com as notas. Atalhos do mapa não agem enquanto se digita.
+  5. Marcador no mapa para hexes com anotações e aviso ao apagar um deles (próximo).
 - **Fase 1 concluída** (editor de mapa local). Os passos foram:
   1. ✅ Estrutura do projeto.
   2. ✅ Regras do mapa em `core/`.

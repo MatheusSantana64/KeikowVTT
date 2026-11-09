@@ -4,7 +4,8 @@ type OuvinteMapa = (estado: EstadoMapa) => void;
 
 export interface LojaMapa {
   obterEstado(): EstadoMapa;
-  despachar(acao: AcaoMapa): void;
+  /** Ações seguidas com o mesmo `grupo` contam como um único passo de desfazer. */
+  despachar(acao: AcaoMapa, grupo?: string): void;
   /** Avisa o ouvinte a cada mudança e devolve a função que cancela o aviso. */
   assinar(ouvinte: OuvinteMapa): () => void;
   /** A partir daqui, todas as ações contam como um único passo de desfazer. */
@@ -26,6 +27,7 @@ export function criarLojaMapa(inicial: EstadoMapa = criarMapaVazio()): LojaMapa 
   let futuro: EstadoMapa[] = [];
   let emTraco = false;
   let tracoJaRegistrado = false;
+  let ultimoGrupo: string | undefined;
   const ouvintes = new Set<OuvinteMapa>();
 
   const mudarPara = (novo: EstadoMapa) => {
@@ -33,8 +35,11 @@ export function criarLojaMapa(inicial: EstadoMapa = criarMapaVazio()): LojaMapa 
     ouvintes.forEach((ouvinte) => ouvinte(estado));
   };
 
-  const registrarNoHistorico = () => {
-    if (emTraco && tracoJaRegistrado) {
+  const registrarNoHistorico = (grupo?: string) => {
+    const mesmoTraco = emTraco && tracoJaRegistrado;
+    const mesmoGrupo = grupo !== undefined && grupo === ultimoGrupo;
+    ultimoGrupo = grupo;
+    if (mesmoTraco || mesmoGrupo) {
       return;
     }
     tracoJaRegistrado = emTraco;
@@ -48,16 +53,17 @@ export function criarLojaMapa(inicial: EstadoMapa = criarMapaVazio()): LojaMapa 
   const encerrarTraco = () => {
     emTraco = false;
     tracoJaRegistrado = false;
+    ultimoGrupo = undefined;
   };
 
   return {
     obterEstado: () => estado,
-    despachar(acao) {
+    despachar(acao, grupo) {
       const novo = aplicarAcao(estado, acao);
       if (novo === estado) {
         return;
       }
-      registrarNoHistorico();
+      registrarNoHistorico(grupo);
       mudarPara(novo);
     },
     assinar(ouvinte) {

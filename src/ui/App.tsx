@@ -7,7 +7,7 @@ import {
   useSyncExternalStore,
   type DragEvent,
 } from 'react';
-import type { CoordHex, PontoMundo } from '../core/hex';
+import { chaveHex, type CoordHex, type PontoMundo } from '../core/hex';
 import { criarLojaMapa } from '../core/loja';
 import type { EstadoMapa } from '../core/mapa';
 import type { Manifesto } from '../core/manifesto';
@@ -22,6 +22,13 @@ import { Paleta } from './Paleta';
 
 const BORRACHA: Ferramenta = { tipo: 'apagar' };
 const DURACAO_MENSAGEM_MS = 6000;
+
+function ehCampoDeTexto(alvo: EventTarget | null): alvo is HTMLElement {
+  return (
+    alvo instanceof HTMLElement &&
+    (alvo.isContentEditable || alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA')
+  );
+}
 
 function iniciarEditor(): { loja: ReturnType<typeof criarLojaMapa>; aviso: Mensagem | null } {
   const salvo = lerSalvamentoLocal();
@@ -135,6 +142,13 @@ export function App() {
 
   useEffect(() => {
     const aoApertarTecla = (evento: KeyboardEvent) => {
+      if (ehCampoDeTexto(evento.target)) {
+        // Enquanto se digita, Ctrl+Z desfaz o texto, e não o mapa. Esc só sai do campo.
+        if (evento.key === 'Escape') {
+          evento.target.blur();
+        }
+        return;
+      }
       if (evento.key === 'Escape') {
         if (ferramenta.tipo === 'nenhuma') {
           setHexSelecionado(null);
@@ -286,6 +300,7 @@ export function App() {
         />
         {hexSelecionado && (
           <PainelHex
+            key={chaveHex(hexSelecionado)}
             loja={loja}
             coord={hexSelecionado}
             aoFechar={() => setHexSelecionado(null)}

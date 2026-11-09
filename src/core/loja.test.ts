@@ -7,6 +7,69 @@ const B = { q: 1, r: 0 };
 const colocar: AcaoMapa = { tipo: 'ColocarTile', coord: A, terreno: 'hexPlains00' };
 const colocarEmB: AcaoMapa = { tipo: 'ColocarTile', coord: B, terreno: 'hexHills00' };
 
+describe('grupos de edição', () => {
+  const nome = (texto: string): AcaoMapa => ({
+    tipo: 'EditarInformacaoHex',
+    coord: A,
+    campos: { nome: texto },
+  });
+
+  function comTerreno() {
+    const loja = criarLojaMapa();
+    loja.despachar(colocar);
+    return loja;
+  }
+
+  it('ações seguidas do mesmo grupo são desfeitas de uma vez', () => {
+    const loja = comTerreno();
+    loja.despachar(nome('V'), 'g1');
+    loja.despachar(nome('Va'), 'g1');
+    loja.despachar(nome('Vau'), 'g1');
+    loja.desfazer();
+    expect(hexEm(loja.obterEstado(), A)?.nome).toBe('');
+  });
+
+  it('grupos diferentes são passos diferentes', () => {
+    const loja = comTerreno();
+    loja.despachar(nome('Vau'), 'g1');
+    loja.despachar(nome('Ponte'), 'g2');
+    loja.desfazer();
+    expect(hexEm(loja.obterEstado(), A)?.nome).toBe('Vau');
+  });
+
+  it('uma ação sem grupo no meio separa os passos', () => {
+    const loja = comTerreno();
+    loja.despachar(nome('Vau'), 'g1');
+    loja.despachar(colocarEmB);
+    loja.despachar(nome('Ponte'), 'g1');
+    loja.desfazer();
+    expect(hexEm(loja.obterEstado(), A)?.nome).toBe('Vau');
+    expect(hexEm(loja.obterEstado(), B)).toBeDefined();
+  });
+
+  it('depois de desfazer, o mesmo grupo começa um novo passo', () => {
+    const loja = comTerreno();
+    loja.despachar(nome('Vau'), 'g1');
+    loja.desfazer();
+    loja.despachar(nome('Ponte'), 'g1');
+    loja.desfazer();
+    expect(hexEm(loja.obterEstado(), A)?.nome).toBe('');
+    expect(loja.podeDesfazer()).toBe(true);
+  });
+
+  it('uma pincelada logo depois de um grupo continua sendo um único passo', () => {
+    const loja = comTerreno();
+    loja.despachar(nome('Vau'), 'g1');
+    loja.iniciarTraco();
+    loja.despachar(colocarEmB);
+    loja.despachar({ tipo: 'ColocarTile', coord: { q: 2, r: 0 }, terreno: 't' });
+    loja.terminarTraco();
+    loja.desfazer();
+    expect(hexEm(loja.obterEstado(), B)).toBeUndefined();
+    expect(hexEm(loja.obterEstado(), A)?.nome).toBe('Vau');
+  });
+});
+
 describe('desfazer e refazer', () => {
   it('desfaz e refaz uma ação', () => {
     const loja = criarLojaMapa();
