@@ -12,6 +12,8 @@ import {
   type ResultadoDe,
 } from './persistencia';
 import type { EntradaRegistro, TipoEvento } from './registro';
+import type { EstadoCompendio } from './compendio';
+import { compendioParaObjeto } from './persistenciaCompendio';
 
 const VERSAO_CAMPANHA = 1;
 
@@ -119,14 +121,19 @@ export function desserializarCampanha(texto: string): ResultadoDe<ConteudoCampan
   });
 }
 
-/** O arquivo do botão Salvar: o mapa, com os dados da campanha junto. */
+/** O arquivo do botão Salvar: o mapa, com os dados da campanha e o compêndio junto. */
 export function serializarArquivoCompleto(
   estado: EstadoMapa,
   grupo: EstadoGrupo,
   conteudo: ConteudoCampanha,
+  compendio?: EstadoCompendio,
 ): string {
   return JSON.stringify(
-    { ...mapaParaObjeto(estado, grupo), campanha: campanhaParaObjeto(conteudo) },
+    {
+      ...mapaParaObjeto(estado, grupo),
+      campanha: campanhaParaObjeto(conteudo),
+      ...(compendio ? { compendio: compendioParaObjeto(compendio) } : {}),
+    },
     null,
     2,
   );

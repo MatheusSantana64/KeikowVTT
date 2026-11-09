@@ -4,10 +4,16 @@ import { criarEntrada, TIPOS_ENTRADA, type Entrada, type EntradaDe } from './ent
 import { ErroDeFormato } from './persistencia';
 import {
   desserializarCompendio,
+  lerCompendioDoArquivo,
   lerEntrada,
   lerEntradas,
   serializarCompendio,
 } from './persistenciaCompendio';
+import { serializarArquivoCompleto } from './persistenciaCampanha';
+import { criarCampanhaInicial } from './campanha';
+import { GRUPO_SEM_POSICAO } from './grupo';
+import { criarMapaVazio } from './mapa';
+import { desserializarMapa } from './persistencia';
 
 const espadaCompleta: EntradaDe<'item'> = {
   ...criarEntrada('item', 'srd-5.1/item/longsword'),
@@ -207,6 +213,34 @@ describe('listas e arquivos de compêndio', () => {
   it('diz qual entrada da lista tem problema', () => {
     const lista = [criarEntrada('item', 'a'), { ...criarEntrada('item', 'b'), tipo: 'veiculo' }];
     expect(() => lerEntradas(lista, 'O pacote')).toThrow('nº 2');
+  });
+
+  it('o compêndio vai e volta dentro do arquivo completo', () => {
+    const estado = aplicarAcaoCompendio(criarCompendioVazio(), {
+      tipo: 'ImportarEntradas',
+      entradas: [espadaCompleta, goblin],
+    });
+    const texto = serializarArquivoCompleto(
+      criarMapaVazio(),
+      GRUPO_SEM_POSICAO,
+      { campanha: criarCampanhaInicial(), registro: [] },
+      estado,
+    );
+    expect(lerCompendioDoArquivo(texto)).toEqual({ ok: true, estado });
+    expect(desserializarMapa(texto).ok).toBe(true);
+  });
+
+  it('um arquivo sem compêndio devolve estado vazio de propósito', () => {
+    const texto = serializarArquivoCompleto(criarMapaVazio(), GRUPO_SEM_POSICAO, {
+      campanha: criarCampanhaInicial(),
+      registro: [],
+    });
+    expect(lerCompendioDoArquivo(texto)).toEqual({ ok: true, estado: null });
+  });
+
+  it('um compêndio inválido no arquivo devolve o motivo', () => {
+    const texto = JSON.stringify({ compendio: { entradas: [{ tipo: 'veiculo' }] } });
+    expect(lerCompendioDoArquivo(texto)).toMatchObject({ ok: false });
   });
 
   it('recusa versão desconhecida e texto que não é JSON', () => {

@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { chaveHex, type CoordHex, type PontoMundo } from '../core/hex';
 import { criarLojaCampanha, ID_MESTRE, type LojaCampanha } from '../core/campanha';
+import { criarLojaCompendio, type LojaCompendio } from '../core/compendio';
 import { criarLojaRegistro, type LojaRegistro } from '../core/registro';
 import { criarLojaGrupo, type LojaGrupo } from '../core/grupo';
 import { criarLojaMapa, type LojaMapa } from '../core/loja';
@@ -18,8 +19,10 @@ import { assetsDesconhecidos } from '../core/persistencia';
 import { criarArmazenamentoNavegador, pedirProtecaoDosDados } from '../net/armazenamentoLocal';
 import {
   lerCampanhaLocal,
+  lerCompendioLocal,
   lerSalvamentoLocal,
   manterCampanhaLocal,
+  manterCompendioLocal,
   manterSalvamentoLocal,
 } from '../net/salvamentoLocal';
 import { carregarManifesto } from '../render/assets';
@@ -31,6 +34,7 @@ import { PainelHexJogador } from './PainelHexJogador';
 import { Paleta } from './Paleta';
 import { SeletorAparencia } from './SeletorAparencia';
 import { TelaCampanha } from './TelaCampanha';
+import { TelaCompendio } from './TelaCompendio';
 
 const BORRACHA: Ferramenta = { tipo: 'apagar' };
 const POSICIONAR: Ferramenta = { tipo: 'posicionar' };
@@ -60,19 +64,25 @@ interface EditorCarregado {
   readonly lojaGrupo: LojaGrupo;
   readonly lojaCampanha: LojaCampanha;
   readonly lojaRegistro: LojaRegistro;
+  readonly lojaCompendio: LojaCompendio;
   readonly aviso: Mensagem | null;
 }
+
+/** As telas que cobrem o mapa inteiro. */
+type Tela = 'campanha' | 'compendio';
 
 const ARMAZENAMENTO = criarArmazenamentoNavegador();
 
 async function iniciarEditor(): Promise<EditorCarregado> {
   pedirProtecaoDosDados();
-  const [salvo, salvaCampanha] = await Promise.all([
+  const [salvo, salvaCampanha, salvoCompendio] = await Promise.all([
     lerSalvamentoLocal(ARMAZENAMENTO, localStorage),
     lerCampanhaLocal(ARMAZENAMENTO, localStorage),
+    lerCompendioLocal(ARMAZENAMENTO, localStorage),
   ]);
   const campanha = salvaCampanha?.ok ? salvaCampanha : null;
   const mapa = salvo?.ok ? salvo : null;
+  const compendio = salvoCompendio?.ok ? salvoCompendio : null;
 
   const lojaRegistro = criarLojaRegistro(campanha?.registro);
   // Enquanto não existirem contas, quem age neste computador é sempre o mestre.
@@ -81,12 +91,16 @@ async function iniciarEditor(): Promise<EditorCarregado> {
     aoExecutar: lojaRegistro.registrar,
   };
 
-  const falha = (salvo && !salvo.ok && salvo.erro) || (salvaCampanha && !salvaCampanha.ok && salvaCampanha.erro);
+  const falha =
+    (salvo && !salvo.ok && salvo.erro) ||
+    (salvaCampanha && !salvaCampanha.ok && salvaCampanha.erro) ||
+    (salvoCompendio && !salvoCompendio.ok && salvoCompendio.erro);
   return {
     loja: criarLojaMapa(mapa?.estado, opcoesRegistro),
     lojaGrupo: criarLojaGrupo(mapa?.grupo, opcoesRegistro),
     lojaCampanha: criarLojaCampanha(campanha?.campanha, opcoesRegistro),
     lojaRegistro,
+    lojaCompendio: criarLojaCompendio(compendio?.estado, opcoesRegistro),
     aviso: falha
       ? { tipo: 'erro', texto: `O salvamento automático não pôde ser lido: ${falha}` }
       : null,
@@ -129,7 +143,7 @@ export function App() {
   return <Editor {...editor} />;
 }
 
-function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, aviso }: EditorCarregado) {
+function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, lojaCompendio, aviso }: EditorCarregado) {
   const mapRef = useRef<HTMLDivElement>(null);
   const cenaRef = useRef<CenaMapa | null>(null);
   const assetArrastado = useRef<string | null>(null);
@@ -142,7 +156,7 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, aviso }: EditorCa
 
   const [hexSelecionado, setHexSelecionado] = useState<CoordHex | null>(null);
   const [modoJogador, setModoJogador] = useState(false);
-  const [telaCampanhaAberta, setTelaCampanhaAberta] = useState(false);
+  const [telaAberta, setTelaAberta] = useState<Tela | null>(null);
   const grupo = useSyncExternalStore(lojaGrupo.assinar, lojaGrupo.obterEstado);
 
   const sairDoModoJogador = useCallback(() => {
@@ -222,6 +236,21 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, aviso }: EditorCa
     [lojaCampanha, lojaRegistro],
   );
 
+  useEffect(
+    () =>
+      manterCompendioLocal(
+        lojaCompendio,
+        () =>
+          setMensagem({
+            tipo: 'erro',
+            texto: 'O navegador recusou guardar o compêndio. Use o botão Salvar.',
+          }),
+        ARMAZENAMENTO,
+        localStorage,
+      ),
+    [lojaCompendio],
+  );
+
   useEffect(() => {
     if (manifesto) {
       const avisoImagens = avisoDeImagensFaltando(loja.obterEstado(), manifesto);
@@ -271,18 +300,22 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, aviso }: EditorCa
         }
         return;
       }
-      if (telaCampanhaAberta || modoJogador) {
-        const teclaDeHistorico =
-          (evento.ctrlKey || evento.metaKey) && ['z', 'y'].includes(evento.key.toLowerCase());
-        if (teclaDeHistorico) {
-          // Sem isto, o navegador desfaria o último texto digitado, mesmo fora do campo.
-          evento.preventDefault();
-        }
+      const tecla = evento.key.toLowerCase();
+      const comCtrl = evento.ctrlKey || evento.metaKey;
+      const refazer = comCtrl && (tecla === 'y' || (tecla === 'z' && evento.shiftKey));
+      const desfazer = comCtrl && tecla === 'z' && !evento.shiftKey;
+      if ((telaAberta || modoJogador) && (refazer || desfazer)) {
+        // Sem isto, o navegador desfaria o último texto digitado, mesmo fora do campo.
+        evento.preventDefault();
       }
-      if (telaCampanhaAberta) {
+      if (telaAberta) {
         // O mapa está coberto: os atalhos dele não podem agir sem que ele apareça.
         if (evento.key === 'Escape') {
-          setTelaCampanhaAberta(false);
+          setTelaAberta(null);
+        } else if (telaAberta === 'compendio' && desfazer) {
+          lojaCompendio.desfazer();
+        } else if (telaAberta === 'compendio' && refazer) {
+          lojaCompendio.refazer();
         }
         return;
       }
@@ -305,14 +338,10 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, aviso }: EditorCa
         }
         return;
       }
-      if (!evento.ctrlKey && !evento.metaKey) {
-        return;
-      }
-      const tecla = evento.key.toLowerCase();
-      if (tecla === 'y' || (tecla === 'z' && evento.shiftKey)) {
+      if (refazer) {
         evento.preventDefault();
         loja.refazer();
-      } else if (tecla === 'z') {
+      } else if (desfazer) {
         evento.preventDefault();
         loja.desfazer();
       }
@@ -321,12 +350,13 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, aviso }: EditorCa
     return () => window.removeEventListener('keydown', aoApertarTecla);
   }, [
     loja,
+    lojaCompendio,
     selecionarFerramenta,
     ferramenta,
     modoJogador,
     hexSelecionado,
     sairDoModoJogador,
-    telaCampanhaAberta,
+    telaAberta,
   ]);
 
   const pontoDoEvento = (evento: DragEvent<HTMLElement>): PontoMundo | null => {
@@ -426,8 +456,11 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, aviso }: EditorCa
           </dl>
         </details>
         <div className="ferramentas">
-          <button type="button" onClick={() => setTelaCampanhaAberta(true)}>
+          <button type="button" onClick={() => setTelaAberta('campanha')}>
             Campanha
+          </button>
+          <button type="button" onClick={() => setTelaAberta('compendio')}>
+            Compêndio
           </button>
         </div>
         <BarraArquivo
@@ -435,6 +468,7 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, aviso }: EditorCa
           lojaGrupo={lojaGrupo}
           lojaCampanha={lojaCampanha}
           lojaRegistro={lojaRegistro}
+          lojaCompendio={lojaCompendio}
           aoAbrirMapa={(estado) => {
             setHexSelecionado(null);
             cenaRef.current?.centralizarNoMapa();
@@ -550,12 +584,15 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, aviso }: EditorCa
           />
         )}
       </div>
-      {telaCampanhaAberta && (
+      {telaAberta === 'campanha' && (
         <TelaCampanha
           lojaCampanha={lojaCampanha}
           lojaRegistro={lojaRegistro}
-          aoFechar={() => setTelaCampanhaAberta(false)}
+          aoFechar={() => setTelaAberta(null)}
         />
+      )}
+      {telaAberta === 'compendio' && (
+        <TelaCompendio lojaCompendio={lojaCompendio} aoFechar={() => setTelaAberta(null)} />
       )}
     </div>
   );

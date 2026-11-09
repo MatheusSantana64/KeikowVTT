@@ -166,6 +166,233 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Compêndio */
+
+.tela-cabecalho-acoes {
+  display: flex;
+  gap: 6px;
+}
+
+.tela-cabecalho-acoes button,
+.compendio-novo button,
+.editor-lista button {
+  padding: 6px 12px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #2a2e3a;
+  color: #e6e3da;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.tela-cabecalho-acoes button:hover:not(:disabled),
+.compendio-novo button:hover,
+.editor-lista button:hover:not(:disabled) {
+  background: #363b4a;
+}
+
+.tela-cabecalho-acoes button:disabled,
+.editor-lista button:disabled {
+  color: #6b6d68;
+  cursor: default;
+}
+
+.compendio-corpo {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.compendio-lista {
+  display: flex;
+  flex: 0 0 300px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-right: 1px solid #333846;
+  background: #191b22;
+}
+
+.compendio-lista ul {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.compendio-lista li button {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: #e6e3da;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+}
+
+.compendio-lista li button:hover {
+  background: #262a35;
+}
+
+.compendio-lista li button[aria-current='true'] {
+  background: #2f3a4a;
+}
+
+.compendio-lista small {
+  flex: none;
+  color: #a5a79f;
+  font-size: 11px;
+}
+
+.compendio-novo {
+  display: flex;
+  gap: 6px;
+}
+
+.compendio-novo select {
+  flex: 1;
+  min-width: 0;
+}
+
+.compendio-lista input,
+.compendio-lista select,
+.compendio-editor input[type='text'],
+.compendio-editor textarea,
+.compendio-editor select {
+  padding: 6px 8px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #1d2029;
+  color: #e6e3da;
+  font: inherit;
+  font-size: 14px;
+}
+
+.compendio-lista input:focus,
+.compendio-lista select:focus,
+.compendio-editor input:focus,
+.compendio-editor textarea:focus,
+.compendio-editor select:focus {
+  border-color: #7fd4ff;
+  outline: none;
+}
+
+.compendio-editor textarea {
+  resize: vertical;
+}
+
+.compendio-editor {
+  flex: 1;
+  min-width: 0;
+  padding: 20px 28px;
+  overflow-y: auto;
+}
+
+.editor-entrada {
+  max-width: 820px;
+}
+
+.editor-entrada-topo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.editor-entrada-topo h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.formulario {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px 16px;
+  align-items: end;
+}
+
+.formulario h3 {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid #262a35;
+  font-size: 15px;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  color: #a5a79f;
+  font-size: 13px;
+}
+
+.campo-largo {
+  grid-column: 1 / -1;
+}
+
+.campo-marcar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.campo-referencias,
+.editor-lista {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #262a35;
+  border-radius: 6px;
+  color: #a5a79f;
+  font-size: 13px;
+}
+
+.campo-referencias > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 18px;
+  color: #e6e3da;
+}
+
+.editor-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.editor-lista-item {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #262a35;
+}
+
+.editor-lista-campos {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px 12px;
+}
+
+.editor-lista-adicionar {
+  align-self: flex-start;
+}
+
 .carregando {
   margin: 0;
   padding: 24px;

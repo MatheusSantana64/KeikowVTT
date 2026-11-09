@@ -1,0 +1,538 @@
+import {
+  ATRIBUTOS,
+  type BlocoDeTexto,
+  type DadosArma,
+  type DadosArmadura,
+  type DadosPorTipo,
+  type Entrada,
+  type EntradaDe,
+  type TipoEntrada,
+} from '../core/entradas';
+import {
+  CampoLinhas,
+  CampoMarcar,
+  CampoNumero,
+  CampoOpcoes,
+  CampoReferencias,
+  CampoTexto,
+  EditorLista,
+} from './camposFormulario';
+import {
+  ROTULO_ALCANCE_TIPO,
+  ROTULO_ATRIBUTO,
+  ROTULO_CATEGORIA,
+  ROTULO_DOMINIO,
+  ROTULO_ESCOLA,
+  ROTULO_MOEDA,
+  ROTULO_PESO_ARMADURA,
+  ROTULO_RARIDADE,
+  ROTULO_RECARGA,
+  ROTULO_TAMANHO,
+} from './rotulosCompendio';
+
+export interface PropsFormulario<T extends TipoEntrada> {
+  readonly dados: DadosPorTipo[T];
+  /** Envia só os campos que mudaram. `campo` agrupa a digitação num único passo de desfazer. */
+  readonly mudar: (parcial: Partial<DadosPorTipo[T]>, campo: string) => void;
+  /** Outras entradas do compêndio, para formar listas de referências. */
+  readonly todas: readonly Entrada[];
+}
+
+const ARMA_INICIAL: DadosArma = {
+  dominio: 'simples',
+  alcanceTipo: 'corpo-a-corpo',
+  dano: '1d4',
+  tipoDano: '',
+  danoVersatil: null,
+  alcance: null,
+  propriedades: [],
+};
+
+const ARMADURA_INICIAL: DadosArmadura = {
+  peso: 'leve',
+  caBase: 11,
+  usaDestreza: true,
+  destrezaMaxima: null,
+  forcaMinima: 0,
+  desvantagemFurtividade: false,
+};
+
+const ROTULO_DADO_VIDA = { '6': 'd6', '8': 'd8', '10': 'd10', '12': 'd12' } as const;
+
+function referencias(todas: readonly Entrada[], tipo: TipoEntrada) {
+  return todas
+    .filter((e) => e.tipo === tipo)
+    .map((e) => ({ id: e.id, nome: e.nome }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+function EditorBlocos({
+  rotulo,
+  blocos,
+  aoMudar,
+}: {
+  readonly rotulo: string;
+  readonly blocos: readonly BlocoDeTexto[];
+  readonly aoMudar: (blocos: BlocoDeTexto[]) => void;
+}) {
+  return (
+    <EditorLista
+      rotulo={rotulo}
+      itens={blocos}
+      aoMudar={aoMudar}
+      criar={() => ({ nome: '', descricao: '' })}
+      rotuloAdicionar="+ Adicionar"
+      renderizar={(bloco, mudar) => (
+        <>
+          <CampoTexto rotulo="Nome" valor={bloco.nome} aoMudar={(nome) => mudar({ ...bloco, nome })} />
+          <CampoTexto
+            rotulo="Descrição"
+            multilinha
+            valor={bloco.descricao}
+            aoMudar={(descricao) => mudar({ ...bloco, descricao })}
+          />
+        </>
+      )}
+    />
+  );
+}
+
+function FormularioArma({ arma, mudar }: { arma: DadosArma; mudar: (arma: DadosArma) => void }) {
+  return (
+    <>
+      <CampoOpcoes rotulo="Domínio" valor={arma.dominio} rotulos={ROTULO_DOMINIO} aoMudar={(v) => v && mudar({ ...arma, dominio: v })} />
+      <CampoOpcoes
+        rotulo="Uso"
+        valor={arma.alcanceTipo}
+        rotulos={ROTULO_ALCANCE_TIPO}
+        aoMudar={(v) => v && mudar({ ...arma, alcanceTipo: v })}
+      />
+      <CampoTexto rotulo="Dano" dica="1d8" valor={arma.dano} aoMudar={(dano) => mudar({ ...arma, dano })} />
+      <CampoTexto rotulo="Tipo de dano" valor={arma.tipoDano} aoMudar={(tipoDano) => mudar({ ...arma, tipoDano })} />
+      <CampoTexto
+        rotulo="Dano versátil (opcional)"
+        valor={arma.danoVersatil ?? ''}
+        aoMudar={(v) => mudar({ ...arma, danoVersatil: v.trim() === '' ? null : v })}
+      />
+      <CampoMarcar
+        rotulo="Tem alcance em pés"
+        valor={arma.alcance !== null}
+        aoMudar={(sim) => mudar({ ...arma, alcance: sim ? { normal: 5, longo: null } : null })}
+      />
+      {arma.alcance && (
+        <>
+          <CampoNumero
+            rotulo="Alcance normal"
+            minimo={0}
+            valor={arma.alcance.normal}
+            aoMudar={(normal) => normal !== null && arma.alcance && mudar({ ...arma, alcance: { ...arma.alcance, normal } })}
+          />
+          <CampoNumero
+            rotulo="Alcance longo (opcional)"
+            minimo={0}
+            vazioPermitido
+            valor={arma.alcance.longo}
+            aoMudar={(longo) => arma.alcance && mudar({ ...arma, alcance: { ...arma.alcance, longo } })}
+          />
+        </>
+      )}
+      <CampoLinhas rotulo="Propriedades" valores={arma.propriedades} aoMudar={(propriedades) => mudar({ ...arma, propriedades })} />
+    </>
+  );
+}
+
+function FormularioArmadura({
+  armadura,
+  mudar,
+}: {
+  armadura: DadosArmadura;
+  mudar: (armadura: DadosArmadura) => void;
+}) {
+  return (
+    <>
+      <CampoOpcoes
+        rotulo="Peso"
+        valor={armadura.peso}
+        rotulos={ROTULO_PESO_ARMADURA}
+        aoMudar={(v) => v && mudar({ ...armadura, peso: v })}
+      />
+      <CampoNumero
+        rotulo={armadura.peso === 'escudo' ? 'Bônus na CA' : 'CA base'}
+        inteiro
+        valor={armadura.caBase}
+        aoMudar={(v) => v !== null && mudar({ ...armadura, caBase: v })}
+      />
+      <CampoMarcar rotulo="Soma a Destreza" valor={armadura.usaDestreza} aoMudar={(v) => mudar({ ...armadura, usaDestreza: v })} />
+      {armadura.usaDestreza && (
+        <CampoNumero
+          rotulo="Destreza máxima (vazio: sem limite)"
+          inteiro
+          minimo={0}
+          vazioPermitido
+          valor={armadura.destrezaMaxima}
+          aoMudar={(v) => mudar({ ...armadura, destrezaMaxima: v })}
+        />
+      )}
+      <CampoNumero
+        rotulo="Força mínima"
+        inteiro
+        minimo={0}
+        valor={armadura.forcaMinima}
+        aoMudar={(v) => v !== null && mudar({ ...armadura, forcaMinima: v })}
+      />
+      <CampoMarcar
+        rotulo="Desvantagem em Furtividade"
+        valor={armadura.desvantagemFurtividade}
+        aoMudar={(v) => mudar({ ...armadura, desvantagemFurtividade: v })}
+      />
+    </>
+  );
+}
+
+export function FormularioItem({ dados, mudar }: PropsFormulario<'item'>) {
+  return (
+    <>
+      <CampoOpcoes rotulo="Categoria" valor={dados.categoria} rotulos={ROTULO_CATEGORIA} aoMudar={(v) => v && mudar({ categoria: v }, 'categoria')} />
+      <CampoNumero rotulo="Peso (libras)" minimo={0} valor={dados.peso} aoMudar={(v) => v !== null && mudar({ peso: v }, 'peso')} />
+      <CampoOpcoes
+        rotulo="Raridade"
+        nenhum="Nenhuma"
+        valor={dados.raridade}
+        rotulos={ROTULO_RARIDADE}
+        aoMudar={(raridade) => mudar({ raridade }, 'raridade')}
+      />
+      <CampoMarcar
+        rotulo="Tem preço"
+        valor={dados.custo !== null}
+        aoMudar={(sim) => mudar({ custo: sim ? { quantidade: 1, moeda: 'po' } : null }, 'custo')}
+      />
+      {dados.custo && (
+        <>
+          <CampoNumero
+            rotulo="Preço"
+            minimo={0}
+            valor={dados.custo.quantidade}
+            aoMudar={(v) => v !== null && dados.custo && mudar({ custo: { ...dados.custo, quantidade: v } }, 'custo')}
+          />
+          <CampoOpcoes
+            rotulo="Moeda"
+            valor={dados.custo.moeda}
+            rotulos={ROTULO_MOEDA}
+            aoMudar={(v) => v && dados.custo && mudar({ custo: { ...dados.custo, moeda: v } }, 'moeda')}
+          />
+        </>
+      )}
+      <CampoMarcar rotulo="Requer sintonia" valor={dados.requerSintonia} aoMudar={(v) => mudar({ requerSintonia: v }, 'sintonia')} />
+      <CampoMarcar rotulo="Empilhável (várias unidades)" valor={dados.empilhavel} aoMudar={(v) => mudar({ empilhavel: v }, 'empilhavel')} />
+
+      <h3 className="campo-largo">Arma</h3>
+      <CampoMarcar rotulo="Funciona como arma" valor={dados.arma !== null} aoMudar={(sim) => mudar({ arma: sim ? ARMA_INICIAL : null }, 'arma')} />
+      {dados.arma && <FormularioArma arma={dados.arma} mudar={(arma) => mudar({ arma }, 'arma')} />}
+
+      <h3 className="campo-largo">Proteção</h3>
+      <CampoMarcar
+        rotulo="Funciona como armadura ou escudo"
+        valor={dados.armadura !== null}
+        aoMudar={(sim) => mudar({ armadura: sim ? ARMADURA_INICIAL : null }, 'armadura')}
+      />
+      {dados.armadura && <FormularioArmadura armadura={dados.armadura} mudar={(armadura) => mudar({ armadura }, 'armadura')} />}
+    </>
+  );
+}
+
+export function FormularioMagia({ dados, mudar, todas }: PropsFormulario<'magia'>) {
+  return (
+    <>
+      <CampoNumero rotulo="Nível (0 para truque)" inteiro minimo={0} maximo={9} valor={dados.nivel} aoMudar={(v) => v !== null && mudar({ nivel: v }, 'nivel')} />
+      <CampoOpcoes rotulo="Escola" valor={dados.escola} rotulos={ROTULO_ESCOLA} aoMudar={(v) => v && mudar({ escola: v }, 'escola')} />
+      <CampoTexto rotulo="Tempo de conjuração" valor={dados.tempoConjuracao} aoMudar={(v) => mudar({ tempoConjuracao: v }, 'tempo')} />
+      <CampoTexto rotulo="Alcance" valor={dados.alcance} aoMudar={(v) => mudar({ alcance: v }, 'alcance')} />
+      <CampoTexto rotulo="Duração" valor={dados.duracao} aoMudar={(v) => mudar({ duracao: v }, 'duracao')} />
+      <CampoMarcar rotulo="Concentração" valor={dados.concentracao} aoMudar={(v) => mudar({ concentracao: v }, 'concentracao')} />
+      <CampoMarcar rotulo="Ritual" valor={dados.ritual} aoMudar={(v) => mudar({ ritual: v }, 'ritual')} />
+      <CampoMarcar
+        rotulo="Componente verbal"
+        valor={dados.componentes.verbal}
+        aoMudar={(v) => mudar({ componentes: { ...dados.componentes, verbal: v } }, 'componentes')}
+      />
+      <CampoMarcar
+        rotulo="Componente somático"
+        valor={dados.componentes.somatico}
+        aoMudar={(v) => mudar({ componentes: { ...dados.componentes, somatico: v } }, 'componentes')}
+      />
+      <CampoTexto
+        rotulo="Componente material (vazio: nenhum)"
+        largo
+        valor={dados.componentes.material ?? ''}
+        aoMudar={(v) => mudar({ componentes: { ...dados.componentes, material: v.trim() === '' ? null : v } }, 'material')}
+      />
+      <CampoReferencias
+        rotulo="Classes que podem aprender"
+        selecionadas={dados.classes}
+        disponiveis={referencias(todas, 'classe')}
+        aoMudar={(classes) => mudar({ classes }, 'classes')}
+      />
+    </>
+  );
+}
+
+export function FormularioHabilidade({ dados, mudar }: PropsFormulario<'habilidade'>) {
+  return (
+    <>
+      <CampoTexto rotulo="Requisito" dica="Guerreiro 2, Anão…" valor={dados.requisito} aoMudar={(v) => mudar({ requisito: v }, 'requisito')} />
+      <CampoMarcar
+        rotulo="Tem usos limitados"
+        valor={dados.usos !== null}
+        aoMudar={(sim) => mudar({ usos: sim ? { maximo: '1', recarga: 'descanso-longo' } : null }, 'usos')}
+      />
+      {dados.usos && (
+        <>
+          <CampoTexto
+            rotulo="Usos (fórmula)"
+            dica="1 ou mod(CAR)"
+            valor={dados.usos.maximo}
+            aoMudar={(v) => dados.usos && v.trim() !== '' && mudar({ usos: { ...dados.usos, maximo: v } }, 'usos')}
+          />
+          <CampoOpcoes
+            rotulo="Recupera em"
+            valor={dados.usos.recarga}
+            rotulos={ROTULO_RECARGA}
+            aoMudar={(v) => v && dados.usos && mudar({ usos: { ...dados.usos, recarga: v } }, 'recarga')}
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+export function FormularioClasse({ dados, mudar, todas }: PropsFormulario<'classe'>) {
+  const habilidades = referencias(todas, 'habilidade');
+  return (
+    <>
+      <CampoOpcoes
+        rotulo="Dado de vida"
+        valor={String(dados.dadoVida) as keyof typeof ROTULO_DADO_VIDA}
+        rotulos={ROTULO_DADO_VIDA}
+        aoMudar={(v) => v && mudar({ dadoVida: Number(v) }, 'dadoVida')}
+      />
+      <CampoOpcoes
+        rotulo="Atributo de conjuração"
+        nenhum="Não conjura"
+        valor={dados.atributoConjuracao}
+        rotulos={ROTULO_ATRIBUTO}
+        aoMudar={(v) => mudar({ atributoConjuracao: v }, 'conjuracao')}
+      />
+      <fieldset className="campo-largo campo-referencias">
+        <span>Salvaguardas</span>
+        <div>
+          {ATRIBUTOS.map((atributo) => (
+            <CampoMarcar
+              key={atributo}
+              rotulo={ROTULO_ATRIBUTO[atributo]}
+              valor={dados.salvaguardas.includes(atributo)}
+              aoMudar={(sim) =>
+                mudar(
+                  {
+                    salvaguardas: sim
+                      ? ATRIBUTOS.filter((a) => a === atributo || dados.salvaguardas.includes(a))
+                      : dados.salvaguardas.filter((a) => a !== atributo),
+                  },
+                  'salvaguardas',
+                )
+              }
+            />
+          ))}
+        </div>
+      </fieldset>
+      <CampoLinhas rotulo="Proficiências" valores={dados.proficiencias} aoMudar={(v) => mudar({ proficiencias: v }, 'proficiencias')} />
+      <EditorLista
+        rotulo="Habilidades por nível"
+        itens={dados.habilidades}
+        aoMudar={(v) => mudar({ habilidades: v }, 'habilidades')}
+        podeAdicionar={habilidades.length > 0}
+        rotuloAdicionar={habilidades.length > 0 ? '+ Adicionar habilidade' : 'Crie uma habilidade no compêndio primeiro'}
+        criar={() => ({ nivel: 1, entradaId: habilidades[0]?.id ?? '' })}
+        renderizar={(item, alterar) => (
+          <>
+            <CampoNumero
+              rotulo="Nível"
+              inteiro
+              minimo={1}
+              maximo={20}
+              valor={item.nivel}
+              aoMudar={(nivel) => nivel !== null && alterar({ ...item, nivel })}
+            />
+            <label className="campo">
+              <span>Habilidade</span>
+              <select value={item.entradaId} onChange={(e) => alterar({ ...item, entradaId: e.target.value })}>
+                {!habilidades.some((h) => h.id === item.entradaId) && (
+                  <option value={item.entradaId}>(entrada apagada)</option>
+                )}
+                {habilidades.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.nome || '(sem nome)'}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+      />
+    </>
+  );
+}
+
+export function FormularioEspecie({ dados, mudar, todas }: PropsFormulario<'especie'>) {
+  return (
+    <>
+      <CampoOpcoes rotulo="Tamanho" valor={dados.tamanho} rotulos={ROTULO_TAMANHO} aoMudar={(v) => v && mudar({ tamanho: v }, 'tamanho')} />
+      <CampoNumero rotulo="Deslocamento (pés)" minimo={0} valor={dados.deslocamento} aoMudar={(v) => v !== null && mudar({ deslocamento: v }, 'deslocamento')} />
+      <h3 className="campo-largo">Aumentos de atributo (vazio: nenhum)</h3>
+      {ATRIBUTOS.map((atributo) => (
+        <CampoNumero
+          key={atributo}
+          rotulo={ROTULO_ATRIBUTO[atributo]}
+          inteiro
+          vazioPermitido
+          valor={dados.aumentosAtributo[atributo] ?? null}
+          aoMudar={(v) => {
+            const aumentos = { ...dados.aumentosAtributo };
+            if (v === null) {
+              delete aumentos[atributo];
+            } else {
+              aumentos[atributo] = v;
+            }
+            mudar({ aumentosAtributo: aumentos }, `aumento-${atributo}`);
+          }}
+        />
+      ))}
+      <CampoLinhas rotulo="Idiomas" valores={dados.idiomas} aoMudar={(v) => mudar({ idiomas: v }, 'idiomas')} />
+      <CampoReferencias rotulo="Traços" selecionadas={dados.tracos} disponiveis={referencias(todas, 'habilidade')} aoMudar={(v) => mudar({ tracos: v }, 'tracos')} />
+    </>
+  );
+}
+
+export function FormularioAntecedente({ dados, mudar, todas }: PropsFormulario<'antecedente'>) {
+  return (
+    <>
+      <CampoLinhas rotulo="Proficiências" valores={dados.proficiencias} aoMudar={(v) => mudar({ proficiencias: v }, 'proficiencias')} />
+      <CampoReferencias
+        rotulo="Habilidades"
+        selecionadas={dados.habilidades}
+        disponiveis={referencias(todas, 'habilidade')}
+        aoMudar={(v) => mudar({ habilidades: v }, 'habilidades')}
+      />
+    </>
+  );
+}
+
+export function FormularioTalento({ dados, mudar }: PropsFormulario<'talento'>) {
+  return <CampoTexto rotulo="Pré-requisito" largo valor={dados.prerequisito} aoMudar={(v) => mudar({ prerequisito: v }, 'prerequisito')} />;
+}
+
+export function FormularioMonstro({ dados, mudar }: PropsFormulario<'monstro'>) {
+  const pericias = Object.entries(dados.pericias).map(([nome, valor]) => ({ nome, valor }));
+  return (
+    <>
+      <CampoOpcoes rotulo="Tamanho" valor={dados.tamanho} rotulos={ROTULO_TAMANHO} aoMudar={(v) => v && mudar({ tamanho: v }, 'tamanho')} />
+      <CampoTexto rotulo="Tipo" dica="humanoide (goblinoide)" valor={dados.tipoCriatura} aoMudar={(v) => mudar({ tipoCriatura: v }, 'tipo')} />
+      <CampoTexto rotulo="Alinhamento" valor={dados.alinhamento} aoMudar={(v) => mudar({ alinhamento: v }, 'alinhamento')} />
+      <CampoNumero rotulo="Classe de Armadura" inteiro valor={dados.classeArmadura} aoMudar={(v) => v !== null && mudar({ classeArmadura: v }, 'ca')} />
+      <CampoNumero rotulo="Pontos de vida" inteiro minimo={0} valor={dados.pontosVida} aoMudar={(v) => v !== null && mudar({ pontosVida: v }, 'pv')} />
+      <CampoTexto rotulo="Dados de vida" dica="2d8+2" valor={dados.dadosVida} aoMudar={(v) => mudar({ dadosVida: v }, 'dadosVida')} />
+      <CampoTexto rotulo="Deslocamento" valor={dados.deslocamento} aoMudar={(v) => mudar({ deslocamento: v }, 'deslocamento')} />
+      <CampoNumero rotulo="Nível de desafio" minimo={0} valor={dados.nivelDesafio} aoMudar={(v) => v !== null && mudar({ nivelDesafio: v }, 'nd')} />
+      <CampoNumero rotulo="Experiência" inteiro minimo={0} valor={dados.experiencia} aoMudar={(v) => v !== null && mudar({ experiencia: v }, 'xp')} />
+
+      <h3 className="campo-largo">Atributos</h3>
+      {ATRIBUTOS.map((atributo) => (
+        <CampoNumero
+          key={atributo}
+          rotulo={ROTULO_ATRIBUTO[atributo]}
+          inteiro
+          valor={dados.atributos[atributo]}
+          aoMudar={(v) => v !== null && mudar({ atributos: { ...dados.atributos, [atributo]: v } }, `atributo-${atributo}`)}
+        />
+      ))}
+
+      <h3 className="campo-largo">Salvaguardas (vazio: usa o atributo)</h3>
+      {ATRIBUTOS.map((atributo) => (
+        <CampoNumero
+          key={atributo}
+          rotulo={ROTULO_ATRIBUTO[atributo]}
+          inteiro
+          vazioPermitido
+          valor={dados.salvaguardas[atributo] ?? null}
+          aoMudar={(v) => {
+            const salvaguardas = { ...dados.salvaguardas };
+            if (v === null) {
+              delete salvaguardas[atributo];
+            } else {
+              salvaguardas[atributo] = v;
+            }
+            mudar({ salvaguardas }, `salvaguarda-${atributo}`);
+          }}
+        />
+      ))}
+
+      <EditorLista
+        rotulo="Perícias"
+        itens={pericias}
+        aoMudar={(lista) => mudar({ pericias: Object.fromEntries(lista.map((p) => [p.nome, p.valor])) }, 'pericias')}
+        criar={() => ({ nome: '', valor: 0 })}
+        // As perícias são guardadas pelo nome: duas sem nome virariam uma só.
+        podeAdicionar={!pericias.some((p) => p.nome === '')}
+        rotuloAdicionar="+ Adicionar perícia"
+        renderizar={(p, alterar) => (
+          <>
+            <CampoTexto rotulo="Perícia" valor={p.nome} aoMudar={(nome) => alterar({ ...p, nome })} />
+            <CampoNumero rotulo="Bônus" inteiro valor={p.valor} aoMudar={(valor) => valor !== null && alterar({ ...p, valor })} />
+          </>
+        )}
+      />
+      <CampoTexto rotulo="Sentidos" largo valor={dados.sentidos} aoMudar={(v) => mudar({ sentidos: v }, 'sentidos')} />
+      <CampoTexto rotulo="Idiomas" largo valor={dados.idiomas} aoMudar={(v) => mudar({ idiomas: v }, 'idiomas')} />
+      <EditorBlocos rotulo="Traços" blocos={dados.tracos} aoMudar={(v) => mudar({ tracos: v }, 'tracos')} />
+      <EditorBlocos rotulo="Ações" blocos={dados.acoesDeCombate} aoMudar={(v) => mudar({ acoesDeCombate: v }, 'acoes')} />
+      <EditorBlocos rotulo="Reações" blocos={dados.reacoes} aoMudar={(v) => mudar({ reacoes: v }, 'reacoes')} />
+      <EditorBlocos rotulo="Ações lendárias" blocos={dados.acoesLendarias} aoMudar={(v) => mudar({ acoesLendarias: v }, 'lendarias')} />
+    </>
+  );
+}
+
+/** O formulário dos dados próprios de cada tipo de entrada. */
+export function FormularioDados({
+  entrada,
+  mudar,
+  todas,
+}: {
+  readonly entrada: Entrada;
+  readonly mudar: (parcial: object, campo: string) => void;
+  readonly todas: readonly Entrada[];
+}) {
+  const props = <T extends TipoEntrada>(e: EntradaDe<T>): PropsFormulario<T> => ({
+    dados: e.dados,
+    mudar,
+    todas,
+  });
+  switch (entrada.tipo) {
+    case 'item':
+      return <FormularioItem {...props(entrada)} />;
+    case 'magia':
+      return <FormularioMagia {...props(entrada)} />;
+    case 'habilidade':
+      return <FormularioHabilidade {...props(entrada)} />;
+    case 'classe':
+      return <FormularioClasse {...props(entrada)} />;
+    case 'especie':
+      return <FormularioEspecie {...props(entrada)} />;
+    case 'antecedente':
+      return <FormularioAntecedente {...props(entrada)} />;
+    case 'talento':
+      return <FormularioTalento {...props(entrada)} />;
+    case 'condicao':
+      return <p className="tela-dica campo-largo">Condições não têm dados próprios: o que elas fazem será definido nos efeitos.</p>;
+    case 'monstro':
+      return <FormularioMonstro {...props(entrada)} />;
+  }
+}

@@ -368,30 +368,62 @@ export function lerEntradas(valor: unknown, onde: string): Entrada[] {
   });
 }
 
-export function serializarCompendio(estado: EstadoCompendio): string {
-  return JSON.stringify({ versao: VERSAO_COMPENDIO, entradas: Object.values(estado.entradas) });
+export function compendioParaObjeto(estado: EstadoCompendio) {
+  return { entradas: Object.values(estado.entradas) };
 }
 
-export function desserializarCompendio(
-  texto: string,
-): ResultadoDe<{ readonly estado: EstadoCompendio }> {
+function lerJson(texto: string, oQue: string): unknown {
   try {
-    let dados: unknown;
-    try {
-      dados = JSON.parse(texto);
-    } catch {
-      throw new ErroDeFormato('O compêndio não é um JSON válido.');
-    }
-    exigir(
-      ehObjeto(dados) && dados.versao === VERSAO_COMPENDIO,
-      'O compêndio usa um formato desconhecido.',
-    );
-    const entradas = lerEntradas(dados.entradas, 'O compêndio');
-    return { ok: true, estado: { entradas: Object.fromEntries(entradas.map((e) => [e.id, e])) } };
+    return JSON.parse(texto);
+  } catch {
+    throw new ErroDeFormato(`${oQue} não é um JSON válido.`);
+  }
+}
+
+function lerEstado(dados: unknown, onde: string): EstadoCompendio {
+  exigir(ehObjeto(dados), `${onde} não é válido.`);
+  const entradas = lerEntradas(dados.entradas, onde);
+  return { entradas: Object.fromEntries(entradas.map((e) => [e.id, e])) };
+}
+
+function comoResultado<T>(ler: () => T): ResultadoDe<T> {
+  try {
+    return { ok: true, ...ler() };
   } catch (erro) {
     if (erro instanceof ErroDeFormato) {
       return { ok: false, erro: erro.message };
     }
     throw erro;
   }
+}
+
+/** Formato do salvamento automático do compêndio, separado do mapa e da campanha. */
+export function serializarCompendio(estado: EstadoCompendio): string {
+  return JSON.stringify({ versao: VERSAO_COMPENDIO, ...compendioParaObjeto(estado) });
+}
+
+export function desserializarCompendio(
+  texto: string,
+): ResultadoDe<{ readonly estado: EstadoCompendio }> {
+  return comoResultado(() => {
+    const dados = lerJson(texto, 'O compêndio');
+    exigir(
+      ehObjeto(dados) && dados.versao === VERSAO_COMPENDIO,
+      'O compêndio usa um formato desconhecido.',
+    );
+    return { estado: lerEstado(dados, 'O compêndio') };
+  });
+}
+
+/** O compêndio dentro de um arquivo salvo. Arquivos sem compêndio devolvem `estado: null`. */
+export function lerCompendioDoArquivo(
+  texto: string,
+): ResultadoDe<{ readonly estado: EstadoCompendio | null }> {
+  return comoResultado(() => {
+    const dados = lerJson(texto, 'O arquivo');
+    if (!ehObjeto(dados) || !('compendio' in dados)) {
+      return { estado: null };
+    }
+    return { estado: lerEstado(dados.compendio, 'O compêndio do arquivo') };
+  });
 }

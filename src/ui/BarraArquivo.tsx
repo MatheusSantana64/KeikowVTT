@@ -6,6 +6,8 @@ import { desserializarMapa } from '../core/persistencia';
 import { lerCampanhaDoArquivo, serializarArquivoCompleto } from '../core/persistenciaCampanha';
 import type { LojaRegistro } from '../core/registro';
 import type { LojaCampanha } from '../core/campanha';
+import type { LojaCompendio } from '../core/compendio';
+import { lerCompendioDoArquivo } from '../core/persistenciaCompendio';
 
 export interface Mensagem {
   readonly tipo: 'info' | 'aviso' | 'erro';
@@ -17,6 +19,7 @@ interface BarraArquivoProps {
   readonly lojaGrupo: LojaGrupo;
   readonly lojaCampanha: LojaCampanha;
   readonly lojaRegistro: LojaRegistro;
+  readonly lojaCompendio: LojaCompendio;
   readonly aoAbrirMapa: (estado: EstadoMapa) => void;
   readonly aoMensagem: (mensagem: Mensagem) => void;
 }
@@ -43,6 +46,7 @@ export function BarraArquivo({
   lojaGrupo,
   lojaCampanha,
   lojaRegistro,
+  lojaCompendio,
   aoAbrirMapa,
   aoMensagem,
 }: BarraArquivoProps) {
@@ -57,10 +61,12 @@ export function BarraArquivo({
   const salvar = () => {
     const nome = nomeDoArquivo();
     baixarTexto(
-      serializarArquivoCompleto(loja.obterEstado(), lojaGrupo.obterEstado(), {
-        campanha: lojaCampanha.obterEstado(),
-        registro: lojaRegistro.obterEntradas(),
-      }),
+      serializarArquivoCompleto(
+        loja.obterEstado(),
+        lojaGrupo.obterEstado(),
+        { campanha: lojaCampanha.obterEstado(), registro: lojaRegistro.obterEntradas() },
+        lojaCompendio.obterEstado(),
+      ),
       nome,
     );
     aoMensagem({ tipo: 'info', texto: `Salvo em Downloads como ${nome}` });
@@ -75,10 +81,18 @@ export function BarraArquivo({
     const texto = await arquivo.text();
     const resultado = desserializarMapa(texto);
     const lidaCampanha = lerCampanhaDoArquivo(texto);
+    const lidoCompendio = lerCompendioDoArquivo(texto);
     // Sem isso, escolher o mesmo arquivo de novo não dispararia este evento.
     entrada.value = '';
-    if (!resultado.ok || !lidaCampanha.ok) {
-      const motivo = !resultado.ok ? resultado.erro : !lidaCampanha.ok ? lidaCampanha.erro : '';
+    // Qualquer parte com problema cancela tudo: abrir só metade misturaria duas campanhas.
+    if (!resultado.ok || !lidaCampanha.ok || !lidoCompendio.ok) {
+      const motivo = !resultado.ok
+        ? resultado.erro
+        : !lidaCampanha.ok
+          ? lidaCampanha.erro
+          : !lidoCompendio.ok
+            ? lidoCompendio.erro
+            : '';
       aoMensagem({ tipo: 'erro', texto: `Não foi possível abrir: ${motivo}` });
       return;
     }
@@ -87,12 +101,16 @@ export function BarraArquivo({
       lojaRegistro.substituir(lidaCampanha.conteudo.registro);
       lojaCampanha.despachar({ tipo: 'CarregarCampanha', estado: lidaCampanha.conteudo.campanha });
     }
+    if (lidoCompendio.estado) {
+      lojaCompendio.despachar({ tipo: 'CarregarCompendio', estado: lidoCompendio.estado });
+    }
     loja.despachar({ tipo: 'CarregarMapa', estado: resultado.estado });
     lojaGrupo.despachar({ tipo: 'PosicionarGrupo', coord: resultado.grupo.posicao });
     aoMensagem({
       tipo: 'info',
       texto: lidaCampanha.conteudo
-        ? 'Campanha aberta. Ctrl+Z traz o mapa anterior de volta, mas não os jogadores.'
+        ? 'Campanha aberta. Ctrl+Z traz o mapa anterior de volta, mas não os jogadores.' +
+          (lidoCompendio.estado ? ' O compêndio anterior volta com Ctrl+Z na tela do compêndio.' : '')
         : 'Mapa aberto. Ctrl+Z traz o anterior de volta.',
     });
     aoAbrirMapa(resultado.estado);

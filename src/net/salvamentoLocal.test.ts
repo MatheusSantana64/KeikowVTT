@@ -5,10 +5,14 @@ import { criarMapaVazio, hexEm, aplicarAcao, type AcaoMapa } from '../core/mapa'
 import { serializarMapa } from '../core/persistencia';
 import { criarLojaCampanha } from '../core/campanha';
 import { criarLojaRegistro } from '../core/registro';
+import { criarLojaCompendio } from '../core/compendio';
+import { criarEntrada } from '../core/entradas';
 import {
   lerCampanhaLocal,
+  lerCompendioLocal,
   lerSalvamentoLocal,
   manterCampanhaLocal,
+  manterCompendioLocal,
   manterSalvamentoLocal,
 } from './salvamentoLocal';
 
@@ -287,6 +291,28 @@ describe('salvamento da campanha', () => {
       ok: true,
       campanha: { nome: 'Às pressas' },
     });
+  });
+});
+
+describe('salvamento do compêndio', () => {
+  it('as entradas podem ser lidas de volta, sem mexer no mapa', async () => {
+    const principal = armazenamentoPrincipal();
+    const rapido = armazenamentoRapido();
+    principal.dados.set(CHAVE, mapaValido());
+    const lojaCompendio = criarLojaCompendio();
+    manterCompendioLocal(lojaCompendio, vi.fn(), principal, rapido);
+    lojaCompendio.despachar({
+      tipo: 'AdicionarEntrada',
+      entrada: { ...criarEntrada('item', 'espada'), nome: 'Espada' },
+    });
+    await esperarSalvamento();
+    const lido = await lerCompendioLocal(principal, rapido);
+    expect(lido?.ok && lido.estado.entradas.espada?.nome).toBe('Espada');
+    expect(principal.dados.get(CHAVE)).toBe(mapaValido());
+  });
+
+  it('sem nada salvo, a leitura devolve null', async () => {
+    expect(await lerCompendioLocal(armazenamentoPrincipal(), armazenamentoRapido())).toBeNull();
   });
 });
 

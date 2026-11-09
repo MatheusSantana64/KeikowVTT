@@ -13,6 +13,8 @@ import {
   type ConteudoCampanha,
 } from '../core/persistenciaCampanha';
 import type { LojaRegistro } from '../core/registro';
+import type { EstadoCompendio, LojaCompendio } from '../core/compendio';
+import { desserializarCompendio, serializarCompendio } from '../core/persistenciaCompendio';
 import type { ArmazenamentoLocal } from './armazenamentoLocal';
 
 const ESPERA_MS = 500;
@@ -219,6 +221,35 @@ export function manterSalvamentoLocal(
     DOCUMENTO_MAPA,
     () => serializarMapa(loja.obterEstado(), lojaGrupo.obterEstado()),
     [loja.assinar, lojaGrupo.assinar],
+    aoFalhar,
+    { principal, rapido },
+  );
+}
+
+const DOCUMENTO_COMPENDIO = {
+  chave: 'keikow.compendio',
+  chaveEmergencia: 'keikow.compendio.emergencia',
+  desserializar: desserializarCompendio,
+};
+
+/** Lê o compêndio guardado neste navegador, ou `null` se ainda não houver nada. */
+export function lerCompendioLocal(
+  principal: ArmazenamentoLocal,
+  rapido: ArmazenamentoRapido,
+): Promise<ResultadoDe<{ readonly estado: EstadoCompendio }> | null> {
+  return lerDocumento(DOCUMENTO_COMPENDIO, { principal, rapido });
+}
+
+export function manterCompendioLocal(
+  lojaCompendio: LojaCompendio,
+  aoFalhar: () => void,
+  principal: ArmazenamentoLocal,
+  rapido: ArmazenamentoRapido,
+): () => void {
+  return manterDocumento(
+    DOCUMENTO_COMPENDIO,
+    () => serializarCompendio(lojaCompendio.obterEstado()),
+    [lojaCompendio.assinar],
     aoFalhar,
     { principal, rapido },
   );

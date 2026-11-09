@@ -81,8 +81,8 @@ Cada fase deve funcionar sozinha antes de avançar.
   1. ✅ Armazenamento novo (IndexedDB), trazendo o mapa do armazenamento antigo.
   2. ✅ Campanha, jogadores simulados e registro de quem fez cada ação.
   3. ✅ Regras das entradas do compêndio em `core/` (`entradas.ts`, `compendio.ts`, `persistenciaCompendio.ts`). O desfazer virou uma peça comum, em `lojaHistorico.ts`.
-  4. Tela do compêndio: buscar, filtrar, criar, editar, duplicar, apagar (próximo). Inclui ligar o compêndio ao salvamento automático e ao arquivo.
-  5. Importar o SRD 5.1 completo, com os créditos exigidos; confirmar antes a licença da base organizada.
+  4. ✅ Tela do compêndio: buscar, filtrar, criar, editar, duplicar, apagar, com desfazer próprio. O compêndio entra no salvamento automático e no arquivo. Efeitos e ações ainda não são editáveis na tela (passos 9 e 10).
+  5. Importar o SRD 5.1 completo, com os créditos exigidos; confirmar antes a licença da base organizada (próximo).
   6. Motor de fórmulas e regras parecidas com 5e, guardadas como dados.
   7. Ficha de personagem, NPC e monstro, mostrando de onde vem cada número.
   8. Inventário e organização livre de itens, habilidades e notas.
