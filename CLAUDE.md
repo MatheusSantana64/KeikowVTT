@@ -1,9 +1,12 @@
 # KeikowVTT
 
 Virtual Tabletop pessoal para jogar RPG de mesa (estilo D&D) com amigos pela internet.
-A meta de longo prazo é que, para o jogador, a mesa **pareça um CRPG** (referência: Baldur's Gate):
+A meta de longo prazo é que, para o jogador, a mesa **pareça um CRPG** (referência de experiência: Baldur's Gate 3, em 2D):
 movimento com medidor, ações com custos, feedback visual de habilidades e magias, mecânicas "gamificadas".
-Não é um videogame completo, mas deve parecer um aos olhos do jogador.
+Não é um videogame completo, mas deve parecer um aos olhos do jogador; muito fica para a imaginação da mesa.
+O clima de CRPG é objetivo principalmente das instâncias táticas, e não do hexcrawl.
+Ambição de tamanho: bem grande, na direção do que o Foundry VTT oferece, sem chegar à mesma magnitude.
+**Sistema de regras:** muito parecido com D&D 5e, para começar.
 
 ## Sobre o usuário (importante)
 - Iniciante em programação. **Não quer programar**: todo o código fica a cargo do Claude.
@@ -16,19 +19,22 @@ Não é um videogame completo, mas deve parecer um aos olhos do jogador.
 - **Hexcrawl** como mapa-mundi: grid hexagonal, revelado aos poucos (fog of war).
 - Cada hex **guarda informações**: públicas, secretas do mestre, adicionadas antes ou durante o jogo.
 - Cada hex pode ter uma **instância** (mapa tático separado) onde acontecem combates/exploração, não necessariamente em hex.
-- **Online**, login via **Discord**. Papéis: mestre e jogadores, com permissões diferentes.
-- **Banco de dados** de personagens, inventários, itens, NPCs, compêndios, habilidades; fácil de entregar/associar a jogadores.
+- **Online**, com contas próprias e campanhas. Papéis: mestre e jogadores, com permissões diferentes. Sem integração com o Discord: a voz fica em uma call separada.
+- **Banco de dados** de personagens, fichas, inventários, itens, NPCs, compêndios, habilidades, com novas entradas criadas pelo mestre e objetos que interagem entre si; fácil de entregar/associar a jogadores.
+- **Instâncias** com dungeons, objetos espalhados e inimigos em diversos pontos do mapa.
+- **Chat de texto** dentro da ferramenta, com resultado de rolagens e mensagens públicas ou secretas, entre mestre e jogadores e entre jogadores.
 - Futuro: camada de jogo estilo CRPG (movimento medido, economia de ações, animações e efeitos de magia, sons).
 
 ## Stack
 - **Frontend:** React + Vite + TypeScript (interface: fichas, inventário, painéis, banco de dados).
 - **Cena/mapa:** PixiJS v8 (renderização 2D acelerada por GPU: tiles, tokens, partículas, shaders/filtros).
   - Bibliotecas de apoio quando necessário: pixi-viewport (câmera/zoom), GSAP (animações), @pixi/sound, emissor de partículas.
-- **Backend (a partir da fase 4):** Supabase (Postgres, Auth com Discord, Realtime, Storage).
+- **Backend (a partir da fase 7):** a definir quando chegarmos lá. Supabase (Postgres, Auth, Realtime, Storage) é o candidato;
+  alternativas são um plano pago ou um servidor próprio, inclusive hospedado pelo mestre, como no Foundry.
   - Se o combate exigir validação autoritativa no servidor, adicionar um servidor de jogo em Node/TypeScript
     (ex.: Colyseus) reaproveitando o mesmo motor de regras.
-- **Hospedagem:** Vercel ou Netlify (frontend) + Supabase.
-- Tudo web: mantém aberta a opção de rodar dentro do Discord como **Discord Activity**.
+- **Hospedagem:** decidida junto com o backend (Vercel ou Netlify são candidatos para o frontend).
+- Tudo web.
 
 ## Princípios de arquitetura (não violar)
 1. **Quatro camadas separadas:**
@@ -61,16 +67,17 @@ Cada fase deve funcionar sozinha antes de avançar.
    camada de decorações, salvar/carregar JSON.
 2. **Informação por hex** — painel ao clicar: nome, descrição, notas públicas, notas secretas do mestre.
 3. **Fog of war** — mestre revela hexes; botão "ver como jogador".
-4. **Online** — Supabase, login Discord, campanhas, papéis, sincronização em tempo real.
+4. **Banco de dados do jogo** — personagens, fichas, inventários, itens, NPCs, habilidades, novas entradas, objetos que interagem
+   entre si, permissões e entrega a jogadores. Começa trocando o armazenamento local, pois o do navegador (cerca de 5 MB) não comporta um compêndio.
 5. **Token do grupo** no hexcrawl (movimento, histórico de viagem).
-6. **Banco de dados do jogo** — personagens, inventários, itens, NPCs, habilidades, permissões e entrega a jogadores.
-7. **Instâncias táticas** — mapa por hex, tokens, grid quadrado ou livre.
+6. **Instâncias táticas** — mapa por hex, dungeons, tokens, objetos e inimigos espalhados, grid quadrado ou livre.
+7. **Online** — contas, campanhas, papéis, sincronização em tempo real, hospedagem, chat de texto com rolagens e mensagens públicas ou secretas.
 8. **Camada CRPG** — medidor de movimento, economia de ações, alcance/área visíveis, animações e efeitos de magia,
-   sons, log de combate, rolagens com feedback visual.
-9. **Extras** — integração mais profunda com Discord (bot de rolagens, Discord Activity), mais gamificação.
+   sons, log de combate, rolagens com feedback visual. Vem depois do online porque combate depende de quem age e de quem tem a palavra final.
+9. **Extras** — mais gamificação, personalização da aparência pelos jogadores, profissão "cartógrafo".
 
 ## Status atual
-- **Fase 3 concluída** (visão dos jogadores). Próxima: Fase 4; antes de planejá-la, perguntar ao usuário quais são as exceções em que o mapa muda durante uma sessão online. Os passos foram:
+- **Fase 3 concluída** (visão dos jogadores). Próxima: Fase 4 (banco de dados do jogo). Os passos foram:
   1. ✅ Teste visual das aparências dos hexes não vistos (página provisória, já removida).
   2. ✅ Regras em `core/`: vizinhos, posição do grupo, revelar e ocultar, visão do jogador e aparência do mapa.
   3. ✅ Formato do arquivo com revelação, aparência e posição do grupo, convertendo mapas antigos.
@@ -96,6 +103,7 @@ Cada fase deve funcionar sozinha antes de avançar.
 - Comandos: `npm run dev` (editor), `npm test`, `npm run build`, `npm run assets` (regera `public/assets/` a partir de `Hex Samples/`).
 
 ## Decisões já tomadas
+- **Tudo é construído pensando no online, mesmo antes de ele existir:** toda ação registra quem a fez, toda informação diz quem pode vê-la (incluindo jogador específico) e "ver como jogador" simula cada jogador para testar permissões sem internet.
 - **Tipo do asset vem do nome do arquivo** (`scripts/classificar-asset.mjs`): `hexRiver…` sobreposição (2:3), `hexUnder…` base (4:3), `hex…` tile (2:3), outro nome decoração. Imagens de hex de outros tamanhos são ajustadas para o hex; decorações são desenhadas no tamanho original. `hexPortCentre00` é exceção: decoração.
 - Rios só têm o rio desenhado: vão por cima de um terreno, encaixados no centro do hex, sem conexão automática.
 - Mapa sem limite de tamanho. Decorações têm posição livre, presas a um hex: apagar o hex apaga as decorações; trocar o terreno as mantém.
