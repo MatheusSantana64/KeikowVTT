@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { aparenciasIguais, APARENCIA_PADRAO, type AparenciaOculta } from './aparencia';
 import { aplicarAcao, criarMapaVazio, hexEm, type AcaoMapa, type EstadoMapa, type Nota } from './mapa';
-import { SO_MESTRE, VISIVEL_A_TODOS, visaoDoJogador } from './visibilidade';
+import { nivelDeVisao, SO_MESTRE, VISIVEL_A_TODOS, visaoDoJogador } from './visibilidade';
 
 const A = { q: 0, r: 0 };
 const VIZINHO = { q: 1, r: 0 };
@@ -157,6 +157,37 @@ describe('visaoDoJogador', () => {
     const inicial = mapa();
     visaoDoJogador(inicial, [A]);
     expect(hexEm(inicial, A)?.notas).toHaveLength(2);
+  });
+});
+
+describe('nivelDeVisao', () => {
+  const nivelEm = (estado: EstadoMapa, coord: typeof A, posicoes: (typeof A)[]) =>
+    nivelDeVisao(hexEm(estado, coord)!, posicoes);
+
+  it('o hex do grupo é completo', () => {
+    expect(nivelEm(mapa(), A, [A])).toBe('completo');
+  });
+
+  it('um vizinho é avistado', () => {
+    expect(nivelEm(mapa(), VIZINHO, [A])).toBe('avistado');
+  });
+
+  it('um hex distante é oculto', () => {
+    expect(nivelEm(mapa(), DISTANTE, [A])).toBe('oculto');
+  });
+
+  it('sem posição, tudo é oculto', () => {
+    expect(nivelEm(mapa(), A, [])).toBe('oculto');
+  });
+
+  it('um hex revelado à mão é avistado', () => {
+    const revelado = aplicarAcao(mapa(), { tipo: 'RevelarHex', coord: DISTANTE });
+    expect(nivelEm(revelado, DISTANTE, [A])).toBe('avistado');
+  });
+
+  it('um hex revelado onde o grupo está é completo', () => {
+    const revelado = aplicarAcao(mapa(), { tipo: 'RevelarHex', coord: A });
+    expect(nivelEm(revelado, A, [A])).toBe('completo');
   });
 });
 

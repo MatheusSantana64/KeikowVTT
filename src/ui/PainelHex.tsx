@@ -1,19 +1,35 @@
 import { useRef, useState, useSyncExternalStore } from 'react';
+import type { LojaGrupo } from '../core/grupo';
 import { chaveHex, type CoordHex } from '../core/hex';
 import type { LojaMapa } from '../core/loja';
 import { hexEm, type Nota } from '../core/mapa';
-import { SO_MESTRE, VISIVEL_A_TODOS, type Visibilidade } from '../core/visibilidade';
+import {
+  nivelDeVisao,
+  SO_MESTRE,
+  VISIVEL_A_TODOS,
+  type NivelDeVisao,
+  type Visibilidade,
+} from '../core/visibilidade';
 import { nomeAmigavel } from './nomeAmigavel';
 
 interface PainelHexProps {
   readonly loja: LojaMapa;
+  readonly lojaGrupo: LojaGrupo;
   readonly coord: CoordHex;
   readonly aoFechar: () => void;
 }
 
-export function PainelHex({ loja, coord, aoFechar }: PainelHexProps) {
+const DESCRICAO_NIVEL: Readonly<Record<NivelDeVisao, string>> = {
+  completo: 'O grupo está aqui: os jogadores veem tudo o que é público.',
+  avistado: 'Os jogadores veem só o terreno e as decorações.',
+  oculto: 'Os jogadores não veem este hex.',
+};
+
+export function PainelHex({ loja, lojaGrupo, coord, aoFechar }: PainelHexProps) {
   const estado = useSyncExternalStore(loja.assinar, loja.obterEstado);
+  const { posicao } = useSyncExternalStore(lojaGrupo.assinar, lojaGrupo.obterEstado);
   const hex = hexEm(estado, coord);
+  const grupoEstaAqui = posicao?.q === coord.q && posicao.r === coord.r;
   // Cada vez que um campo recebe o foco começa um novo passo de desfazer.
   const sessaoDeFoco = useRef(0);
   const [notaRecemCriada, setNotaRecemCriada] = useState<string | null>(null);
@@ -109,6 +125,29 @@ export function PainelHex({ loja, coord, aoFechar }: PainelHexProps) {
 
       {hex && (
         <>
+          <section className="painel-visao">
+            <p>
+              {DESCRICAO_NIVEL[nivelDeVisao(hex, posicao ? [posicao] : [])]}
+              {hex.revelado && ' Revelado por você.'}
+            </p>
+            <div className="painel-nota-acoes">
+              <button
+                type="button"
+                onClick={() =>
+                  loja.despachar({ tipo: hex.revelado ? 'OcultarHex' : 'RevelarHex', coord })
+                }
+              >
+                {hex.revelado ? 'Ocultar' : 'Revelar'}
+              </button>
+              <button
+                type="button"
+                disabled={grupoEstaAqui}
+                onClick={() => lojaGrupo.despachar({ tipo: 'PosicionarGrupo', coord })}
+              >
+                Colocar o grupo aqui
+              </button>
+            </div>
+          </section>
           <label className="painel-campo">
             Nome
             <input

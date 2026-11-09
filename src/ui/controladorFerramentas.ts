@@ -3,6 +3,7 @@ import type { LojaGrupo } from '../core/grupo';
 import type { LojaMapa } from '../core/loja';
 import { hexEm, temAnotacoes } from '../core/mapa';
 import type { Manifesto } from '../core/manifesto';
+import { nivelDeVisao } from '../core/visibilidade';
 import type { CenaMapa } from '../render/createMapScene';
 
 export type Ferramenta =
@@ -276,8 +277,16 @@ export function criarControlador(
     },
 
     aoClicar(ponto: PontoMundo) {
-      if (ferramenta.tipo === 'nenhuma' && !somenteLeitura) {
-        aoSelecionarHex(mundoParaHex(ponto));
+      const coord = mundoParaHex(ponto);
+      if (somenteLeitura) {
+        // O jogador só consegue abrir o que está ao alcance da visão dele.
+        const hex = hexEm(loja.obterEstado(), coord);
+        const { posicao } = lojaGrupo.obterEstado();
+        if (hex && nivelDeVisao(hex, posicao ? [posicao] : []) !== 'oculto') {
+          aoSelecionarHex(coord);
+        }
+      } else if (ferramenta.tipo === 'nenhuma') {
+        aoSelecionarHex(coord);
       }
     },
   };

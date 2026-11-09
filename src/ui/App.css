@@ -262,7 +262,7 @@ body {
 .faixa-jogador {
   position: absolute;
   top: 12px;
-  left: 50%;
+  left: 12px;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -273,7 +273,6 @@ body {
   background: #1d2029;
   box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
   font-size: 13px;
-  transform: translateX(-50%);
 }
 
 .faixa-jogador button {
@@ -373,6 +372,29 @@ body {
 .painel-hex textarea:focus {
   border-color: #7fd4ff;
   outline: none;
+}
+
+.painel-visao {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #14161c;
+}
+
+.painel-hex .painel-visao p {
+  margin: 0 0 4px;
+  font-size: 12px;
+}
+
+.painel-nota-acoes button:disabled {
+  color: #6b6d68;
+  cursor: default;
+}
+
+.painel-hex .painel-texto {
+  color: #e6e3da;
+  font-size: 13px;
+  white-space: pre-wrap;
 }
 
 .painel-campo {

@@ -163,11 +163,38 @@ describe('modo somente leitura', () => {
     expect(cena.mostrarPrevia).not.toHaveBeenCalled();
   });
 
-  it('o clique não abre o painel de edição', () => {
+  it('sem posição do grupo, o clique em hex oculto não abre nada', () => {
     const { controlador, aoSelecionarHex } = emLeitura();
     controlador.definirSomenteLeitura(true);
     controlador.aoClicar(centroB);
     expect(aoSelecionarHex).not.toHaveBeenCalled();
+  });
+
+  it('o clique abre o hex do grupo e os vizinhos', () => {
+    const { lojaGrupo, controlador, aoSelecionarHex } = emLeitura();
+    lojaGrupo.despachar({ tipo: 'PosicionarGrupo', coord: A });
+    controlador.definirSomenteLeitura(true);
+    controlador.aoClicar({ x: 0, y: 0 });
+    controlador.aoClicar(centroB);
+    expect(aoSelecionarHex.mock.calls).toEqual([[A], [B]]);
+  });
+
+  it('o clique não abre um hex com terreno fora da visão', () => {
+    const { loja, lojaGrupo, controlador, aoSelecionarHex } = emLeitura();
+    const distante = { q: 5, r: 0 };
+    loja.despachar({ tipo: 'ColocarTile', coord: distante, terreno: 'tile' });
+    lojaGrupo.despachar({ tipo: 'PosicionarGrupo', coord: A });
+    controlador.definirSomenteLeitura(true);
+    controlador.aoClicar(hexParaMundo(distante));
+    expect(aoSelecionarHex).not.toHaveBeenCalled();
+  });
+
+  it('o clique abre um hex revelado à mão, mesmo sem grupo', () => {
+    const { loja, controlador, aoSelecionarHex } = emLeitura();
+    loja.despachar({ tipo: 'RevelarHex', coord: B });
+    controlador.definirSomenteLeitura(true);
+    controlador.aoClicar(centroB);
+    expect(aoSelecionarHex).toHaveBeenCalledExactlyOnceWith(B);
   });
 
   it('ao sair do modo, volta sem ferramenta e consegue editar', () => {

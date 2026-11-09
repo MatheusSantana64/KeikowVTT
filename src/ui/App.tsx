@@ -19,6 +19,7 @@ import { createMapScene, type CenaMapa } from '../render/createMapScene';
 import { BarraArquivo, type Mensagem } from './BarraArquivo';
 import { criarControlador, SEM_FERRAMENTA, type Ferramenta } from './controladorFerramentas';
 import { PainelHex } from './PainelHex';
+import { PainelHexJogador } from './PainelHexJogador';
 import { Paleta } from './Paleta';
 import { SeletorAparencia } from './SeletorAparencia';
 
@@ -87,6 +88,11 @@ export function App() {
   const [hexSelecionado, setHexSelecionado] = useState<CoordHex | null>(null);
   const [modoJogador, setModoJogador] = useState(false);
   const grupo = useSyncExternalStore(lojaGrupo.assinar, lojaGrupo.obterEstado);
+
+  const sairDoModoJogador = useCallback(() => {
+    setModoJogador(false);
+    setHexSelecionado(null);
+  }, []);
 
   const controlador = useMemo(
     () =>
@@ -191,7 +197,11 @@ export function App() {
       if (modoJogador) {
         // O modo jogador só olha: nenhum atalho de edição funciona aqui.
         if (evento.key === 'Escape') {
-          setModoJogador(false);
+          if (hexSelecionado) {
+            setHexSelecionado(null);
+          } else {
+            sairDoModoJogador();
+          }
         }
         return;
       }
@@ -217,7 +227,7 @@ export function App() {
     };
     window.addEventListener('keydown', aoApertarTecla);
     return () => window.removeEventListener('keydown', aoApertarTecla);
-  }, [loja, selecionarFerramenta, ferramenta, modoJogador]);
+  }, [loja, selecionarFerramenta, ferramenta, modoJogador, hexSelecionado, sairDoModoJogador]);
 
   const pontoDoEvento = (evento: DragEvent<HTMLElement>): PontoMundo | null => {
     const limites = evento.currentTarget.getBoundingClientRect();
@@ -409,15 +419,25 @@ export function App() {
               Vendo como jogador
               {!grupo.posicao && ': o grupo ainda não foi posicionado'}
             </span>
-            <button type="button" onClick={() => setModoJogador(false)}>
+            <button type="button" onClick={sairDoModoJogador}>
               Voltar ao modo mestre
             </button>
           </div>
         )}
-        {hexSelecionado && (
+        {hexSelecionado && modoJogador && (
+          <PainelHexJogador
+            key={chaveHex(hexSelecionado)}
+            loja={loja}
+            lojaGrupo={lojaGrupo}
+            coord={hexSelecionado}
+            aoFechar={() => setHexSelecionado(null)}
+          />
+        )}
+        {hexSelecionado && !modoJogador && (
           <PainelHex
             key={chaveHex(hexSelecionado)}
             loja={loja}
+            lojaGrupo={lojaGrupo}
             coord={hexSelecionado}
             aoFechar={() => setHexSelecionado(null)}
           />
