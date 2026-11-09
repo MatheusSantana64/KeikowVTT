@@ -1,4 +1,5 @@
 import type { AcaoCampanha } from './campanha';
+import type { AcaoCompendio } from './compendio';
 import type { AcaoGrupo } from './grupo';
 import type { CoordHex } from './hex';
 import type { AcaoMapa } from './mapa';
@@ -11,8 +12,11 @@ export type TipoEvento =
   | AcaoMapa['tipo']
   | AcaoGrupo['tipo']
   | AcaoCampanha['tipo']
+  | AcaoCompendio['tipo']
   | 'Desfazer'
-  | 'Refazer';
+  | 'Refazer'
+  | 'DesfazerCompendio'
+  | 'RefazerCompendio';
 
 /** Algo que acabou de acontecer. Nunca carrega textos escritos, para não vazar segredos. */
 export interface EventoExecutado {

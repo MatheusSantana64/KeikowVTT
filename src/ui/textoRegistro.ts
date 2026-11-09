@@ -30,8 +30,16 @@ const DESCRICOES: Readonly<Record<TipoEvento, (quantidade: number) => string>> =
   RenomearParticipante: fixo('renomeou um participante'),
   RemoverParticipante: fixo('removeu um jogador'),
   CarregarCampanha: fixo('abriu uma campanha de um arquivo'),
+  AdicionarEntrada: fixo('criou uma entrada no compêndio'),
+  EditarEntrada: fixo('editou uma entrada do compêndio'),
+  DuplicarEntrada: fixo('duplicou uma entrada do compêndio'),
+  RemoverEntrada: fixo('apagou uma entrada do compêndio'),
+  ImportarEntradas: fixo('importou entradas para o compêndio'),
+  CarregarCompendio: fixo('abriu um compêndio de um arquivo'),
   Desfazer: fixo('desfez uma edição do mapa'),
   Refazer: fixo('refez uma edição do mapa'),
+  DesfazerCompendio: fixo('desfez uma edição do compêndio'),
+  RefazerCompendio: fixo('refez uma edição do compêndio'),
 };
 
 export function nomeDoAutor(autorId: string, participantes: readonly Participante[]): string {

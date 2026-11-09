@@ -1,0 +1,397 @@
+import type { EstadoCompendio } from './compendio';
+import {
+  ATRIBUTOS,
+  CATEGORIAS_ITEM,
+  ESCOLAS_MAGIA,
+  MOEDAS,
+  PESOS_ARMADURA,
+  QUANDO_EFEITO,
+  RARIDADES,
+  RECARGAS,
+  TAMANHOS,
+  TIPOS_ENTRADA,
+  type AcaoDeEntrada,
+  type Atributo,
+  type BlocoDeTexto,
+  type DadosArma,
+  type DadosArmadura,
+  type DadosPorTipo,
+  type Efeito,
+  type Entrada,
+  type OrigemEntrada,
+  type PassoDeAcao,
+  type TipoEntrada,
+} from './entradas';
+import {
+  ehObjeto,
+  ErroDeFormato,
+  exigir,
+  lerVisibilidade,
+  type ResultadoDe,
+} from './persistencia';
+
+const VERSAO_COMPENDIO = 1;
+
+type Dado = Record<string, unknown>;
+
+function objeto(valor: unknown, onde: string): Dado {
+  exigir(ehObjeto(valor), `${onde} não é válido.`);
+  return valor;
+}
+
+function texto(d: Dado, campo: string, onde: string): string {
+  const valor = d[campo];
+  exigir(typeof valor === 'string', `${onde}: "${campo}" precisa ser um texto.`);
+  return valor;
+}
+
+function textoPreenchido(d: Dado, campo: string, onde: string): string {
+  const valor = texto(d, campo, onde);
+  exigir(valor !== '', `${onde}: "${campo}" não pode ficar vazio.`);
+  return valor;
+}
+
+function textoOuNulo(d: Dado, campo: string, onde: string): string | null {
+  return d[campo] === null ? null : texto(d, campo, onde);
+}
+
+function numero(
+  d: Dado,
+  campo: string,
+  onde: string,
+  { inteiro = false, minimo = -Infinity, maximo = Infinity } = {},
+): number {
+  const valor = d[campo];
+  exigir(
+    typeof valor === 'number' &&
+      Number.isFinite(valor) &&
+      (!inteiro || Number.isInteger(valor)) &&
+      valor >= minimo &&
+      valor <= maximo,
+    `${onde}: "${campo}" tem um número inválido.`,
+  );
+  return valor as number;
+}
+
+function numeroOuNulo(d: Dado, campo: string, onde: string): number | null {
+  return d[campo] === null ? null : numero(d, campo, onde);
+}
+
+function booleano(d: Dado, campo: string, onde: string): boolean {
+  const valor = d[campo];
+  exigir(typeof valor === 'boolean', `${onde}: "${campo}" precisa ser sim ou não.`);
+  return valor;
+}
+
+function opcao<T extends string>(d: Dado, campo: string, valores: readonly T[], onde: string): T {
+  const valor = d[campo];
+  exigir(
+    typeof valor === 'string' && (valores as readonly string[]).includes(valor),
+    `${onde}: "${campo}" tem um valor desconhecido.`,
+  );
+  return valor as T;
+}
+
+function opcaoOuNulo<T extends string>(
+  d: Dado,
+  campo: string,
+  valores: readonly T[],
+  onde: string,
+): T | null {
+  return d[campo] === null ? null : opcao(d, campo, valores, onde);
+}
+
+function lista<T>(d: Dado, campo: string, onde: string, ler: (item: unknown, onde: string) => T): T[] {
+  const valor = d[campo];
+  exigir(Array.isArray(valor), `${onde}: "${campo}" precisa ser uma lista.`);
+  return valor.map((item, i) => ler(item, `${onde}, ${campo} nº ${i + 1}`));
+}
+
+function listaDeTextos(d: Dado, campo: string, onde: string): string[] {
+  return lista(d, campo, onde, (item, aqui) => {
+    exigir(typeof item === 'string', `${aqui} precisa ser um texto.`);
+    return item;
+  });
+}
+
+function numerosPorNome(d: Dado, campo: string, onde: string): Record<string, number> {
+  const mapa = objeto(d[campo], `${onde}: "${campo}"`);
+  const resultado: Record<string, number> = {};
+  for (const nome of Object.keys(mapa)) {
+    resultado[nome] = numero(mapa, nome, `${onde}: "${campo}"`, { inteiro: true });
+  }
+  return resultado;
+}
+
+function numerosPorAtributo(
+  d: Dado,
+  campo: string,
+  onde: string,
+  todos: boolean,
+): Partial<Record<Atributo, number>> {
+  const valores = numerosPorNome(d, campo, onde);
+  for (const nome of Object.keys(valores)) {
+    exigir((ATRIBUTOS as readonly string[]).includes(nome), `${onde}: "${campo}" tem um atributo desconhecido.`);
+  }
+  if (todos) {
+    exigir(
+      ATRIBUTOS.every((atributo) => atributo in valores),
+      `${onde}: "${campo}" precisa ter os seis atributos.`,
+    );
+  }
+  return valores;
+}
+
+function lerOrigem(valor: unknown, onde: string): OrigemEntrada {
+  const d = objeto(valor, `${onde}: a origem`);
+  if (d.tipo === 'campanha') {
+    return { tipo: 'campanha' };
+  }
+  exigir(d.tipo === 'pacote', `${onde}: a origem é desconhecida.`);
+  return { tipo: 'pacote', pacote: textoPreenchido(d, 'pacote', onde) };
+}
+
+function lerEfeito(valor: unknown, onde: string): Efeito {
+  const d = objeto(valor, onde);
+  return {
+    id: textoPreenchido(d, 'id', onde),
+    alvo: textoPreenchido(d, 'alvo', onde),
+    operacao: opcao(d, 'operacao', ['somar', 'definir'] as const, onde),
+    valor: textoPreenchido(d, 'valor', onde),
+    quando: opcao(d, 'quando', QUANDO_EFEITO, onde),
+  };
+}
+
+function lerPasso(valor: unknown, onde: string): PassoDeAcao {
+  const d = objeto(valor, onde);
+  switch (d.tipo) {
+    case 'rolar':
+      return {
+        tipo: 'rolar',
+        formula: textoPreenchido(d, 'formula', onde),
+        rotulo: texto(d, 'rotulo', onde),
+      };
+    case 'curar':
+      return { tipo: 'curar', formula: textoPreenchido(d, 'formula', onde) };
+    case 'consumir':
+      return { tipo: 'consumir', quantidade: numero(d, 'quantidade', onde, { inteiro: true, minimo: 1 }) };
+    default:
+      throw new ErroDeFormato(`${onde} tem um tipo de passo desconhecido.`);
+  }
+}
+
+function lerAcao(valor: unknown, onde: string): AcaoDeEntrada {
+  const d = objeto(valor, onde);
+  return {
+    id: textoPreenchido(d, 'id', onde),
+    rotulo: textoPreenchido(d, 'rotulo', onde),
+    passos: lista(d, 'passos', onde, lerPasso),
+  };
+}
+
+function lerBloco(valor: unknown, onde: string): BlocoDeTexto {
+  const d = objeto(valor, onde);
+  return { nome: texto(d, 'nome', onde), descricao: texto(d, 'descricao', onde) };
+}
+
+function lerArma(valor: unknown, onde: string): DadosArma | null {
+  if (valor === null) {
+    return null;
+  }
+  const d = objeto(valor, `${onde}: a arma`);
+  let alcance: DadosArma['alcance'] = null;
+  if (d.alcance !== null) {
+    const a = objeto(d.alcance, `${onde}: o alcance`);
+    alcance = { normal: numero(a, 'normal', onde, { minimo: 0 }), longo: numeroOuNulo(a, 'longo', onde) };
+  }
+  return {
+    dominio: opcao(d, 'dominio', ['simples', 'marcial'] as const, onde),
+    alcanceTipo: opcao(d, 'alcanceTipo', ['corpo-a-corpo', 'distancia'] as const, onde),
+    dano: texto(d, 'dano', onde),
+    tipoDano: texto(d, 'tipoDano', onde),
+    danoVersatil: textoOuNulo(d, 'danoVersatil', onde),
+    alcance,
+    propriedades: listaDeTextos(d, 'propriedades', onde),
+  };
+}
+
+function lerArmadura(valor: unknown, onde: string): DadosArmadura | null {
+  if (valor === null) {
+    return null;
+  }
+  const d = objeto(valor, `${onde}: a armadura`);
+  return {
+    peso: opcao(d, 'peso', PESOS_ARMADURA, onde),
+    caBase: numero(d, 'caBase', onde, { inteiro: true }),
+    usaDestreza: booleano(d, 'usaDestreza', onde),
+    destrezaMaxima: numeroOuNulo(d, 'destrezaMaxima', onde),
+    forcaMinima: numero(d, 'forcaMinima', onde, { inteiro: true, minimo: 0 }),
+    desvantagemFurtividade: booleano(d, 'desvantagemFurtividade', onde),
+  };
+}
+
+type LeitorDeDados = { readonly [T in TipoEntrada]: (d: Dado, onde: string) => DadosPorTipo[T] };
+
+const LER_DADOS: LeitorDeDados = {
+  item: (d, onde) => {
+    let custo: DadosPorTipo['item']['custo'] = null;
+    if (d.custo !== null) {
+      const c = objeto(d.custo, `${onde}: o custo`);
+      custo = {
+        quantidade: numero(c, 'quantidade', onde, { minimo: 0 }),
+        moeda: opcao(c, 'moeda', MOEDAS, onde),
+      };
+    }
+    return {
+      categoria: opcao(d, 'categoria', CATEGORIAS_ITEM, onde),
+      peso: numero(d, 'peso', onde, { minimo: 0 }),
+      custo,
+      raridade: opcaoOuNulo(d, 'raridade', RARIDADES, onde),
+      requerSintonia: booleano(d, 'requerSintonia', onde),
+      empilhavel: booleano(d, 'empilhavel', onde),
+      arma: lerArma(d.arma, onde),
+      armadura: lerArmadura(d.armadura, onde),
+    };
+  },
+  magia: (d, onde) => {
+    const c = objeto(d.componentes, `${onde}: os componentes`);
+    return {
+      nivel: numero(d, 'nivel', onde, { inteiro: true, minimo: 0, maximo: 9 }),
+      escola: opcao(d, 'escola', ESCOLAS_MAGIA, onde),
+      tempoConjuracao: texto(d, 'tempoConjuracao', onde),
+      alcance: texto(d, 'alcance', onde),
+      componentes: {
+        verbal: booleano(c, 'verbal', onde),
+        somatico: booleano(c, 'somatico', onde),
+        material: textoOuNulo(c, 'material', onde),
+      },
+      duracao: texto(d, 'duracao', onde),
+      concentracao: booleano(d, 'concentracao', onde),
+      ritual: booleano(d, 'ritual', onde),
+      classes: listaDeTextos(d, 'classes', onde),
+    };
+  },
+  habilidade: (d, onde) => {
+    let usos: DadosPorTipo['habilidade']['usos'] = null;
+    if (d.usos !== null) {
+      const u = objeto(d.usos, `${onde}: os usos`);
+      usos = { maximo: textoPreenchido(u, 'maximo', onde), recarga: opcao(u, 'recarga', RECARGAS, onde) };
+    }
+    return { requisito: texto(d, 'requisito', onde), usos };
+  },
+  classe: (d, onde) => ({
+    dadoVida: numero(d, 'dadoVida', onde, { inteiro: true, minimo: 1 }),
+    salvaguardas: lista(d, 'salvaguardas', onde, (item, aqui) => {
+      exigir(
+        typeof item === 'string' && (ATRIBUTOS as readonly string[]).includes(item),
+        `${aqui} não é um atributo.`,
+      );
+      return item as Atributo;
+    }),
+    proficiencias: listaDeTextos(d, 'proficiencias', onde),
+    habilidades: lista(d, 'habilidades', onde, (item, aqui) => {
+      const h = objeto(item, aqui);
+      return {
+        nivel: numero(h, 'nivel', aqui, { inteiro: true, minimo: 1, maximo: 20 }),
+        entradaId: textoPreenchido(h, 'entradaId', aqui),
+      };
+    }),
+    atributoConjuracao: opcaoOuNulo(d, 'atributoConjuracao', ATRIBUTOS, onde),
+  }),
+  especie: (d, onde) => ({
+    tamanho: opcao(d, 'tamanho', TAMANHOS, onde),
+    deslocamento: numero(d, 'deslocamento', onde, { minimo: 0 }),
+    aumentosAtributo: numerosPorAtributo(d, 'aumentosAtributo', onde, false),
+    idiomas: listaDeTextos(d, 'idiomas', onde),
+    tracos: listaDeTextos(d, 'tracos', onde),
+  }),
+  antecedente: (d, onde) => ({
+    proficiencias: listaDeTextos(d, 'proficiencias', onde),
+    habilidades: listaDeTextos(d, 'habilidades', onde),
+  }),
+  talento: (d, onde) => ({ prerequisito: texto(d, 'prerequisito', onde) }),
+  condicao: () => ({}),
+  monstro: (d, onde) => ({
+    tamanho: opcao(d, 'tamanho', TAMANHOS, onde),
+    tipoCriatura: texto(d, 'tipoCriatura', onde),
+    alinhamento: texto(d, 'alinhamento', onde),
+    classeArmadura: numero(d, 'classeArmadura', onde, { inteiro: true }),
+    pontosVida: numero(d, 'pontosVida', onde, { inteiro: true, minimo: 0 }),
+    dadosVida: texto(d, 'dadosVida', onde),
+    deslocamento: texto(d, 'deslocamento', onde),
+    atributos: numerosPorAtributo(d, 'atributos', onde, true) as Record<Atributo, number>,
+    salvaguardas: numerosPorAtributo(d, 'salvaguardas', onde, false),
+    pericias: numerosPorNome(d, 'pericias', onde),
+    sentidos: texto(d, 'sentidos', onde),
+    idiomas: texto(d, 'idiomas', onde),
+    nivelDesafio: numero(d, 'nivelDesafio', onde, { minimo: 0 }),
+    experiencia: numero(d, 'experiencia', onde, { inteiro: true, minimo: 0 }),
+    tracos: lista(d, 'tracos', onde, lerBloco),
+    acoesDeCombate: lista(d, 'acoesDeCombate', onde, lerBloco),
+    reacoes: lista(d, 'reacoes', onde, lerBloco),
+    acoesLendarias: lista(d, 'acoesLendarias', onde, lerBloco),
+  }),
+};
+
+/**
+ * Lê e confere uma entrada vinda de um arquivo, do salvamento ou de um pacote como o SRD.
+ * Lança `ErroDeFormato` explicando o primeiro problema encontrado.
+ */
+export function lerEntrada(valor: unknown, onde: string): Entrada {
+  const d = objeto(valor, onde);
+  const tipo = opcao(d, 'tipo', TIPOS_ENTRADA, onde);
+  const base = {
+    id: textoPreenchido(d, 'id', onde),
+    nome: texto(d, 'nome', onde),
+    descricao: texto(d, 'descricao', onde),
+    etiquetas: listaDeTextos(d, 'etiquetas', onde),
+    origem: lerOrigem(d.origem, onde),
+    // Uma visibilidade desconhecida é recusada: um segredo nunca pode virar público por engano.
+    visibilidade: lerVisibilidade(d.visibilidade, onde),
+    efeitos: lista(d, 'efeitos', onde, lerEfeito),
+    acoes: lista(d, 'acoes', onde, lerAcao),
+  };
+  const dados = objeto(d.dados, `${onde}: os dados`);
+  // O compilador garante que cada tipo recebe os dados certos.
+  return { ...base, tipo, dados: LER_DADOS[tipo](dados, onde) } as Entrada;
+}
+
+/** Lê uma lista de entradas, recusando ids repetidos. */
+export function lerEntradas(valor: unknown, onde: string): Entrada[] {
+  exigir(Array.isArray(valor), `${onde} não tem a lista de entradas.`);
+  const ids = new Set<string>();
+  return valor.map((item, i) => {
+    const entrada = lerEntrada(item, `A entrada nº ${i + 1}`);
+    exigir(!ids.has(entrada.id), `A entrada "${entrada.id}" está repetida.`);
+    ids.add(entrada.id);
+    return entrada;
+  });
+}
+
+export function serializarCompendio(estado: EstadoCompendio): string {
+  return JSON.stringify({ versao: VERSAO_COMPENDIO, entradas: Object.values(estado.entradas) });
+}
+
+export function desserializarCompendio(
+  texto: string,
+): ResultadoDe<{ readonly estado: EstadoCompendio }> {
+  try {
+    let dados: unknown;
+    try {
+      dados = JSON.parse(texto);
+    } catch {
+      throw new ErroDeFormato('O compêndio não é um JSON válido.');
+    }
+    exigir(
+      ehObjeto(dados) && dados.versao === VERSAO_COMPENDIO,
+      'O compêndio usa um formato desconhecido.',
+    );
+    const entradas = lerEntradas(dados.entradas, 'O compêndio');
+    return { ok: true, estado: { entradas: Object.fromEntries(entradas.map((e) => [e.id, e])) } };
+  } catch (erro) {
+    if (erro instanceof ErroDeFormato) {
+      return { ok: false, erro: erro.message };
+    }
+    throw erro;
+  }
+}

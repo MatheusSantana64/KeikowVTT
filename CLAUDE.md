@@ -80,8 +80,8 @@ Cada fase deve funcionar sozinha antes de avançar.
 - **Fase 4 em andamento** (banco de dados do jogo), dividida em 12 passos:
   1. ✅ Armazenamento novo (IndexedDB), trazendo o mapa do armazenamento antigo.
   2. ✅ Campanha, jogadores simulados e registro de quem fez cada ação.
-  3. Regras das entradas do compêndio em `core/` (próximo).
-  4. Tela do compêndio: buscar, filtrar, criar, editar, duplicar, apagar.
+  3. ✅ Regras das entradas do compêndio em `core/` (`entradas.ts`, `compendio.ts`, `persistenciaCompendio.ts`). O desfazer virou uma peça comum, em `lojaHistorico.ts`.
+  4. Tela do compêndio: buscar, filtrar, criar, editar, duplicar, apagar (próximo). Inclui ligar o compêndio ao salvamento automático e ao arquivo.
   5. Importar o SRD 5.1 completo, com os créditos exigidos; confirmar antes a licença da base organizada.
   6. Motor de fórmulas e regras parecidas com 5e, guardadas como dados.
   7. Ficha de personagem, NPC e monstro, mostrando de onde vem cada número.

@@ -1,0 +1,216 @@
+import { describe, expect, it } from 'vitest';
+import { aplicarAcaoCompendio, criarCompendioVazio } from './compendio';
+import { criarEntrada, TIPOS_ENTRADA, type Entrada, type EntradaDe } from './entradas';
+import { ErroDeFormato } from './persistencia';
+import {
+  desserializarCompendio,
+  lerEntrada,
+  lerEntradas,
+  serializarCompendio,
+} from './persistenciaCompendio';
+
+const espadaCompleta: EntradaDe<'item'> = {
+  ...criarEntrada('item', 'srd-5.1/item/longsword'),
+  nome: 'Longsword',
+  descricao: 'Uma espada longa.\nDuas linhas.',
+  etiquetas: ['arma', 'marcial'],
+  origem: { tipo: 'pacote', pacote: 'srd-5.1' },
+  visibilidade: { tipo: 'todos' },
+  efeitos: [{ id: 'e1', alvo: 'ataque', operacao: 'somar', valor: '1', quando: 'equipado' }],
+  acoes: [
+    {
+      id: 'a1',
+      rotulo: 'Atacar',
+      passos: [
+        { tipo: 'rolar', formula: '1d20 + mod(FOR)', rotulo: 'Ataque' },
+        { tipo: 'consumir', quantidade: 1 },
+        { tipo: 'curar', formula: '2d4+2' },
+      ],
+    },
+  ],
+  dados: {
+    categoria: 'arma',
+    peso: 3,
+    custo: { quantidade: 15, moeda: 'po' },
+    raridade: 'comum',
+    requerSintonia: false,
+    empilhavel: false,
+    arma: {
+      dominio: 'marcial',
+      alcanceTipo: 'corpo-a-corpo',
+      dano: '1d8',
+      tipoDano: 'cortante',
+      danoVersatil: '1d10',
+      alcance: { normal: 5, longo: null },
+      propriedades: ['versátil'],
+    },
+    armadura: null,
+  },
+};
+
+const malhaCompleta: EntradaDe<'item'> = {
+  ...criarEntrada('item', 'malha'),
+  nome: 'Cota de Malha',
+  dados: {
+    ...criarEntrada('item', 'x').dados,
+    categoria: 'armadura',
+    armadura: {
+      peso: 'pesada',
+      caBase: 16,
+      usaDestreza: false,
+      destrezaMaxima: null,
+      forcaMinima: 13,
+      desvantagemFurtividade: true,
+    },
+  },
+};
+
+const goblin: EntradaDe<'monstro'> = {
+  ...criarEntrada('monstro', 'goblin'),
+  nome: 'Goblin',
+  dados: {
+    ...criarEntrada('monstro', 'x').dados,
+    atributos: { for: 8, des: 14, con: 10, int: 10, sab: 8, car: 8 },
+    salvaguardas: { des: 4 },
+    pericias: { furtividade: 6 },
+    nivelDesafio: 0.25,
+    experiencia: 50,
+    tracos: [{ nome: 'Fuga Ágil', descricao: 'Pode recuar ou se esconder.' }],
+    acoesDeCombate: [{ nome: 'Cimitarra', descricao: '+4 para acertar.' }],
+  },
+};
+
+const ida = (entrada: Entrada) => lerEntrada(JSON.parse(JSON.stringify(entrada)), 'teste');
+
+function erroDe(dado: unknown): string {
+  try {
+    lerEntrada(dado, 'A entrada');
+  } catch (erro) {
+    if (erro instanceof ErroDeFormato) {
+      return erro.message;
+    }
+    throw erro;
+  }
+  throw new Error('Era esperado um erro de leitura.');
+}
+
+const comDados = (entrada: Entrada, dados: Record<string, unknown>) =>
+  JSON.parse(JSON.stringify({ ...entrada, dados: { ...entrada.dados, ...dados } }));
+
+describe('ler e salvar entradas', () => {
+  it.each(TIPOS_ENTRADA)('um(a) %s recém-criado(a) volta idêntico(a)', (tipo) => {
+    const entrada = criarEntrada(tipo, `id-${tipo}`);
+    expect(ida(entrada)).toEqual(entrada);
+  });
+
+  it.each([
+    ['uma arma completa', espadaCompleta],
+    ['uma armadura sem limite de Destreza', malhaCompleta],
+    ['um monstro com desafio fracionário', goblin],
+  ])('%s volta idêntica', (_, entrada) => {
+    expect(ida(entrada)).toEqual(entrada);
+  });
+
+  it('o compêndio inteiro volta idêntico', () => {
+    const estado = aplicarAcaoCompendio(criarCompendioVazio(), {
+      tipo: 'ImportarEntradas',
+      entradas: [espadaCompleta, malhaCompleta, goblin],
+    });
+    expect(desserializarCompendio(serializarCompendio(estado))).toEqual({ ok: true, estado });
+  });
+});
+
+describe('entradas inválidas', () => {
+  const valida = () => JSON.parse(JSON.stringify(espadaCompleta));
+
+  it.each([
+    ['tipo desconhecido', { tipo: 'veiculo' }, 'tipo'],
+    ['id vazio', { id: '' }, 'id'],
+    ['nome que não é texto', { nome: 7 }, 'nome'],
+    ['etiquetas fora de lista', { etiquetas: 'arma' }, 'etiquetas'],
+    ['origem desconhecida', { origem: { tipo: 'internet' } }, 'origem'],
+    ['pacote sem nome', { origem: { tipo: 'pacote', pacote: '' } }, 'pacote'],
+    ['sem dados', { dados: undefined }, 'dados'],
+  ])('recusa %s', (_, mudanca, trecho) => {
+    expect(erroDe({ ...valida(), ...mudanca })).toContain(trecho);
+  });
+
+  it('recusa visibilidade desconhecida, para nunca expor um segredo', () => {
+    expect(erroDe({ ...valida(), visibilidade: { tipo: 'quase-todos' } })).toContain('visibilidade');
+  });
+
+  it.each([
+    ['operação desconhecida', { operacao: 'multiplicar' }],
+    ['condição desconhecida', { quando: 'às vezes' }],
+    ['valor vazio', { valor: '' }],
+  ])('recusa efeito com %s', (_, mudanca) => {
+    const dado = valida();
+    dado.efeitos[0] = { ...dado.efeitos[0], ...mudanca };
+    expect(() => lerEntrada(dado, 'A entrada')).toThrow(ErroDeFormato);
+  });
+
+  it.each([
+    ['passo desconhecido', { tipo: 'explodir' }],
+    ['consumir zero', { tipo: 'consumir', quantidade: 0 }],
+    ['curar sem fórmula', { tipo: 'curar', formula: '' }],
+  ])('recusa ação com %s', (_, passo) => {
+    const dado = valida();
+    dado.acoes[0].passos = [passo];
+    expect(() => lerEntrada(dado, 'A entrada')).toThrow(ErroDeFormato);
+  });
+
+  it.each([
+    ['categoria desconhecida', { categoria: 'veiculo' }],
+    ['peso negativo', { peso: -1 }],
+    ['moeda desconhecida', { custo: { quantidade: 1, moeda: 'dólar' } }],
+    ['raridade desconhecida', { raridade: 'épica' }],
+    ['arma de domínio desconhecido', { arma: { ...espadaCompleta.dados.arma, dominio: 'exótica' } }],
+  ])('recusa item com %s', (_, dados) => {
+    expect(() => lerEntrada(comDados(espadaCompleta, dados), 'A entrada')).toThrow(ErroDeFormato);
+  });
+
+  it('recusa magia acima do 9º nível', () => {
+    const magia = criarEntrada('magia', 'm');
+    expect(erroDe(comDados(magia, { nivel: 10 }))).toContain('nivel');
+  });
+
+  it('recusa escola de magia desconhecida', () => {
+    expect(erroDe(comDados(criarEntrada('magia', 'm'), { escola: 'cronomancia' }))).toContain('escola');
+  });
+
+  it('recusa monstro sem os seis atributos', () => {
+    const { car: _ignorado, ...cinco } = goblin.dados.atributos;
+    expect(erroDe(comDados(goblin, { atributos: cinco }))).toContain('seis atributos');
+  });
+
+  it('recusa atributo desconhecido', () => {
+    expect(erroDe(comDados(goblin, { salvaguardas: { sorte: 2 } }))).toContain('atributo desconhecido');
+  });
+
+  it('recusa classe com salvaguarda que não é atributo', () => {
+    const classe = criarEntrada('classe', 'c');
+    expect(erroDe(comDados(classe, { salvaguardas: ['forca'] }))).toContain('atributo');
+  });
+
+  it('recusa habilidade de classe acima do nível 20', () => {
+    const classe = criarEntrada('classe', 'c');
+    expect(erroDe(comDados(classe, { habilidades: [{ nivel: 21, entradaId: 'h' }] }))).toContain('nivel');
+  });
+});
+
+describe('listas e arquivos de compêndio', () => {
+  it('recusa ids repetidos', () => {
+    const lista = [criarEntrada('item', 'a'), criarEntrada('magia', 'a')];
+    expect(() => lerEntradas(lista, 'O pacote')).toThrow('repetida');
+  });
+
+  it('diz qual entrada da lista tem problema', () => {
+    const lista = [criarEntrada('item', 'a'), { ...criarEntrada('item', 'b'), tipo: 'veiculo' }];
+    expect(() => lerEntradas(lista, 'O pacote')).toThrow('nº 2');
+  });
+
+  it('recusa versão desconhecida e texto que não é JSON', () => {
+    expect(desserializarCompendio(JSON.stringify({ versao: 9, entradas: [] }))).toMatchObject({ ok: false });
+    expect(desserializarCompendio('lixo')).toMatchObject({ ok: false });
+  });
+});
