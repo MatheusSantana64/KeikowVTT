@@ -17,6 +17,7 @@ import { carregarManifesto } from '../render/assets';
 import { createMapScene, type CenaMapa } from '../render/createMapScene';
 import { BarraArquivo, type Mensagem } from './BarraArquivo';
 import { criarControlador, SEM_FERRAMENTA, type Ferramenta } from './controladorFerramentas';
+import { PainelHex } from './PainelHex';
 import { Paleta } from './Paleta';
 
 const BORRACHA: Ferramenta = { tipo: 'apagar' };
@@ -56,10 +57,17 @@ export function App() {
   const podeDesfazer = useSyncExternalStore(loja.assinar, loja.podeDesfazer);
   const podeRefazer = useSyncExternalStore(loja.assinar, loja.podeRefazer);
 
+  const [hexSelecionado, setHexSelecionado] = useState<CoordHex | null>(null);
+
   const controlador = useMemo(
-    () => (manifesto ? criarControlador(loja, manifesto, () => cenaRef.current) : null),
+    () =>
+      manifesto
+        ? criarControlador(loja, manifesto, () => cenaRef.current, setHexSelecionado)
+        : null,
     [loja, manifesto],
   );
+
+  useEffect(() => cenaRef.current?.selecionarHex(hexSelecionado), [hexSelecionado]);
 
   const selecionarFerramenta = useCallback(
     (nova: Ferramenta) => {
@@ -116,6 +124,7 @@ export function App() {
       aoContinuarTraco: controlador.aoContinuarTraco,
       aoMoverDuranteTraco: controlador.aoMoverDuranteTraco,
       aoTerminarTraco: controlador.aoTerminarTraco,
+      aoClicar: controlador.aoClicar,
     });
     cenaRef.current = cena;
     return () => {
@@ -127,7 +136,11 @@ export function App() {
   useEffect(() => {
     const aoApertarTecla = (evento: KeyboardEvent) => {
       if (evento.key === 'Escape') {
-        selecionarFerramenta(SEM_FERRAMENTA);
+        if (ferramenta.tipo === 'nenhuma') {
+          setHexSelecionado(null);
+        } else {
+          selecionarFerramenta(SEM_FERRAMENTA);
+        }
         return;
       }
       if (!evento.ctrlKey && !evento.metaKey) {
@@ -144,7 +157,7 @@ export function App() {
     };
     window.addEventListener('keydown', aoApertarTecla);
     return () => window.removeEventListener('keydown', aoApertarTecla);
-  }, [loja, selecionarFerramenta]);
+  }, [loja, selecionarFerramenta, ferramenta]);
 
   const pontoDoEvento = (evento: DragEvent<HTMLElement>): PontoMundo | null => {
     const limites = evento.currentTarget.getBoundingClientRect();
@@ -208,6 +221,8 @@ export function App() {
           <dl className="ajuda">
             <dt>Colocar</dt>
             <dd>Clique em um item e use o botão esquerdo, ou arraste o item para o mapa</dd>
+            <dt>Ver um hex</dt>
+            <dd>Sem ferramenta (Esc), clique no hex</dd>
             <dt>Mover decoração</dt>
             <dd>Sem ferramenta (Esc), arraste com o botão esquerdo</dd>
             <dt>Zoom e câmera</dt>
@@ -219,6 +234,7 @@ export function App() {
         <BarraArquivo
           loja={loja}
           aoAbrirMapa={(estado) => {
+            setHexSelecionado(null);
             cenaRef.current?.centralizarNoMapa();
             const avisoImagens = manifesto && avisoDeImagensFaltando(estado, manifesto);
             if (avisoImagens) {
@@ -260,13 +276,22 @@ export function App() {
           />
         )}
       </aside>
-      <main
-        className={ferramenta.tipo === 'nenhuma' ? 'map' : 'map com-ferramenta'}
-        ref={mapRef}
-        onDragOver={aoArrastarSobreMapa}
-        onDragLeave={aoSairDoMapa}
-        onDrop={aoSoltarNoMapa}
-      />
+      <div className="area-mapa">
+        <main
+          className={ferramenta.tipo === 'nenhuma' ? 'map' : 'map com-ferramenta'}
+          ref={mapRef}
+          onDragOver={aoArrastarSobreMapa}
+          onDragLeave={aoSairDoMapa}
+          onDrop={aoSoltarNoMapa}
+        />
+        {hexSelecionado && (
+          <PainelHex
+            loja={loja}
+            coord={hexSelecionado}
+            aoFechar={() => setHexSelecionado(null)}
+          />
+        )}
+      </div>
     </div>
   );
 }

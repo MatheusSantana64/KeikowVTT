@@ -3,6 +3,7 @@ import { contornoHex, hexesNaArea, type AreaMundo, type CoordHex } from '../core
 
 const COR_GRID = 0x6f7690;
 const COR_DESTAQUE = 0xf0c870;
+const COR_SELECAO = 0x7fd4ff;
 /** Quanto do mundo além da tela já fica desenhado, para não redesenhar a cada movimento. */
 const MARGEM_DESENHO = 768;
 
@@ -36,6 +37,23 @@ export function criarCamadaGrid() {
     }
     grafico.stroke({ width: 1, color: COR_GRID, alpha: 0.45, pixelLine: true });
     areaDesenhada = area;
+  };
+
+  return { grafico, atualizar };
+}
+
+/** Contorno do hex aberto no painel, que continua visível quando o mouse sai dele. */
+export function criarSelecaoHex() {
+  const grafico = new Graphics();
+
+  const atualizar = (coord: CoordHex | null) => {
+    grafico.clear();
+    if (coord) {
+      grafico
+        .poly(contornoHex(coord))
+        .fill({ color: COR_SELECAO, alpha: 0.12 })
+        .stroke({ width: 6, color: COR_SELECAO });
+    }
   };
 
   return { grafico, atualizar };

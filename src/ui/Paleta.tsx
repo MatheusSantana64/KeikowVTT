@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Asset, Manifesto } from '../core/manifesto';
 import { urlDoAsset } from '../render/assets';
+import { nomeAmigavel } from './nomeAmigavel';
 
 type Aba = 'terrenos' | 'decoracoes';
 
@@ -10,15 +11,6 @@ interface PaletaProps {
   readonly aoSelecionarAsset: (assetId: string) => void;
   readonly aoIniciarArraste: (assetId: string) => void;
   readonly aoTerminarArraste: () => void;
-}
-
-/** "hexForestBroadleaf00" vira "Forest Broadleaf". */
-function nomeAmigavel(id: string): string {
-  return id
-    .replace(/^hex/, '')
-    .replace(/[_\d-]+$/, '')
-    .replace(/_/g, ' ')
-    .replace(/([a-z])([A-Z])/g, '$1 $2');
 }
 
 function pertenceAba(asset: Asset, aba: Aba): boolean {

@@ -35,6 +35,7 @@ export function criarControlador(
   loja: LojaMapa,
   manifesto: Manifesto,
   obterCena: () => CenaControlada | null,
+  aoSelecionarHex: (coord: CoordHex) => void,
 ) {
   const assets = new Map(manifesto.assets.map((asset) => [asset.id, asset]));
   let ferramenta: Ferramenta = SEM_FERRAMENTA;
@@ -196,6 +197,12 @@ export function criarControlador(
       }
       apagandoDecoracoes = false;
       loja.terminarTraco();
+    },
+
+    aoClicar(ponto: PontoMundo) {
+      if (ferramenta.tipo === 'nenhuma') {
+        aoSelecionarHex(mundoParaHex(ponto));
+      }
     },
   };
 }

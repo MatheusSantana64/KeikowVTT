@@ -220,6 +220,67 @@ body {
   white-space: nowrap;
 }
 
+.area-mapa {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.painel-hex {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 320px;
+  max-width: calc(100% - 24px);
+  max-height: calc(100% - 24px);
+  padding: 14px 16px;
+  overflow-y: auto;
+  border: 1px solid #333846;
+  border-radius: 8px;
+  background: #1d2029;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+}
+
+.painel-hex header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.painel-hex h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.painel-hex p {
+  margin: 8px 0 0;
+  color: #a5a79f;
+  font-size: 13px;
+}
+
+.painel-hex .painel-coordenada {
+  margin-top: 2px;
+  color: #7fd4ff;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.painel-hex header button {
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  color: #a5a79f;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.painel-hex header button:hover {
+  color: #e6e3da;
+}
+
 .map {
   flex: 1;
   min-width: 0;

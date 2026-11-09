@@ -28,15 +28,51 @@ function montar() {
     moverDecoracaoVisual: vi.fn(),
     sincronizarDecoracoes: vi.fn(),
   };
-  const controlador = criarControlador(loja, manifesto, () => cena);
+  const aoSelecionarHex = vi.fn();
+  const controlador = criarControlador(loja, manifesto, () => cena, aoSelecionarHex);
   const usar = (ferramenta: Ferramenta) => controlador.definirFerramenta(ferramenta);
   const colocarTerreno = () => {
     loja.despachar({ tipo: 'ColocarTile', coord: A, terreno: 'tile' });
     loja.despachar({ tipo: 'ColocarTile', coord: B, terreno: 'tile' });
   };
   const decoracoes = (coord = A) => hexEm(loja.obterEstado(), coord)?.decoracoes ?? [];
-  return { loja, cena, controlador, usar, colocarTerreno, decoracoes };
+  return { loja, cena, controlador, usar, colocarTerreno, decoracoes, aoSelecionarHex };
 }
+
+describe('selecionar hex', () => {
+  it('sem ferramenta, um clique seleciona o hex do ponto', () => {
+    const { controlador, aoSelecionarHex } = montar();
+    controlador.aoClicar(centroB);
+    expect(aoSelecionarHex).toHaveBeenCalledExactlyOnceWith(B);
+  });
+
+  it('com uma ferramenta ativa, o clique não seleciona', () => {
+    const { controlador, usar, aoSelecionarHex } = montar();
+    usar({ tipo: 'colocar', assetId: 'tile' });
+    controlador.aoClicar(centroB);
+    usar({ tipo: 'apagar' });
+    controlador.aoClicar(centroB);
+    expect(aoSelecionarHex).not.toHaveBeenCalled();
+  });
+
+  it('clicar em uma decoração seleciona o hex sem movê-la', () => {
+    const { loja, cena, controlador, colocarTerreno, decoracoes, aoSelecionarHex } = montar();
+    colocarTerreno();
+    controlador.colocarAsset('casa', { x: 5, y: 5 });
+    cena.decoracaoEm.mockReturnValue({
+      decoracaoId: decoracoes()[0].id,
+      assetId: 'casa',
+      coord: A,
+      posicao: { x: 5, y: 5 },
+    });
+    const antes = loja.obterEstado();
+    controlador.aoIniciarTraco({ x: 5, y: 5 });
+    controlador.aoTerminarTraco();
+    controlador.aoClicar({ x: 5, y: 5 });
+    expect(loja.obterEstado()).toBe(antes);
+    expect(aoSelecionarHex).toHaveBeenCalledExactlyOnceWith(A);
+  });
+});
 
 describe('colocar decorações', () => {
   it('uma decoração fica onde foi clicada', () => {

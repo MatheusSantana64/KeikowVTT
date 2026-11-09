@@ -6,13 +6,15 @@ import { centroDoMapa } from '../core/mapa';
 import type { Manifesto } from '../core/manifesto';
 import { carregarCatalogo, type Catalogo } from './assets';
 import { criarCamadaDecoracoes, type DecoracaoEncontrada } from './camadaDecoracoes';
-import { criarCamadaGrid, criarDestaqueHex } from './camadaGrid';
+import { criarCamadaGrid, criarDestaqueHex, criarSelecaoHex } from './camadaGrid';
 import { criarCamadaTiles } from './camadaTiles';
 
 const ZOOM_MINIMO = 0.15;
 const ZOOM_MAXIMO = 2;
 const ZOOM_INICIAL = 0.6;
 const BOTAO_ESQUERDO = 0;
+/** Abaixo desta distância na tela, apertar e soltar o botão conta como um clique. */
+const LIMITE_ARRASTO_PX = 5;
 
 export interface OpcoesCena {
   readonly loja: LojaMapa;
@@ -28,6 +30,8 @@ export interface OpcoesCena {
   /** Com o botão apertado, o mouse se moveu para este ponto. */
   readonly aoMoverDuranteTraco: (ponto: PontoMundo) => void;
   readonly aoTerminarTraco: () => void;
+  /** O botão esquerdo foi apertado e solto neste ponto, sem arrastar. Vem após `aoTerminarTraco`. */
+  readonly aoClicar: (ponto: PontoMundo) => void;
 }
 
 interface ControlesCena {
@@ -39,6 +43,7 @@ interface ControlesCena {
   moverDecoracaoVisual(decoracaoId: string, posicao: PontoMundo): void;
   sincronizarDecoracoes(): void;
   centralizarNoMapa(): void;
+  selecionarHex(coord: CoordHex | null): void;
   cancelarAssinatura(): void;
 }
 
@@ -91,6 +96,7 @@ export function createMapScene(container: HTMLElement, opcoes: OpcoesCena): Cena
       controles?.moverDecoracaoVisual(decoracaoId, posicao),
     sincronizarDecoracoes: () => controles?.sincronizarDecoracoes(),
     centralizarNoMapa: () => controles?.centralizarNoMapa(),
+    selecionarHex: (coord) => controles?.selecionarHex(coord),
     destruir() {
       disposed = true;
       controles?.cancelarAssinatura();
@@ -123,8 +129,15 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
   const grid = criarCamadaGrid();
   const tiles = criarCamadaTiles(catalogo);
   const decoracoes = criarCamadaDecoracoes(catalogo, tiles.container);
+  const selecao = criarSelecaoHex();
   const destaque = criarDestaqueHex();
-  camera.addChild(grid.grafico, tiles.container, decoracoes.container, destaque.grafico);
+  camera.addChild(
+    grid.grafico,
+    tiles.container,
+    decoracoes.container,
+    selecao.grafico,
+    destaque.grafico,
+  );
 
   const atualizarCamadas = () => {
     const estado = opcoes.loja.obterEstado();
@@ -155,6 +168,8 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
     evento.offsetY < app.screen.height;
 
   let ultimoHexDoTraco: CoordHex | null = null;
+  let inicioDoTraco: { telaX: number; telaY: number; ponto: PontoMundo } | null = null;
+  let arrastou = false;
 
   app.canvas.addEventListener('pointerdown', (evento) => {
     if (evento.button !== BOTAO_ESQUERDO) {
@@ -164,11 +179,13 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
     app.canvas.setPointerCapture(evento.pointerId);
     const ponto = mundoDoEvento(evento);
     ultimoHexDoTraco = mundoParaHex(ponto);
+    inicioDoTraco = { telaX: evento.offsetX, telaY: evento.offsetY, ponto };
+    arrastou = false;
     opcoes.aoIniciarTraco(ponto);
   });
 
   const continuarTraco = (evento: PointerEvent) => {
-    if (!ultimoHexDoTraco || !dentroDaTela(evento)) {
+    if (!ultimoHexDoTraco || !inicioDoTraco || !dentroDaTela(evento)) {
       return;
     }
     const ponto = mundoDoEvento(evento);
@@ -176,7 +193,13 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
     const [, ...novos] = linhaHex(ultimoHexDoTraco, mundoParaHex(ponto));
     novos.forEach(opcoes.aoContinuarTraco);
     ultimoHexDoTraco = novos[novos.length - 1] ?? ultimoHexDoTraco;
-    opcoes.aoMoverDuranteTraco(ponto);
+
+    arrastou ||=
+      Math.hypot(evento.offsetX - inicioDoTraco.telaX, evento.offsetY - inicioDoTraco.telaY) >=
+      LIMITE_ARRASTO_PX;
+    if (arrastou) {
+      opcoes.aoMoverDuranteTraco(ponto);
+    }
   };
 
   const terminarTraco = () => {
@@ -185,7 +208,13 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
       opcoes.aoTerminarTraco();
     }
   };
-  app.canvas.addEventListener('pointerup', terminarTraco);
+  app.canvas.addEventListener('pointerup', () => {
+    const clique = ultimoHexDoTraco && !arrastou ? inicioDoTraco : null;
+    terminarTraco();
+    if (clique) {
+      opcoes.aoClicar(clique.ponto);
+    }
+  });
   app.canvas.addEventListener('pointercancel', terminarTraco);
 
   let ponteiro: { x: number; y: number } | null = null;
@@ -245,6 +274,7 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
     moverDecoracaoVisual: decoracoes.moverVisual,
     sincronizarDecoracoes: () => decoracoes.atualizar(opcoes.loja.obterEstado()),
     centralizarNoMapa,
+    selecionarHex: selecao.atualizar,
     cancelarAssinatura,
   };
 }
