@@ -11,6 +11,7 @@
     "assets": "node scripts/gerar-assets.mjs"
   },
   "dependencies": {
+    "pixi-viewport": "^7.0.2",
     "pixi.js": "^8.22.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"

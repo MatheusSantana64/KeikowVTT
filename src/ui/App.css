@@ -38,6 +38,26 @@ body {
   font-size: 14px;
 }
 
+.ajuda {
+  margin: 20px 0;
+  font-size: 13px;
+}
+
+.ajuda dt {
+  color: #e6e3da;
+  font-weight: 600;
+}
+
+.ajuda dd {
+  margin: 0 0 10px;
+  color: #a5a79f;
+}
+
+.sidebar .coordenada {
+  color: #f0c870;
+  font-variant-numeric: tabular-nums;
+}
+
 .map {
   flex: 1;
   min-width: 0;

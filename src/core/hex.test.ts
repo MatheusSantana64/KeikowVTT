@@ -1,5 +1,51 @@
 import { describe, expect, it } from 'vitest';
-import { chaveHex, coordDaChave, hexParaMundo, mundoParaHex, pontaInferiorHex } from './hex';
+import {
+  chaveHex,
+  contornoHex,
+  coordDaChave,
+  hexesNaArea,
+  hexParaMundo,
+  mundoParaHex,
+  pontaInferiorHex,
+} from './hex';
+
+describe('contornoHex', () => {
+  it('tem os seis cantos com ponta para cima', () => {
+    expect(contornoHex({ q: 0, r: 0 })).toEqual([
+      0, -128, 128, -64, 128, 64, 0, 128, -128, 64, -128, -64,
+    ]);
+  });
+
+  it('pontos logo dentro de cada canto pertencem ao próprio hex', () => {
+    const coord = { q: 2, r: -3 };
+    const centro = hexParaMundo(coord);
+    const contorno = contornoHex(coord);
+    for (let i = 0; i < contorno.length; i += 2) {
+      const ponto = {
+        x: centro.x + (contorno[i] - centro.x) * 0.95,
+        y: centro.y + (contorno[i + 1] - centro.y) * 0.95,
+      };
+      expect(mundoParaHex(ponto)).toEqual(coord);
+    }
+  });
+});
+
+describe('hexesNaArea', () => {
+  it('inclui todo hex que tem um ponto dentro da área', () => {
+    const area = { minX: -700, minY: -450, maxX: 900, maxY: 650 };
+    const chaves = new Set(hexesNaArea(area).map(chaveHex));
+    for (let x = area.minX; x <= area.maxX; x += 37) {
+      for (let y = area.minY; y <= area.maxY; y += 37) {
+        expect(chaves.has(chaveHex(mundoParaHex({ x, y })))).toBe(true);
+      }
+    }
+  });
+
+  it('não devolve muito mais hexes do que cabem na área', () => {
+    // A área tem cerca de 4 × 4 hexes; a folga cobre as bordas parcialmente visíveis.
+    expect(hexesNaArea({ minX: 0, minY: 0, maxX: 1024, maxY: 768 }).length).toBeLessThan(64);
+  });
+});
 
 describe('pontaInferiorHex', () => {
   it('fica 128 px abaixo do centro', () => {

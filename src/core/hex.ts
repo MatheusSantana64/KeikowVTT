@@ -10,6 +10,14 @@ export interface PontoMundo {
   readonly y: number;
 }
 
+/** Retângulo em pixels do mundo. */
+export interface AreaMundo {
+  readonly minX: number;
+  readonly minY: number;
+  readonly maxX: number;
+  readonly maxY: number;
+}
+
 export type ChaveHex = `${number},${number}`;
 
 /** Distância horizontal entre os centros de dois hexes vizinhos na mesma linha. */
@@ -37,6 +45,38 @@ export function hexParaMundo({ q, r }: CoordHex): PontoMundo {
 export function pontaInferiorHex(coord: CoordHex): PontoMundo {
   const centro = hexParaMundo(coord);
   return { x: centro.x, y: centro.y + METADE_ALTURA_HEX };
+}
+
+/** Os seis cantos do hex como lista [x1, y1, x2, y2, ...], em pixels do mundo. */
+export function contornoHex(coord: CoordHex): number[] {
+  const { x, y } = hexParaMundo(coord);
+  const meiaLargura = LARGURA_COLUNA / 2;
+  const meiaAltura = METADE_ALTURA_HEX;
+  const ombro = METADE_ALTURA_HEX / 2;
+  return [
+    x, y - meiaAltura,
+    x + meiaLargura, y - ombro,
+    x + meiaLargura, y + ombro,
+    x, y + meiaAltura,
+    x - meiaLargura, y + ombro,
+    x - meiaLargura, y - ombro,
+  ];
+}
+
+/** Todos os hexes que podem aparecer, mesmo que em parte, dentro de uma área do mundo. */
+export function hexesNaArea({ minX, minY, maxX, maxY }: AreaMundo): CoordHex[] {
+  const rMin = Math.floor((minY - METADE_ALTURA_HEX) / ALTURA_LINHA);
+  const rMax = Math.ceil((maxY + METADE_ALTURA_HEX) / ALTURA_LINHA);
+  const meiaLargura = LARGURA_COLUNA / 2;
+  const hexes: CoordHex[] = [];
+  for (let r = rMin; r <= rMax; r++) {
+    const qMin = Math.floor((minX - meiaLargura) / LARGURA_COLUNA - r / 2);
+    const qMax = Math.ceil((maxX + meiaLargura) / LARGURA_COLUNA - r / 2);
+    for (let q = qMin; q <= qMax; q++) {
+      hexes.push({ q, r });
+    }
+  }
+  return hexes;
 }
 
 /** Hex que contém um ponto do mundo. */
