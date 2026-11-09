@@ -16,6 +16,8 @@ export type ChaveHex = `${number},${number}`;
 export const LARGURA_COLUNA = 256;
 /** Distância vertical entre duas linhas de hexes. */
 export const ALTURA_LINHA = 192;
+/** Distância do centro do hex até a ponta inferior. */
+export const METADE_ALTURA_HEX = 128;
 
 export function chaveHex({ q, r }: CoordHex): ChaveHex {
   return `${q},${r}`;
@@ -29,6 +31,12 @@ export function coordDaChave(chave: ChaveHex): CoordHex {
 /** Centro do "chão" do hex, em pixels do mundo. */
 export function hexParaMundo({ q, r }: CoordHex): PontoMundo {
   return { x: LARGURA_COLUNA * (q + r / 2), y: ALTURA_LINHA * r };
+}
+
+/** Ponta inferior do hex: o ponto de snap dos tiles. */
+export function pontaInferiorHex(coord: CoordHex): PontoMundo {
+  const centro = hexParaMundo(coord);
+  return { x: centro.x, y: centro.y + METADE_ALTURA_HEX };
 }
 
 /** Hex que contém um ponto do mundo. */

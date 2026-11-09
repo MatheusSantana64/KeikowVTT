@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { chaveHex, coordDaChave, hexParaMundo, mundoParaHex } from './hex';
+import { chaveHex, coordDaChave, hexParaMundo, mundoParaHex, pontaInferiorHex } from './hex';
+
+describe('pontaInferiorHex', () => {
+  it('fica 128 px abaixo do centro', () => {
+    expect(pontaInferiorHex({ q: 0, r: 1 })).toEqual({ x: 128, y: 320 });
+  });
+});
 
 describe('chaves de hex', () => {
   it('ida e volta preserva a coordenada, inclusive negativa', () => {

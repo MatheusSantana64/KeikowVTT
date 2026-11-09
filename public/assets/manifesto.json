@@ -1,0 +1,723 @@
+{
+  "categorias": [
+    {
+      "id": "basic-terrain-set",
+      "nome": "Basic Terrain Set"
+    },
+    {
+      "id": "cold-lands",
+      "nome": "Cold Lands"
+    },
+    {
+      "id": "deserts-terrain",
+      "nome": "Deserts Terrain"
+    },
+    {
+      "id": "medieval-fantasy-locations",
+      "nome": "Medieval Fantasy Locations"
+    },
+    {
+      "id": "rivers-coasts-seas",
+      "nome": "Rivers Coasts & Seas"
+    },
+    {
+      "id": "tropics-wetlands",
+      "nome": "Tropics & Wetlands"
+    },
+    {
+      "id": "volcanic-wastes",
+      "nome": "Volcanic Wastes"
+    }
+  ],
+  "assets": [
+    {
+      "id": "hexBase00",
+      "categoria": "basic-terrain-set",
+      "arquivo": "tiles/basic-terrain-set/hexBase00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexDesertDunes00",
+      "categoria": "basic-terrain-set",
+      "arquivo": "tiles/basic-terrain-set/hexDesertDunes00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexDirt00",
+      "categoria": "basic-terrain-set",
+      "arquivo": "tiles/basic-terrain-set/hexDirt00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexForestBroadleaf00",
+      "categoria": "basic-terrain-set",
+      "arquivo": "tiles/basic-terrain-set/hexForestBroadleaf00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexHighlands00",
+      "categoria": "basic-terrain-set",
+      "arquivo": "tiles/basic-terrain-set/hexHighlands00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexHills00",
+      "categoria": "basic-terrain-set",
+      "arquivo": "tiles/basic-terrain-set/hexHills00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexMarsh00",
+      "categoria": "basic-terrain-set",
+      "arquivo": "tiles/basic-terrain-set/hexMarsh00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexMountain00",
+      "categoria": "basic-terrain-set",
+      "arquivo": "tiles/basic-terrain-set/hexMountain00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexOcean00",
+      "categoria": "basic-terrain-set",
+      "arquivo": "tiles/basic-terrain-set/hexOcean00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexPlains00",
+      "categoria": "basic-terrain-set",
+      "arquivo": "tiles/basic-terrain-set/hexPlains00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexScrublands00",
+      "categoria": "basic-terrain-set",
+      "arquivo": "tiles/basic-terrain-set/hexScrublands00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexUnderDirt00",
+      "categoria": "basic-terrain-set",
+      "arquivo": "tiles/basic-terrain-set/hexUnderDirt00.png",
+      "largura": 256,
+      "altura": 192,
+      "tipo": "base",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 64
+      }
+    },
+    {
+      "id": "hexUnderOcean00",
+      "categoria": "basic-terrain-set",
+      "arquivo": "tiles/basic-terrain-set/hexUnderOcean00.png",
+      "largura": 256,
+      "altura": 192,
+      "tipo": "base",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 64
+      }
+    },
+    {
+      "id": "hexUnderVoid00",
+      "categoria": "basic-terrain-set",
+      "arquivo": "tiles/basic-terrain-set/hexUnderVoid00.png",
+      "largura": 256,
+      "altura": 192,
+      "tipo": "base",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 64
+      }
+    },
+    {
+      "id": "hexVoid00",
+      "categoria": "basic-terrain-set",
+      "arquivo": "tiles/basic-terrain-set/hexVoid00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexWoodlands00",
+      "categoria": "basic-terrain-set",
+      "arquivo": "tiles/basic-terrain-set/hexWoodlands00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexForestPineSnowCovered00",
+      "categoria": "cold-lands",
+      "arquivo": "tiles/cold-lands/hexForestPineSnowCovered00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexMountainSnow00",
+      "categoria": "cold-lands",
+      "arquivo": "tiles/cold-lands/hexMountainSnow00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexPlainsColdSnowTransitionPond00",
+      "categoria": "cold-lands",
+      "arquivo": "tiles/cold-lands/hexPlainsColdSnowTransitionPond00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexSnowField00",
+      "categoria": "cold-lands",
+      "arquivo": "tiles/cold-lands/hexSnowField00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexDesertRedDirt00",
+      "categoria": "deserts-terrain",
+      "arquivo": "tiles/deserts-terrain/hexDesertRedDirt00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexDesertRedGrass00",
+      "categoria": "deserts-terrain",
+      "arquivo": "tiles/deserts-terrain/hexDesertRedGrass00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexDesertRedMesaLarge00",
+      "categoria": "deserts-terrain",
+      "arquivo": "tiles/deserts-terrain/hexDesertRedMesaLarge00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexDesertYellowCactiForest00",
+      "categoria": "deserts-terrain",
+      "arquivo": "tiles/deserts-terrain/hexDesertYellowCactiForest00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexDesertYellowHillsOasis00",
+      "categoria": "deserts-terrain",
+      "arquivo": "tiles/deserts-terrain/hexDesertYellowHillsOasis00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexDesertYellowMesas00",
+      "categoria": "deserts-terrain",
+      "arquivo": "tiles/deserts-terrain/hexDesertYellowMesas00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "field00",
+      "categoria": "medieval-fantasy-locations",
+      "arquivo": "tiles/medieval-fantasy-locations/field00.png",
+      "largura": 129,
+      "altura": 84,
+      "tipo": "decoracao",
+      "escala": 1,
+      "ancora": {
+        "x": 64.5,
+        "y": 42
+      }
+    },
+    {
+      "id": "hexDesertDunesOasis00",
+      "categoria": "medieval-fantasy-locations",
+      "arquivo": "tiles/medieval-fantasy-locations/hexDesertDunesOasis00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexDirtCastle00",
+      "categoria": "medieval-fantasy-locations",
+      "arquivo": "tiles/medieval-fantasy-locations/hexDirtCastle00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexDirtVillage00",
+      "categoria": "medieval-fantasy-locations",
+      "arquivo": "tiles/medieval-fantasy-locations/hexDirtVillage00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexForestBroadleafForester00",
+      "categoria": "medieval-fantasy-locations",
+      "arquivo": "tiles/medieval-fantasy-locations/hexForestBroadleafForester00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexHillsMine01",
+      "categoria": "medieval-fantasy-locations",
+      "arquivo": "tiles/medieval-fantasy-locations/hexHillsMine01.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexPlainsFarm00",
+      "categoria": "medieval-fantasy-locations",
+      "arquivo": "tiles/medieval-fantasy-locations/hexPlainsFarm00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "house00",
+      "categoria": "medieval-fantasy-locations",
+      "arquivo": "tiles/medieval-fantasy-locations/house00.png",
+      "largura": 55,
+      "altura": 56,
+      "tipo": "decoracao",
+      "escala": 1,
+      "ancora": {
+        "x": 27.5,
+        "y": 28
+      }
+    },
+    {
+      "id": "treesA_cluster00",
+      "categoria": "medieval-fantasy-locations",
+      "arquivo": "tiles/medieval-fantasy-locations/treesA_cluster00.png",
+      "largura": 95,
+      "altura": 71,
+      "tipo": "decoracao",
+      "escala": 1,
+      "ancora": {
+        "x": 47.5,
+        "y": 35.5
+      }
+    },
+    {
+      "id": "hexOceanCalm00",
+      "categoria": "rivers-coasts-seas",
+      "arquivo": "tiles/rivers-coasts-seas/hexOceanCalm00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexPortCentre00",
+      "categoria": "rivers-coasts-seas",
+      "arquivo": "tiles/rivers-coasts-seas/hexPortCentre00.png",
+      "largura": 320,
+      "altura": 352,
+      "tipo": "decoracao",
+      "escala": 1,
+      "ancora": {
+        "x": 160,
+        "y": 176
+      }
+    },
+    {
+      "id": "hexRiver000001-00",
+      "categoria": "rivers-coasts-seas",
+      "arquivo": "tiles/rivers-coasts-seas/hexRiver000001-00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "sobreposicao",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 256
+      }
+    },
+    {
+      "id": "hexRiver001010-01",
+      "categoria": "rivers-coasts-seas",
+      "arquivo": "tiles/rivers-coasts-seas/hexRiver001010-01.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "sobreposicao",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 256
+      }
+    },
+    {
+      "id": "hexRiver010010-00",
+      "categoria": "rivers-coasts-seas",
+      "arquivo": "tiles/rivers-coasts-seas/hexRiver010010-00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "sobreposicao",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 256
+      }
+    },
+    {
+      "id": "hexRiverLakeEnd010000-00",
+      "categoria": "rivers-coasts-seas",
+      "arquivo": "tiles/rivers-coasts-seas/hexRiverLakeEnd010000-00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "sobreposicao",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 256
+      }
+    },
+    {
+      "id": "islandSandy00",
+      "categoria": "rivers-coasts-seas",
+      "arquivo": "tiles/rivers-coasts-seas/islandSandy00.png",
+      "largura": 207,
+      "altura": 215,
+      "tipo": "decoracao",
+      "escala": 1,
+      "ancora": {
+        "x": 103.5,
+        "y": 107.5
+      }
+    },
+    {
+      "id": "lakeSmall03",
+      "categoria": "rivers-coasts-seas",
+      "arquivo": "tiles/rivers-coasts-seas/lakeSmall03.png",
+      "largura": 99,
+      "altura": 70,
+      "tipo": "decoracao",
+      "escala": 1,
+      "ancora": {
+        "x": 49.5,
+        "y": 35
+      }
+    },
+    {
+      "id": "hexBog00",
+      "categoria": "tropics-wetlands",
+      "arquivo": "tiles/tropics-wetlands/hexBog00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexJungle00",
+      "categoria": "tropics-wetlands",
+      "arquivo": "tiles/tropics-wetlands/hexJungle00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexSandPalms00",
+      "categoria": "tropics-wetlands",
+      "arquivo": "tiles/tropics-wetlands/hexSandPalms00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexWetlands00",
+      "categoria": "tropics-wetlands",
+      "arquivo": "tiles/tropics-wetlands/hexWetlands00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "burnedTree00",
+      "categoria": "volcanic-wastes",
+      "arquivo": "tiles/volcanic-wastes/burnedTree00.png",
+      "largura": 42,
+      "altura": 60,
+      "tipo": "decoracao",
+      "escala": 1,
+      "ancora": {
+        "x": 21,
+        "y": 30
+      }
+    },
+    {
+      "id": "hexAshPlains00",
+      "categoria": "volcanic-wastes",
+      "arquivo": "tiles/volcanic-wastes/hexAshPlains00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexForestBurnedDirt00",
+      "categoria": "volcanic-wastes",
+      "arquivo": "tiles/volcanic-wastes/hexForestBurnedDirt00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexLavaField00",
+      "categoria": "volcanic-wastes",
+      "arquivo": "tiles/volcanic-wastes/hexLavaField00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "hexVolcanoActive00",
+      "categoria": "volcanic-wastes",
+      "arquivo": "tiles/volcanic-wastes/hexVolcanoActive00.png",
+      "largura": 256,
+      "altura": 384,
+      "tipo": "tile",
+      "escala": 1,
+      "ancora": {
+        "x": 128,
+        "y": 384
+      }
+    },
+    {
+      "id": "lavaCone00",
+      "categoria": "volcanic-wastes",
+      "arquivo": "tiles/volcanic-wastes/lavaCone00.png",
+      "largura": 75,
+      "altura": 56,
+      "tipo": "decoracao",
+      "escala": 1,
+      "ancora": {
+        "x": 37.5,
+        "y": 28
+      }
+    }
+  ]
+}
