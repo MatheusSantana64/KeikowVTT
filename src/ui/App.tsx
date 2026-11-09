@@ -1,32 +1,26 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
   type DragEvent,
 } from 'react';
-import type { CoordHex } from '../core/hex';
+import type { CoordHex, PontoMundo } from '../core/hex';
 import { criarLojaMapa } from '../core/loja';
 import type { Manifesto } from '../core/manifesto';
 import { carregarManifesto } from '../render/assets';
 import { createMapScene, type CenaMapa } from '../render/createMapScene';
+import { criarControlador, SEM_FERRAMENTA, type Ferramenta } from './controladorFerramentas';
 import { Paleta } from './Paleta';
 
-type Ferramenta =
-  | { readonly tipo: 'nenhuma' }
-  | { readonly tipo: 'pintar'; readonly terreno: string }
-  | { readonly tipo: 'apagar' };
-
-const SEM_FERRAMENTA: Ferramenta = { tipo: 'nenhuma' };
 const BORRACHA: Ferramenta = { tipo: 'apagar' };
 
 export function App() {
   const mapRef = useRef<HTMLDivElement>(null);
   const cenaRef = useRef<CenaMapa | null>(null);
-  const tileArrastado = useRef<string | null>(null);
-  // A cena é criada uma só vez, então lê a ferramenta atual por esta referência.
-  const ferramentaRef = useRef<Ferramenta>(SEM_FERRAMENTA);
+  const assetArrastado = useRef<string | null>(null);
   const [loja] = useState(() => criarLojaMapa());
   const [manifesto, setManifesto] = useState<Manifesto | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -35,11 +29,18 @@ export function App() {
   const podeDesfazer = useSyncExternalStore(loja.assinar, loja.podeDesfazer);
   const podeRefazer = useSyncExternalStore(loja.assinar, loja.podeRefazer);
 
-  const selecionarFerramenta = useCallback((nova: Ferramenta) => {
-    ferramentaRef.current = nova;
-    setFerramenta(nova);
-    cenaRef.current?.limparPrevia();
-  }, []);
+  const controlador = useMemo(
+    () => (manifesto ? criarControlador(loja, manifesto, () => cenaRef.current) : null),
+    [loja, manifesto],
+  );
+
+  const selecionarFerramenta = useCallback(
+    (nova: Ferramenta) => {
+      controlador?.definirFerramenta(nova);
+      setFerramenta(nova);
+    },
+    [controlador],
+  );
 
   useEffect(() => {
     carregarManifesto()
@@ -48,44 +49,25 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (!manifesto) {
+    if (!manifesto || !controlador) {
       return;
     }
-
-    const aplicarFerramenta = (coord: CoordHex) => {
-      const atual = ferramentaRef.current;
-      if (atual.tipo === 'pintar') {
-        loja.despachar({ tipo: 'ColocarTile', coord, terreno: atual.terreno });
-      } else if (atual.tipo === 'apagar') {
-        loja.despachar({ tipo: 'RemoverTile', coord });
-      }
-    };
-
     const cena = createMapScene(mapRef.current!, {
       loja,
       manifesto,
-      aoMudarHexSobMouse: (coord) => {
-        setHexSobMouse(coord);
-        const atual = ferramentaRef.current;
-        if (coord && atual.tipo === 'pintar') {
-          cena.mostrarPrevia(atual.terreno, coord);
-        } else {
-          cena.limparPrevia();
-        }
-      },
-      aoIniciarTraco: (coord) => {
-        loja.iniciarTraco();
-        aplicarFerramenta(coord);
-      },
-      aoContinuarTraco: aplicarFerramenta,
-      aoTerminarTraco: loja.terminarTraco,
+      aoMudarHexSobMouse: setHexSobMouse,
+      aoMoverPonteiro: controlador.aoMoverPonteiro,
+      aoIniciarTraco: controlador.aoIniciarTraco,
+      aoContinuarTraco: controlador.aoContinuarTraco,
+      aoMoverDuranteTraco: controlador.aoMoverDuranteTraco,
+      aoTerminarTraco: controlador.aoTerminarTraco,
     });
     cenaRef.current = cena;
     return () => {
       cena.destruir();
       cenaRef.current = null;
     };
-  }, [loja, manifesto]);
+  }, [loja, manifesto, controlador]);
 
   useEffect(() => {
     const aoApertarTecla = (evento: KeyboardEvent) => {
@@ -109,23 +91,23 @@ export function App() {
     return () => window.removeEventListener('keydown', aoApertarTecla);
   }, [loja, selecionarFerramenta]);
 
-  const hexDoEvento = (evento: DragEvent<HTMLElement>): CoordHex | null => {
+  const pontoDoEvento = (evento: DragEvent<HTMLElement>): PontoMundo | null => {
     const limites = evento.currentTarget.getBoundingClientRect();
     return (
-      cenaRef.current?.hexEm(evento.clientX - limites.left, evento.clientY - limites.top) ?? null
+      cenaRef.current?.mundoEm(evento.clientX - limites.left, evento.clientY - limites.top) ?? null
     );
   };
 
   const aoArrastarSobreMapa = (evento: DragEvent<HTMLElement>) => {
-    const assetId = tileArrastado.current;
+    const assetId = assetArrastado.current;
     if (!assetId) {
       return;
     }
     evento.preventDefault();
     evento.dataTransfer.dropEffect = 'copy';
-    const coord = hexDoEvento(evento);
-    if (coord) {
-      cenaRef.current?.mostrarPrevia(assetId, coord);
+    const ponto = pontoDoEvento(evento);
+    if (ponto) {
+      controlador?.mostrarPrevia(assetId, ponto);
     }
   };
 
@@ -137,26 +119,29 @@ export function App() {
   };
 
   const aoSoltarNoMapa = (evento: DragEvent<HTMLElement>) => {
-    const terreno = tileArrastado.current;
-    if (!terreno) {
+    const assetId = assetArrastado.current;
+    if (!assetId) {
       return;
     }
     evento.preventDefault();
-    const coord = hexDoEvento(evento);
-    if (coord) {
-      loja.despachar({ tipo: 'ColocarTile', coord, terreno });
+    const ponto = pontoDoEvento(evento);
+    if (ponto) {
+      controlador?.colocarAsset(assetId, ponto);
     }
     cenaRef.current?.limparPrevia();
   };
 
   const aoTerminarArraste = () => {
-    tileArrastado.current = null;
+    assetArrastado.current = null;
     cenaRef.current?.limparPrevia();
   };
 
-  const aoSelecionarTile = (assetId: string) => {
-    const jaSelecionado = ferramenta.tipo === 'pintar' && ferramenta.terreno === assetId;
-    selecionarFerramenta(jaSelecionado ? SEM_FERRAMENTA : { tipo: 'pintar', terreno: assetId });
+  const assetSelecionado = ferramenta.tipo === 'colocar' ? ferramenta.assetId : null;
+
+  const aoSelecionarAsset = (assetId: string) => {
+    selecionarFerramenta(
+      assetId === assetSelecionado ? SEM_FERRAMENTA : { tipo: 'colocar', assetId },
+    );
   };
 
   return (
@@ -164,8 +149,10 @@ export function App() {
       <aside className="sidebar">
         <h1>KeikowVTT</h1>
         <dl className="ajuda">
-          <dt>Pintar</dt>
-          <dd>Clique em um tile e pinte com o botão esquerdo, ou arraste o tile para o mapa</dd>
+          <dt>Colocar</dt>
+          <dd>Clique em um item e use o botão esquerdo, ou arraste o item para o mapa</dd>
+          <dt>Mover decoração</dt>
+          <dd>Sem ferramenta (Esc), arraste com o botão esquerdo</dd>
           <dt>Zoom e câmera</dt>
           <dd>Roda do mouse; arrastar com o botão direito ou o do meio</dd>
         </dl>
@@ -193,10 +180,10 @@ export function App() {
         {manifesto && (
           <Paleta
             manifesto={manifesto}
-            tileSelecionado={ferramenta.tipo === 'pintar' ? ferramenta.terreno : null}
-            aoSelecionarTile={aoSelecionarTile}
+            assetSelecionado={assetSelecionado}
+            aoSelecionarAsset={aoSelecionarAsset}
             aoIniciarArraste={(assetId) => {
-              tileArrastado.current = assetId;
+              assetArrastado.current = assetId;
             }}
             aoTerminarArraste={aoTerminarArraste}
           />

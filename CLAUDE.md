@@ -77,8 +77,8 @@ Cada fase deve funcionar sozinha antes de avançar.
   4. ✅ Grid, zoom e câmera.
   5. ✅ Paleta e arrastar e soltar com snap.
   6. ✅ Pintar arrastando, apagar, desfazer e refazer.
-  7. Decorações e rios na paleta e no mapa (próximo).
-  8. Salvar e carregar JSON, com salvamento automático no navegador.
+  7. ✅ Decorações e rios na paleta e no mapa.
+  8. Salvar e carregar JSON, com salvamento automático no navegador (próximo).
 - Comandos: `npm run dev` (editor), `npm test`, `npm run build`, `npm run assets` (regera `public/assets/` a partir de `Hex Samples/`).
 
 ## Decisões já tomadas

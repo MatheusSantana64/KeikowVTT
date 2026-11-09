@@ -98,6 +98,42 @@ body {
   color: #f08a70;
 }
 
+.paleta-bloco {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.paleta-abas {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.paleta-abas button {
+  flex: 1;
+  padding: 6px 2px;
+  border: 0;
+  border-bottom: 2px solid #333846;
+  background: none;
+  color: #a5a79f;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.paleta-abas button[aria-selected='true'] {
+  border-bottom-color: #f0c870;
+  color: #e6e3da;
+}
+
+.paleta-decoracoes img {
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: #2a2e3a;
+}
+
 .paleta {
   flex: 1;
   min-height: 0;
