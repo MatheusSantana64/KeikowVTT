@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "assets": "node scripts/gerar-assets.mjs"
+    "assets": "node scripts/gerar-assets.mjs",
+    "srd": "node --import ./scripts/registrar-ts.mjs scripts/srd/gerar-srd.mjs"
   },
   "dependencies": {
     "pixi-viewport": "^7.0.2",

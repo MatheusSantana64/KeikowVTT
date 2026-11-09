@@ -1,0 +1,25 @@
+{
+  "versao": 1,
+  "pacotes": [
+    {
+      "id": "srd-5.1",
+      "nome": "SRD 5.1",
+      "descricao": "O conteúdo de regras aberto da quinta edição: equipamentos, itens mágicos, magias, classes, espécies, condições e monstros. Textos em inglês.",
+      "arquivo": "srd-5.1.json",
+      "creditos": [
+        {
+          "titulo": "System Reference Document 5.1",
+          "texto": "This work includes material taken from the System Reference Document 5.1 (“SRD 5.1”) by Wizards of the Coast LLC and available at https://dnd.wizards.com/resources/systems-reference-document. The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International License available at https://creativecommons.org/licenses/by/4.0/legalcode."
+        },
+        {
+          "titulo": "Adaptação",
+          "texto": "O conteúdo do SRD 5.1 foi reorganizado no formato do KeikowVTT: os campos foram separados e traduzidos para a interface, e as descrições mantêm o texto original em inglês."
+        },
+        {
+          "titulo": "Dados organizados pelo projeto 5e-bits (5e-database)",
+          "texto": "https://github.com/5e-bits/5e-srd-api, versão 175d303, sob a licença MIT:\n\nMIT License\n\nCopyright (c) [2018-2020] [Adrian Padua, Christopher Ward]\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE."
+        }
+      ]
+    }
+  ]
+}

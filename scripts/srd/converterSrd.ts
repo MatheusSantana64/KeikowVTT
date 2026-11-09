@@ -1,0 +1,849 @@
+/**
+ * Converte os dados do SRD 5.1, organizados pelo projeto 5e-bits, para entradas do compêndio.
+ * Funções puras: quem baixa e grava os arquivos é o `gerar-srd.mjs`.
+ */
+import type {
+  Atributo,
+  BlocoDeTexto,
+  DadosArma,
+  DadosArmadura,
+  DadosItem,
+  Entrada,
+  EntradaDe,
+  MOEDAS,
+  TipoEntrada,
+} from '../../src/core/entradas';
+import type { Credito, Pacote } from '../../src/core/pacotes';
+import { SO_MESTRE, VISIVEL_A_TODOS } from '../../src/core/visibilidade';
+
+export const ID_PACOTE = 'srd-5.1';
+
+/** Versão fixa da base do 5e-bits: a conversão sempre dá o mesmo resultado. */
+export const COMMIT_5E_BITS = '175d30345dfbcff69aa37db217fdcf3d4a4078e6';
+
+export const ARQUIVOS_FONTE = [
+  'Equipment',
+  'Magic-Items',
+  'Spells',
+  'Features',
+  'Traits',
+  'Classes',
+  'Races',
+  'Subraces',
+  'Backgrounds',
+  'Feats',
+  'Conditions',
+  'Monsters',
+] as const;
+export type ArquivoFonte = (typeof ARQUIVOS_FONTE)[number];
+
+/** O conteúdo de cada arquivo da base, como veio do 5e-bits. */
+export type Fontes = Readonly<Record<ArquivoFonte, readonly Registro[]>>;
+
+/**
+ * Um registro da base. O formato vem de fora e varia por arquivo; o pacote gerado
+ * passa depois pelo mesmo verificador rigoroso do compêndio.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Registro = Record<string, any>;
+
+/** A frase exigida pela licença CC-BY 4.0, copiada do PDF oficial do SRD 5.1. */
+export const CREDITO_SRD: Credito = {
+  titulo: 'System Reference Document 5.1',
+  texto:
+    'This work includes material taken from the System Reference Document 5.1 (“SRD 5.1”) by Wizards of the Coast LLC and available at https://dnd.wizards.com/resources/systems-reference-document. The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International License available at https://creativecommons.org/licenses/by/4.0/legalcode.',
+};
+
+export const CREDITO_ADAPTACAO: Credito = {
+  titulo: 'Adaptação',
+  texto:
+    'O conteúdo do SRD 5.1 foi reorganizado no formato do KeikowVTT: os campos foram separados e traduzidos para a interface, e as descrições mantêm o texto original em inglês.',
+};
+
+export const CREDITO_5E_BITS: Credito = {
+  titulo: 'Dados organizados pelo projeto 5e-bits (5e-database)',
+  texto: `https://github.com/5e-bits/5e-srd-api, versão ${COMMIT_5E_BITS.slice(0, 7)}, sob a licença MIT:
+
+MIT License
+
+Copyright (c) [2018-2020] [Adrian Padua, Christopher Ward]
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.`,
+};
+
+export const CREDITOS = [CREDITO_SRD, CREDITO_ADAPTACAO, CREDITO_5E_BITS] as const;
+
+// ---------- Tabelas de tradução dos valores da base ----------
+
+const ATRIBUTO: Readonly<Record<string, Atributo>> = {
+  str: 'for',
+  dex: 'des',
+  con: 'con',
+  int: 'int',
+  wis: 'sab',
+  cha: 'car',
+};
+
+const NOME_DO_ATRIBUTO: Readonly<Record<string, string>> = {
+  str: 'Strength',
+  dex: 'Dexterity',
+  con: 'Constitution',
+  int: 'Intelligence',
+  wis: 'Wisdom',
+  cha: 'Charisma',
+};
+
+/** Cuidado: no SRD, "pp" é platina; aqui, "pp" é prata. */
+const MOEDA: Readonly<Record<string, (typeof MOEDAS)[number]>> = {
+  cp: 'pc',
+  sp: 'pp',
+  ep: 'pe',
+  gp: 'po',
+  pp: 'pl',
+};
+
+const TAMANHO = {
+  Tiny: 'miudo',
+  Small: 'pequeno',
+  Medium: 'medio',
+  Large: 'grande',
+  Huge: 'enorme',
+  Gargantuan: 'imenso',
+} as const;
+
+const ESCOLA = {
+  abjuration: 'abjuracao',
+  divination: 'adivinhacao',
+  conjuration: 'conjuracao',
+  enchantment: 'encantamento',
+  evocation: 'evocacao',
+  illusion: 'ilusao',
+  necromancy: 'necromancia',
+  transmutation: 'transmutacao',
+} as const;
+
+const RARIDADE = {
+  Common: 'comum',
+  Uncommon: 'incomum',
+  Rare: 'raro',
+  'Very Rare': 'muito-raro',
+  Legendary: 'lendario',
+  Artifact: 'artefato',
+  Varies: 'variada',
+} as const;
+
+const PESO_ARMADURA = { Light: 'leve', Medium: 'media', Heavy: 'pesada', Shield: 'escudo' } as const;
+
+// ---------- Ajudantes ----------
+
+class ErroDeConversao extends Error {}
+
+function exigirValor<T>(valor: T | undefined | null, onde: string): T {
+  if (valor === undefined || valor === null) {
+    throw new ErroDeConversao(`Valor faltando em ${onde}.`);
+  }
+  return valor;
+}
+
+function traduzir<T extends string>(tabela: Readonly<Record<string, T>>, chave: unknown, onde: string): T {
+  const valor = typeof chave === 'string' ? tabela[chave] : undefined;
+  if (valor === undefined) {
+    throw new ErroDeConversao(`Valor desconhecido em ${onde}: ${String(chave)}`);
+  }
+  return valor;
+}
+
+function id(tipo: string, indice: string): string {
+  return `${ID_PACOTE}/${tipo}/${indice}`;
+}
+
+/** Junta os parágrafos da base. Linhas seguidas de lista ou tabela ficam coladas. */
+export function juntarTexto(partes: unknown): string {
+  const linhas = (Array.isArray(partes) ? partes : partes ? [partes] : []).filter(
+    (linha): linha is string => typeof linha === 'string' && linha.trim() !== '',
+  );
+  const ehContinuacao = (linha: string) => /^\s*(\||- |\* |•)/.test(linha);
+  return linhas
+    .map((linha, i) => (i === 0 ? linha : (ehContinuacao(linha) && ehContinuacao(linhas[i - 1]) ? '\n' : '\n\n') + linha))
+    .join('');
+}
+
+function nomes(referencias: unknown): string[] {
+  return Array.isArray(referencias) ? referencias.map((r: Registro) => String(r.name)) : [];
+}
+
+function semRepetir(lista: readonly string[]): string[] {
+  return [...new Set(lista.filter((item) => item !== ''))];
+}
+
+/** 0,25 vira "1/4", como nos livros. */
+export function formatarNivelDesafio(nd: number): string {
+  const fracoes: Record<number, string> = { 0.125: '1/8', 0.25: '1/4', 0.5: '1/2' };
+  return fracoes[nd] ?? String(nd);
+}
+
+type Base<T extends TipoEntrada> = Omit<EntradaDe<T>, 'dados'>;
+
+function base<T extends TipoEntrada>(
+  tipo: T,
+  entradaId: string,
+  nome: string,
+  descricao: string,
+  etiquetas: readonly string[],
+  soMestre = false,
+): Base<T> {
+  return {
+    id: entradaId,
+    tipo,
+    nome,
+    descricao,
+    etiquetas: semRepetir(etiquetas),
+    origem: { tipo: 'pacote', pacote: ID_PACOTE },
+    // Regras e itens do SRD são de todos; fichas de monstro ficam com o mestre.
+    visibilidade: soMestre ? SO_MESTRE : VISIVEL_A_TODOS,
+    efeitos: [],
+    acoes: [],
+  };
+}
+
+function custo(registro: Registro): DadosItem['custo'] {
+  const c = registro.cost;
+  if (!c || typeof c.quantity !== 'number') {
+    return null;
+  }
+  return { quantidade: c.quantity, moeda: traduzir(MOEDA, c.unit, `custo de ${registro.index}`) };
+}
+
+// ---------- Itens ----------
+
+function arma(registro: Registro): DadosArma {
+  const aDistancia = registro.weapon_range === 'Ranged';
+  const faixa = aDistancia ? registro.range : registro.throw_range;
+  return {
+    dominio: registro.weapon_category === 'Simple' ? 'simples' : 'marcial',
+    alcanceTipo: aDistancia ? 'distancia' : 'corpo-a-corpo',
+    dano: registro.damage?.damage_dice ?? '',
+    tipoDano: registro.damage?.damage_type?.name ?? '',
+    danoVersatil: registro.two_handed_damage?.damage_dice ?? null,
+    alcance: faixa && typeof faixa.normal === 'number' ? { normal: faixa.normal, longo: faixa.long ?? null } : null,
+    propriedades: nomes(registro.properties),
+  };
+}
+
+function armadura(registro: Registro): DadosArmadura {
+  const ca = exigirValor(registro.armor_class, `CA de ${registro.index}`);
+  return {
+    peso: traduzir(PESO_ARMADURA, registro.armor_category, `armadura ${registro.index}`),
+    caBase: ca.base,
+    usaDestreza: Boolean(ca.dex_bonus),
+    destrezaMaxima: ca.dex_bonus && typeof ca.max_bonus === 'number' ? ca.max_bonus : null,
+    forcaMinima: registro.str_minimum ?? 0,
+    desvantagemFurtividade: Boolean(registro.stealth_disadvantage),
+  };
+}
+
+function categoriaDoEquipamento(registro: Registro): DadosItem['categoria'] {
+  switch (registro.equipment_category?.index) {
+    case 'weapon':
+      return 'arma';
+    case 'armor':
+      return registro.armor_category === 'Shield' ? 'escudo' : 'armadura';
+    case 'tools':
+      return 'ferramenta';
+    case 'mounts-and-vehicles':
+      return 'montaria';
+    case 'adventuring-gear':
+      return registro.gear_category?.index === 'ammunition' ? 'municao' : 'equipamento';
+    default:
+      throw new ErroDeConversao(`Categoria desconhecida em ${registro.index}.`);
+  }
+}
+
+function descricaoDoEquipamento(registro: Registro): string {
+  const partes = [juntarTexto(registro.desc), juntarTexto(registro.special)];
+  if (Array.isArray(registro.contents) && registro.contents.length > 0) {
+    partes.push(
+      `Contents: ${registro.contents.map((c: Registro) => `${c.quantity} × ${c.item?.name}`).join(', ')}.`,
+    );
+  }
+  if (registro.speed) {
+    partes.push(`Speed: ${registro.speed.quantity} ${registro.speed.unit}.`);
+  }
+  if (registro.capacity) {
+    partes.push(`Carrying capacity: ${registro.capacity}.`);
+  }
+  if (typeof registro.quantity === 'number' && registro.quantity > 1) {
+    partes.push(`Sold in a bundle of ${registro.quantity}.`);
+  }
+  return partes.filter((p) => p !== '').join('\n\n');
+}
+
+export function converterEquipamento(registro: Registro): EntradaDe<'item'> {
+  const categoria = categoriaDoEquipamento(registro);
+  return {
+    ...base('item', id('equipamento', registro.index), registro.name, descricaoDoEquipamento(registro), nomes(registro.equipment_categories)),
+    dados: {
+      categoria,
+      peso: registro.weight ?? 0,
+      custo: custo(registro),
+      raridade: null,
+      requerSintonia: false,
+      empilhavel: categoria === 'municao' || typeof registro.quantity === 'number',
+      arma: categoria === 'arma' ? arma(registro) : null,
+      armadura: categoria === 'armadura' || categoria === 'escudo' ? armadura(registro) : null,
+    },
+  };
+}
+
+function categoriaDoItemMagico(registro: Registro): DadosItem['categoria'] {
+  switch (registro.equipment_category?.index) {
+    case 'armor':
+      return /shield/i.test(registro.name) ? 'escudo' : 'armadura';
+    case 'weapon':
+      return 'arma';
+    case 'ammunition':
+      return 'municao';
+    case 'potion':
+    case 'scroll':
+      return 'consumivel';
+    case 'ring':
+    case 'rod':
+    case 'staff':
+    case 'wand':
+    case 'wondrous-items':
+      return 'equipamento';
+    default:
+      throw new ErroDeConversao(`Categoria desconhecida em ${registro.index}.`);
+  }
+}
+
+/**
+ * Um item mágico. Os "grupos" com variantes (como "Ammunition, +1, +2, or +3")
+ * ficam de fora: cada variante concreta vira uma entrada.
+ */
+export function converterItemMagico(registro: Registro): EntradaDe<'item'> {
+  const categoria = categoriaDoItemMagico(registro);
+  const linhas: string[] = Array.isArray(registro.desc) ? registro.desc : [];
+  return {
+    ...base('item', id('item-magico', registro.index), registro.name, juntarTexto(linhas), [
+      registro.equipment_category?.name ?? '',
+      'Magic Item',
+    ]),
+    dados: {
+      categoria,
+      peso: 0,
+      custo: null,
+      raridade: traduzir(RARIDADE, registro.rarity?.name, `raridade de ${registro.index}`),
+      requerSintonia: /requires attunement/i.test(linhas[0] ?? ''),
+      empilhavel: categoria === 'consumivel' || categoria === 'municao',
+      arma: null,
+      armadura: null,
+    },
+  };
+}
+
+// ---------- Magias ----------
+
+export function converterMagia(registro: Registro): EntradaDe<'magia'> {
+  const componentes: string[] = registro.components ?? [];
+  const nivelAlto = juntarTexto(registro.higher_level);
+  const descricao = [juntarTexto(registro.desc), nivelAlto && `At Higher Levels. ${nivelAlto}`]
+    .filter(Boolean)
+    .join('\n\n');
+  return {
+    ...base('magia', id('magia', registro.index), registro.name, descricao, nomes(registro.classes)),
+    dados: {
+      nivel: registro.level,
+      escola: traduzir(ESCOLA, registro.school?.index, `escola de ${registro.index}`),
+      tempoConjuracao: registro.casting_time ?? '',
+      alcance: registro.range ?? '',
+      componentes: {
+        verbal: componentes.includes('V'),
+        somatico: componentes.includes('S'),
+        material: componentes.includes('M') ? (registro.material ?? '') : null,
+      },
+      duracao: registro.duration ?? '',
+      concentracao: Boolean(registro.concentration),
+      ritual: Boolean(registro.ritual),
+      classes: (registro.classes ?? []).map((c: Registro) => id('classe', c.index)),
+    },
+  };
+}
+
+// ---------- Habilidades ----------
+
+function nomePelaUrl(url: unknown): string {
+  const ultimo = typeof url === 'string' ? (url.split('/').pop() ?? '') : '';
+  return ultimo.replace(/-/g, ' ');
+}
+
+function textoDosPrerequisitos(prerequisitos: unknown): string {
+  if (!Array.isArray(prerequisitos)) {
+    return '';
+  }
+  return prerequisitos
+    .map((p: Registro) => {
+      switch (p.type) {
+        case 'level':
+          return `level ${p.level}`;
+        case 'spell':
+          return `spell ${nomePelaUrl(p.spell)}`;
+        case 'feature':
+          return `feature ${nomePelaUrl(p.feature)}`;
+        default:
+          return '';
+      }
+    })
+    .filter(Boolean)
+    .join(', ');
+}
+
+/**
+ * Junta as características de classe idênticas (mesmo nome e texto), como "Ability Score Improvement",
+ * que se repete em cada classe e nível. Devolve os grupos e o id final de cada característica.
+ */
+export function agruparCaracteristicas(caracteristicas: readonly Registro[]): {
+  readonly grupos: Registro[][];
+  readonly idFinal: ReadonlyMap<string, string>;
+} {
+  const porConteudo = new Map<string, Registro[]>();
+  for (const registro of caracteristicas) {
+    const chave = `${registro.name}\u0000${JSON.stringify(registro.desc)}`;
+    const grupo = porConteudo.get(chave);
+    if (grupo) {
+      grupo.push(registro);
+    } else {
+      porConteudo.set(chave, [registro]);
+    }
+  }
+  const grupos = [...porConteudo.values()];
+  const idFinal = new Map<string, string>();
+  for (const grupo of grupos) {
+    for (const registro of grupo) {
+      idFinal.set(registro.index, id('caracteristica', grupo[0].index));
+    }
+  }
+  return { grupos, idFinal };
+}
+
+/** Uma característica de classe, ou um grupo de características idênticas. */
+export function converterCaracteristica(grupo: readonly Registro[]): EntradaDe<'habilidade'> {
+  const [primeira] = grupo;
+  const niveisPorDono = new Map<string, number[]>();
+  for (const registro of grupo) {
+    const dono = `${registro.class?.name ?? ''}${registro.subclass ? ` (${registro.subclass.name})` : ''}`;
+    niveisPorDono.set(dono, [...(niveisPorDono.get(dono) ?? []), registro.level]);
+  }
+  const prerequisitos = textoDosPrerequisitos(primeira.prerequisites);
+  const requisito =
+    [...niveisPorDono].map(([dono, niveis]) => `${dono} ${niveis.sort((a, b) => a - b).join(', ')}`).join('; ') +
+    (prerequisitos ? `; prerequisite: ${prerequisitos}` : '');
+  return {
+    ...base('habilidade', id('caracteristica', primeira.index), primeira.name, juntarTexto(primeira.desc), [
+      ...grupo.flatMap((r) => [r.class?.name ?? '', r.subclass?.name ?? '']),
+      'Class Feature',
+    ]),
+    dados: { requisito, usos: null },
+  };
+}
+
+export function converterTraco(registro: Registro): EntradaDe<'habilidade'> {
+  const donos = [...nomes(registro.races), ...nomes(registro.subraces)];
+  return {
+    ...base('habilidade', id('traco', registro.index), registro.name, juntarTexto(registro.desc), [
+      ...donos,
+      'Racial Trait',
+    ]),
+    dados: { requisito: donos.join(', '), usos: null },
+  };
+}
+
+// ---------- Classes ----------
+
+export function converterClasse(
+  registro: Registro,
+  caracteristicas: readonly Registro[],
+  idFinal: ReadonlyMap<string, string>,
+): EntradaDe<'classe'> {
+  const proprias = caracteristicas
+    .filter((c) => c.class?.index === registro.index && !c.subclass && !c.parent)
+    .sort((a, b) => a.level - b.level);
+  const escolhas = (registro.proficiency_choices ?? [])
+    .map((escolha: Registro) => escolha.desc)
+    .filter((d: unknown): d is string => typeof d === 'string' && d !== '');
+  const partes: string[] = [];
+  for (const bloco of registro.spellcasting?.info ?? []) {
+    partes.push(`${bloco.name}. ${juntarTexto(bloco.desc)}`);
+  }
+  const subclasses = nomes(registro.subclasses);
+  if (subclasses.length > 0) {
+    partes.push(`Subclasses in the SRD: ${subclasses.join(', ')}.`);
+  }
+  const iniciais = (registro.starting_equipment ?? []).map(
+    (e: Registro) => `${e.quantity} × ${e.equipment?.name}`,
+  );
+  const opcoes = (registro.starting_equipment_options ?? [])
+    .map((o: Registro) => o.desc)
+    .filter((d: unknown): d is string => typeof d === 'string');
+  if (iniciais.length + opcoes.length > 0) {
+    partes.push(`Starting equipment: ${[...iniciais, ...opcoes].join('; ')}.`);
+  }
+  const multiclasse = (registro.multi_classing?.prerequisites ?? []).map(
+    (p: Registro) => `${p.ability_score?.name} ${p.minimum_score}`,
+  );
+  if (multiclasse.length > 0) {
+    partes.push(`Multiclassing prerequisite: ${multiclasse.join(', ')}.`);
+  }
+  const conjuracao = registro.spellcasting?.spellcasting_ability?.index;
+  return {
+    ...base('classe', id('classe', registro.index), registro.name, partes.join('\n\n'), []),
+    dados: {
+      dadoVida: registro.hit_die,
+      salvaguardas: (registro.saving_throws ?? []).map((s: Registro) =>
+        traduzir(ATRIBUTO, s.index, `salvaguarda de ${registro.index}`),
+      ),
+      proficiencias: [
+        ...nomes(registro.proficiencies).filter((n) => !n.startsWith('Saving Throw:')),
+        ...escolhas,
+      ],
+      habilidades: proprias.map((c) => ({
+        nivel: c.level,
+        entradaId: exigirValor(idFinal.get(c.index), `característica ${c.index}`),
+      })),
+      atributoConjuracao: conjuracao ? traduzir(ATRIBUTO, conjuracao, `conjuração de ${registro.index}`) : null,
+    },
+  };
+}
+
+// ---------- Espécies ----------
+
+function aumentos(bonus: unknown): Partial<Record<Atributo, number>> {
+  const resultado: Partial<Record<Atributo, number>> = {};
+  for (const b of Array.isArray(bonus) ? bonus : []) {
+    const atributo = traduzir(ATRIBUTO, b.ability_score?.index, 'aumento de atributo');
+    resultado[atributo] = (resultado[atributo] ?? 0) + b.bonus;
+  }
+  return resultado;
+}
+
+function somarAumentos(
+  a: Partial<Record<Atributo, number>>,
+  b: Partial<Record<Atributo, number>>,
+): Partial<Record<Atributo, number>> {
+  const soma = { ...a };
+  for (const [atributo, valor] of Object.entries(b) as [Atributo, number][]) {
+    soma[atributo] = (soma[atributo] ?? 0) + valor;
+  }
+  return soma;
+}
+
+function descricaoDaEspecie(registro: Registro): string {
+  const partes = [registro.age, registro.alignment, registro.size_description, registro.language_desc];
+  if (registro.ability_bonus_options) {
+    partes.push(`Ability score increase: choose ${registro.ability_bonus_options.choose} from the options.`);
+  }
+  return juntarTexto(partes);
+}
+
+export function converterEspecie(registro: Registro): EntradaDe<'especie'> {
+  return {
+    ...base('especie', id('especie', registro.index), registro.name, descricaoDaEspecie(registro), []),
+    dados: {
+      tamanho: traduzir(TAMANHO, registro.size, `tamanho de ${registro.index}`),
+      deslocamento: registro.speed,
+      aumentosAtributo: aumentos(registro.ability_bonuses),
+      idiomas: nomes(registro.languages),
+      tracos: (registro.traits ?? []).map((t: Registro) => id('traco', t.index)),
+    },
+  };
+}
+
+/** A sub-espécie vira uma espécie completa, já somando o que vem da espécie principal. */
+export function converterSubespecie(registro: Registro, especies: readonly Registro[]): EntradaDe<'especie'> {
+  const principal = exigirValor(
+    especies.find((e) => e.index === registro.race?.index),
+    `espécie principal de ${registro.index}`,
+  );
+  const daPrincipal = converterEspecie(principal);
+  const descricao = [juntarTexto(registro.desc), `Subrace of ${principal.name}.`, daPrincipal.descricao]
+    .filter(Boolean)
+    .join('\n\n');
+  return {
+    ...base('especie', id('especie', registro.index), registro.name, descricao, [principal.name]),
+    dados: {
+      ...daPrincipal.dados,
+      aumentosAtributo: somarAumentos(daPrincipal.dados.aumentosAtributo, aumentos(registro.ability_bonuses)),
+      tracos: semRepetir([
+        ...daPrincipal.dados.tracos,
+        ...(registro.racial_traits ?? []).map((t: Registro) => id('traco', t.index)),
+      ]),
+    },
+  };
+}
+
+// ---------- Antecedentes, talentos e condições ----------
+
+function opcoesDeTexto(grupo: Registro | undefined, titulo: string): string {
+  const opcoes: Registro[] = grupo?.from?.options ?? [];
+  const textos = opcoes.map((o) => o.string ?? o.desc).filter((t): t is string => typeof t === 'string');
+  return textos.length > 0 ? `${titulo} (choose ${grupo?.choose ?? 1}):\n${textos.map((t) => `- ${t}`).join('\n')}` : '';
+}
+
+/** O antecedente e a característica que ele dá, que vira uma habilidade própria. */
+export function converterAntecedente(registro: Registro): [EntradaDe<'antecedente'>, EntradaDe<'habilidade'>] {
+  const caracteristica: EntradaDe<'habilidade'> = {
+    ...base(
+      'habilidade',
+      id('caracteristica-antecedente', registro.index),
+      exigirValor(registro.feature?.name, `característica de ${registro.index}`),
+      juntarTexto(registro.feature?.desc),
+      [registro.name, 'Background Feature'],
+    ),
+    dados: { requisito: registro.name, usos: null },
+  };
+  const partes = [
+    registro.language_options ? `Languages: choose ${registro.language_options.choose}.` : '',
+    `Equipment: ${(registro.starting_equipment ?? [])
+      .map((e: Registro) => `${e.quantity} × ${e.equipment?.name}`)
+      .join(', ')}${registro.starting_gold ? `, ${registro.starting_gold.quantity} ${registro.starting_gold.unit}` : ''}.`,
+    opcoesDeTexto(registro.personality_traits, 'Personality traits'),
+    opcoesDeTexto(registro.ideals, 'Ideals'),
+    opcoesDeTexto(registro.bonds, 'Bonds'),
+    opcoesDeTexto(registro.flaws, 'Flaws'),
+  ];
+  const antecedente: EntradaDe<'antecedente'> = {
+    ...base('antecedente', id('antecedente', registro.index), registro.name, partes.filter(Boolean).join('\n\n'), []),
+    dados: {
+      proficiencias: nomes(registro.starting_proficiencies),
+      habilidades: [caracteristica.id],
+    },
+  };
+  return [antecedente, caracteristica];
+}
+
+export function converterTalento(registro: Registro): EntradaDe<'talento'> {
+  const prerequisito = (registro.prerequisites ?? [])
+    .map((p: Registro) => `${traduzir(NOME_DO_ATRIBUTO, p.ability_score?.index, 'pré-requisito')} ${p.minimum_score}`)
+    .join(', ');
+  return {
+    ...base('talento', id('talento', registro.index), registro.name, juntarTexto(registro.desc), []),
+    dados: { prerequisito },
+  };
+}
+
+export function converterCondicao(registro: Registro): EntradaDe<'condicao'> {
+  return {
+    ...base('condicao', id('condicao', registro.index), registro.name, juntarTexto(registro.desc), []),
+    dados: {},
+  };
+}
+
+// ---------- Monstros ----------
+
+function notaDaArmadura(ca: Registro): string {
+  switch (ca.type) {
+    case 'armor':
+      return nomes(ca.armor).join(', ') || 'armor';
+    case 'natural':
+      return 'natural armor';
+    case 'dex':
+      return '';
+    case 'spell':
+      return ca.spell?.name ?? 'spell';
+    case 'condition':
+      return ca.condition?.name ?? 'condition';
+    default:
+      return String(ca.type ?? '');
+  }
+}
+
+export function formatarUso(uso: Registro | undefined): string {
+  if (!uso) {
+    return '';
+  }
+  switch (uso.type) {
+    case 'per day':
+      return `${uso.times}/Day`;
+    case 'recharge on roll':
+      return uso.min_value >= 6 ? 'Recharge 6' : `Recharge ${uso.min_value}–6`;
+    case 'recharge after rest':
+      return `Recharges after a ${(uso.rest_types ?? []).join(' or ')} rest`;
+    default:
+      return '';
+  }
+}
+
+function blocos(lista: unknown): BlocoDeTexto[] {
+  return (Array.isArray(lista) ? lista : []).map((b: Registro) => {
+    const uso = formatarUso(b.usage);
+    return { nome: uso ? `${b.name} (${uso})` : b.name, descricao: juntarTexto(b.desc) };
+  });
+}
+
+function deslocamento(velocidade: Registro | undefined): string {
+  return Object.entries(velocidade ?? {})
+    .map(([modo, valor]) => (modo === 'walk' ? String(valor) : modo === 'hover' ? 'hover' : `${modo} ${valor}`))
+    .join(', ');
+}
+
+function sentidos(registro: Registro | undefined): string {
+  return Object.entries(registro ?? {})
+    .map(([sentido, valor]) =>
+      sentido === 'passive_perception' ? `passive Perception ${valor}` : `${sentido.replace(/_/g, ' ')} ${valor}`,
+    )
+    .join(', ');
+}
+
+export function converterMonstro(registro: Registro): EntradaDe<'monstro'> {
+  const [ca, ...outrasCa] = exigirValor(registro.armor_class as Registro[] | undefined, `CA de ${registro.index}`);
+  const nota = [
+    notaDaArmadura(ca),
+    ...outrasCa.map((outra) => `${outra.value} with ${notaDaArmadura(outra)}`),
+  ]
+    .filter(Boolean)
+    .join('; ');
+  const salvaguardas: Partial<Record<Atributo, number>> = {};
+  const pericias: Record<string, number> = {};
+  for (const p of registro.proficiencies ?? []) {
+    const indice: string = p.proficiency?.index ?? '';
+    if (indice.startsWith('saving-throw-')) {
+      salvaguardas[traduzir(ATRIBUTO, indice.slice('saving-throw-'.length), `salvaguarda de ${registro.index}`)] = p.value;
+    } else if (indice.startsWith('skill-')) {
+      pericias[String(p.proficiency.name).replace(/^Skill: /, '')] = p.value;
+    }
+  }
+  const nd = registro.challenge_rating;
+  return {
+    ...base(
+      'monstro',
+      id('monstro', registro.index),
+      registro.name,
+      juntarTexto(registro.desc),
+      [registro.type, `CR ${formatarNivelDesafio(nd)}`],
+      true,
+    ),
+    dados: {
+      tamanho: traduzir(TAMANHO, registro.size, `tamanho de ${registro.index}`),
+      tipoCriatura: registro.subtype ? `${registro.type} (${registro.subtype})` : registro.type,
+      alinhamento: registro.alignment ?? '',
+      classeArmadura: ca.value,
+      notaArmadura: nota,
+      pontosVida: registro.hit_points,
+      dadosVida: registro.hit_points_roll ?? registro.hit_dice ?? '',
+      deslocamento: deslocamento(registro.speed),
+      atributos: {
+        for: registro.strength,
+        des: registro.dexterity,
+        con: registro.constitution,
+        int: registro.intelligence,
+        sab: registro.wisdom,
+        car: registro.charisma,
+      },
+      salvaguardas,
+      pericias,
+      vulnerabilidades: registro.damage_vulnerabilities ?? [],
+      resistencias: registro.damage_resistances ?? [],
+      imunidades: registro.damage_immunities ?? [],
+      imunidadesCondicao: nomes(registro.condition_immunities),
+      sentidos: sentidos(registro.senses),
+      idiomas: registro.languages ?? '',
+      nivelDesafio: nd,
+      experiencia: registro.xp,
+      tracos: blocos(registro.special_abilities),
+      acoesDeCombate: blocos(registro.actions),
+      reacoes: blocos(registro.reactions),
+      acoesLendarias: blocos(registro.legendary_actions),
+    },
+  };
+}
+
+// ---------- O pacote inteiro ----------
+
+/** Converte toda a base, na ordem dos tipos, e devolve o pacote pronto para gravar. */
+export function converterSrd(fontes: Fontes): Pacote {
+  const entradas: Entrada[] = [];
+  const converter = <T>(arquivo: ArquivoFonte, fazer: (registro: Registro) => T, filtro?: (r: Registro) => boolean) => {
+    for (const registro of fontes[arquivo]) {
+      if (filtro && !filtro(registro)) {
+        continue;
+      }
+      try {
+        const resultado = fazer(registro);
+        entradas.push(...((Array.isArray(resultado) ? resultado : [resultado]) as Entrada[]));
+      } catch (erro) {
+        throw new ErroDeConversao(`${arquivo}, "${registro.index}": ${(erro as Error).message}`);
+      }
+    }
+  };
+
+  converter('Equipment', converterEquipamento);
+  converter('Magic-Items', converterItemMagico, (r) => !(Array.isArray(r.variants) && r.variants.length > 0));
+  converter('Spells', converterMagia);
+  const { grupos, idFinal } = agruparCaracteristicas(fontes.Features);
+  for (const grupo of grupos) {
+    entradas.push(converterCaracteristica(grupo));
+  }
+  converter('Traits', converterTraco);
+  converter('Classes', (r) => converterClasse(r, fontes.Features, idFinal));
+  converter('Races', converterEspecie);
+  converter('Subraces', (r) => converterSubespecie(r, fontes.Races));
+  converter('Backgrounds', converterAntecedente);
+  converter('Feats', converterTalento);
+  converter('Conditions', converterCondicao);
+  converter('Monsters', converterMonstro);
+
+  return {
+    id: ID_PACOTE,
+    nome: 'SRD 5.1',
+    descricao:
+      'O conteúdo de regras aberto da quinta edição: equipamentos, itens mágicos, magias, classes, espécies, condições e monstros. Textos em inglês.',
+    creditos: CREDITOS,
+    entradas,
+  };
+}
+
+/** Confere que toda referência entre entradas aponta para uma entrada do pacote. */
+export function referenciasQuebradas(pacote: Pacote): string[] {
+  const ids = new Set(pacote.entradas.map((e) => e.id));
+  const quebradas: string[] = [];
+  const conferir = (de: string, para: readonly string[]) => {
+    for (const alvo of para) {
+      if (!ids.has(alvo)) {
+        quebradas.push(`${de} → ${alvo}`);
+      }
+    }
+  };
+  for (const e of pacote.entradas) {
+    switch (e.tipo) {
+      case 'magia':
+        conferir(e.id, e.dados.classes);
+        break;
+      case 'classe':
+        conferir(e.id, e.dados.habilidades.map((h) => h.entradaId));
+        break;
+      case 'especie':
+        conferir(e.id, e.dados.tracos);
+        break;
+      case 'antecedente':
+        conferir(e.id, e.dados.habilidades);
+        break;
+    }
+  }
+  return quebradas;
+}

@@ -243,6 +243,26 @@ describe('listas e arquivos de compêndio', () => {
     expect(lerCompendioDoArquivo(texto)).toMatchObject({ ok: false });
   });
 
+  it('converte monstros da versão 1, no salvamento e no arquivo', () => {
+    const monstro = criarEntrada('monstro', 'goblin');
+    const {
+      notaArmadura: _nota,
+      vulnerabilidades: _v,
+      resistencias: _r,
+      imunidades: _i,
+      imunidadesCondicao: _c,
+      ...dadosAntigos
+    } = monstro.dados;
+    const antigo = { ...monstro, dados: dadosAntigos };
+    const esperado = { ok: true, estado: { entradas: { goblin: monstro } } };
+
+    expect(desserializarCompendio(JSON.stringify({ versao: 1, entradas: [antigo] }))).toEqual(esperado);
+    // Arquivos antigos guardavam o compêndio sem número de versão.
+    expect(lerCompendioDoArquivo(JSON.stringify({ compendio: { entradas: [antigo] } }))).toEqual(esperado);
+    // Na versão atual, os campos novos são obrigatórios.
+    expect(desserializarCompendio(JSON.stringify({ versao: 2, entradas: [antigo] }))).toMatchObject({ ok: false });
+  });
+
   it('recusa versão desconhecida e texto que não é JSON', () => {
     expect(desserializarCompendio(JSON.stringify({ versao: 9, entradas: [] }))).toMatchObject({ ok: false });
     expect(desserializarCompendio('lixo')).toMatchObject({ ok: false });

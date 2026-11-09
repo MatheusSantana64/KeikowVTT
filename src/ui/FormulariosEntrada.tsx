@@ -438,6 +438,7 @@ export function FormularioMonstro({ dados, mudar }: PropsFormulario<'monstro'>) 
       <CampoTexto rotulo="Tipo" dica="humanoide (goblinoide)" valor={dados.tipoCriatura} aoMudar={(v) => mudar({ tipoCriatura: v }, 'tipo')} />
       <CampoTexto rotulo="Alinhamento" valor={dados.alinhamento} aoMudar={(v) => mudar({ alinhamento: v }, 'alinhamento')} />
       <CampoNumero rotulo="Classe de Armadura" inteiro valor={dados.classeArmadura} aoMudar={(v) => v !== null && mudar({ classeArmadura: v }, 'ca')} />
+      <CampoTexto rotulo="Origem da CA" dica="armadura natural" valor={dados.notaArmadura} aoMudar={(v) => mudar({ notaArmadura: v }, 'notaArmadura')} />
       <CampoNumero rotulo="Pontos de vida" inteiro minimo={0} valor={dados.pontosVida} aoMudar={(v) => v !== null && mudar({ pontosVida: v }, 'pv')} />
       <CampoTexto rotulo="Dados de vida" dica="2d8+2" valor={dados.dadosVida} aoMudar={(v) => mudar({ dadosVida: v }, 'dadosVida')} />
       <CampoTexto rotulo="Deslocamento" valor={dados.deslocamento} aoMudar={(v) => mudar({ deslocamento: v }, 'deslocamento')} />
@@ -489,6 +490,14 @@ export function FormularioMonstro({ dados, mudar }: PropsFormulario<'monstro'>) 
             <CampoNumero rotulo="Bônus" inteiro valor={p.valor} aoMudar={(valor) => valor !== null && alterar({ ...p, valor })} />
           </>
         )}
+      />
+      <CampoLinhas rotulo="Vulnerabilidades a dano" valores={dados.vulnerabilidades} aoMudar={(v) => mudar({ vulnerabilidades: v }, 'vulnerabilidades')} />
+      <CampoLinhas rotulo="Resistências a dano" valores={dados.resistencias} aoMudar={(v) => mudar({ resistencias: v }, 'resistencias')} />
+      <CampoLinhas rotulo="Imunidades a dano" valores={dados.imunidades} aoMudar={(v) => mudar({ imunidades: v }, 'imunidades')} />
+      <CampoLinhas
+        rotulo="Imunidades a condições"
+        valores={dados.imunidadesCondicao}
+        aoMudar={(v) => mudar({ imunidadesCondicao: v }, 'imunidadesCondicao')}
       />
       <CampoTexto rotulo="Sentidos" largo valor={dados.sentidos} aoMudar={(v) => mudar({ sentidos: v }, 'sentidos')} />
       <CampoTexto rotulo="Idiomas" largo valor={dados.idiomas} aoMudar={(v) => mudar({ idiomas: v }, 'idiomas')} />

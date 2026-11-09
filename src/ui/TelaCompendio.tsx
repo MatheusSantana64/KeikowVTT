@@ -1,9 +1,10 @@
-import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useDeferredValue, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { buscarEntradas, entradaEm, type LojaCompendio } from '../core/compendio';
 import { criarEntrada, TIPOS_ENTRADA, type Entrada, type TipoEntrada } from '../core/entradas';
 import { SO_MESTRE, VISIVEL_A_TODOS } from '../core/visibilidade';
 import { CampoLinhas, CampoTexto } from './camposFormulario';
 import { FormularioDados } from './FormulariosEntrada';
+import { PainelImportacao } from './PainelImportacao';
 import { ROTULO_TIPO } from './rotulosCompendio';
 
 /** Mais que isso deixa a lista lenta e não ajuda a achar nada: melhor refinar a busca. */
@@ -21,19 +22,39 @@ export function TelaCompendio({ lojaCompendio, aoFechar }: TelaCompendioProps) {
   const [busca, setBusca] = useState('');
   const [tipoFiltro, setTipoFiltro] = useState<TipoEntrada | ''>('');
   const [tipoNovo, setTipoNovo] = useState<TipoEntrada>('item');
+  const [origemFiltro, setOrigemFiltro] = useState('');
   const [selecionadaId, setSelecionadaId] = useState<string | null>(null);
+  const [importando, setImportando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
 
+  // O campo de busca responde na hora; a lista acompanha logo depois, sem travar a digitação.
+  const buscaAdiada = useDeferredValue(busca);
   const encontradas = useMemo(
-    () => buscarEntradas(estado, { texto: busca, tipos: tipoFiltro ? [tipoFiltro] : [] }),
-    [estado, busca, tipoFiltro],
+    () =>
+      buscarEntradas(estado, {
+        texto: buscaAdiada,
+        tipos: tipoFiltro ? [tipoFiltro] : [],
+        origem: origemFiltro || undefined,
+      }),
+    [estado, buscaAdiada, tipoFiltro, origemFiltro],
   );
   const todas = useMemo(() => Object.values(estado.entradas), [estado]);
+  const pacotesPresentes = useMemo(
+    () => [...new Set(todas.flatMap((e) => (e.origem.tipo === 'pacote' ? [e.origem.pacote] : [])))].sort(),
+    [todas],
+  );
   const selecionada = selecionadaId ? entradaEm(estado, selecionadaId) : undefined;
+
+  const selecionar = (id: string | null) => {
+    setImportando(false);
+    setAviso(null);
+    setSelecionadaId(id);
+  };
 
   const criar = () => {
     const entrada = criarEntrada(tipoNovo, crypto.randomUUID());
     lojaCompendio.despachar({ tipo: 'AdicionarEntrada', entrada });
-    setSelecionadaId(entrada.id);
+    selecionar(entrada.id);
   };
 
   return (
@@ -46,6 +67,9 @@ export function TelaCompendio({ lojaCompendio, aoFechar }: TelaCompendioProps) {
           </button>
           <button type="button" disabled={!podeRefazer} onClick={lojaCompendio.refazer} title="Ctrl+Y">
             Refazer
+          </button>
+          <button type="button" aria-pressed={importando} onClick={() => setImportando(!importando)}>
+            Importar pacote
           </button>
         </div>
         <button type="button" className="tela-fechar" onClick={aoFechar}>
@@ -74,6 +98,17 @@ export function TelaCompendio({ lojaCompendio, aoFechar }: TelaCompendioProps) {
               </option>
             ))}
           </select>
+          {pacotesPresentes.length > 0 && (
+            <select aria-label="Filtrar por origem" value={origemFiltro} onChange={(e) => setOrigemFiltro(e.target.value)}>
+              <option value="">Todas as origens</option>
+              <option value="campanha">Criadas na campanha</option>
+              {pacotesPresentes.map((pacote) => (
+                <option key={pacote} value={pacote}>
+                  Do pacote {pacote}
+                </option>
+              ))}
+            </select>
+          )}
           <div className="compendio-novo">
             <select aria-label="Tipo da nova entrada" value={tipoNovo} onChange={(e) => setTipoNovo(e.target.value as TipoEntrada)}>
               {TIPOS_ENTRADA.map((tipo) => (
@@ -96,7 +131,7 @@ export function TelaCompendio({ lojaCompendio, aoFechar }: TelaCompendioProps) {
                 <button
                   type="button"
                   aria-current={entrada.id === selecionadaId}
-                  onClick={() => setSelecionadaId(entrada.id)}
+                  onClick={() => selecionar(entrada.id)}
                 >
                   <span>{entrada.nome || '(sem nome)'}</span>
                   <small>{ROTULO_TIPO[entrada.tipo]}</small>
@@ -107,16 +142,32 @@ export function TelaCompendio({ lojaCompendio, aoFechar }: TelaCompendioProps) {
         </aside>
 
         <main className="compendio-editor">
-          {selecionada ? (
+          {aviso && <p className="mensagem-info">{aviso}</p>}
+          {importando ? (
+            <PainelImportacao
+              estado={estado}
+              lojaCompendio={lojaCompendio}
+              aoFechar={() => setImportando(false)}
+              aoImportar={(pacoteId, quantidade) => {
+                selecionar(null);
+                setOrigemFiltro(pacoteId);
+                setAviso(
+                  `${quantidade} entrada${quantidade === 1 ? ' importada' : 's importadas'}. O botão Desfazer (ou Ctrl+Z) volta atrás.`,
+                );
+              }}
+            />
+          ) : selecionada ? (
             <EditorEntrada
               key={selecionada.id}
               entrada={selecionada}
               todas={todas}
               lojaCompendio={lojaCompendio}
-              aoSelecionar={setSelecionadaId}
+              aoSelecionar={selecionar}
             />
           ) : (
-            <p className="tela-dica">Escolha uma entrada na lista ou crie uma nova.</p>
+            <p className="tela-dica">
+              Escolha uma entrada na lista, crie uma nova ou use Importar pacote para trazer o SRD 5.1.
+            </p>
           )}
         </main>
       </div>

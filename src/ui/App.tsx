@@ -35,6 +35,7 @@ import { Paleta } from './Paleta';
 import { SeletorAparencia } from './SeletorAparencia';
 import { TelaCampanha } from './TelaCampanha';
 import { TelaCompendio } from './TelaCompendio';
+import { TelaCreditos } from './TelaCreditos';
 
 const BORRACHA: Ferramenta = { tipo: 'apagar' };
 const POSICIONAR: Ferramenta = { tipo: 'posicionar' };
@@ -69,7 +70,7 @@ interface EditorCarregado {
 }
 
 /** As telas que cobrem o mapa inteiro. */
-type Tela = 'campanha' | 'compendio';
+type Tela = 'campanha' | 'compendio' | 'creditos';
 
 const ARMAZENAMENTO = criarArmazenamentoNavegador();
 
@@ -462,6 +463,9 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, lojaCompendio, av
           <button type="button" onClick={() => setTelaAberta('compendio')}>
             Compêndio
           </button>
+          <button type="button" onClick={() => setTelaAberta('creditos')}>
+            Créditos
+          </button>
         </div>
         <BarraArquivo
           loja={loja}
@@ -594,6 +598,7 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, lojaCompendio, av
       {telaAberta === 'compendio' && (
         <TelaCompendio lojaCompendio={lojaCompendio} aoFechar={() => setTelaAberta(null)} />
       )}
+      {telaAberta === 'creditos' && <TelaCreditos aoFechar={() => setTelaAberta(null)} />}
     </div>
   );
 }

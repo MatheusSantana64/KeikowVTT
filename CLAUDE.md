@@ -82,8 +82,8 @@ Cada fase deve funcionar sozinha antes de avançar.
   2. ✅ Campanha, jogadores simulados e registro de quem fez cada ação.
   3. ✅ Regras das entradas do compêndio em `core/` (`entradas.ts`, `compendio.ts`, `persistenciaCompendio.ts`). O desfazer virou uma peça comum, em `lojaHistorico.ts`.
   4. ✅ Tela do compêndio: buscar, filtrar, criar, editar, duplicar, apagar, com desfazer próprio. O compêndio entra no salvamento automático e no arquivo. Efeitos e ações ainda não são editáveis na tela (passos 9 e 10).
-  5. Importar o SRD 5.1 completo, com os créditos exigidos; confirmar antes a licença da base organizada (próximo).
-  6. Motor de fórmulas e regras parecidas com 5e, guardadas como dados.
+  5. ✅ SRD 5.1 completo (1.610 entradas) como pacote importável, com tela de créditos e `CREDITOS.md`.
+  6. Motor de fórmulas e regras parecidas com 5e, guardadas como dados (próximo).
   7. Ficha de personagem, NPC e monstro, mostrando de onde vem cada número.
   8. Inventário e organização livre de itens, habilidades e notas.
   9. Efeitos dos objetos: equipar altera a ficha.
@@ -114,7 +114,7 @@ Cada fase deve funcionar sozinha antes de avançar.
   6. ✅ Pintar arrastando, apagar, desfazer e refazer.
   7. ✅ Decorações e rios na paleta e no mapa.
   8. ✅ Salvar e carregar JSON, com salvamento automático no navegador.
-- Comandos: `npm run dev` (editor), `npm test`, `npm run build`, `npm run assets` (regera `public/assets/` a partir de `Hex Samples/`).
+- Comandos: `npm run dev` (editor), `npm test`, `npm run build`, `npm run assets` (regera `public/assets/` a partir de `Hex Samples/`), `npm run srd` (regera `public/pacotes/` e `CREDITOS.md` a partir da base do 5e-bits).
 
 ## Decisões já tomadas
 - **Tudo é construído pensando no online, mesmo antes de ele existir:** toda ação registra quem a fez, toda informação diz quem pode vê-la (incluindo jogador específico) e "ver como jogador" simula cada jogador para testar permissões sem internet.
@@ -125,5 +125,7 @@ Cada fase deve funcionar sozinha antes de avançar.
 - Visão dos jogadores: hex do grupo (tudo o que é público) e os 6 vizinhos (só terreno e decorações), mais hexes revelados pelo mestre (só terreno e decorações). O que fica para trás volta a ficar oculto; registrar descobertas será da profissão "cartógrafo", no futuro. A posição do grupo fica fora do histórico do mapa.
 - Aparência dos hexes não vistos é configuração de cada mapa: fundo escuro (com ou sem grid), neblina clara ou escura, ou um tile à escolha, com bordas suaves opcionais.
 - Compêndio pertence à campanha, com exportação entre campanhas. Personagens recebem cópias das entradas. Personagens, NPCs e monstros usam a mesma ficha. Conteúdo inicial: SRD 5.1 em inglês, interface em português.
+- **Licença do SRD:** o texto vem do SRD 5.1 pela CC-BY 4.0 (frase de crédito oficial obrigatória, sem nenhum outro crédito à Wizards; pode-se dizer "compatível com a quinta edição"). A base organizada é a do 5e-bits (`5e-srd-api`, pacote `5e-database`, licença MIT), fixada num commit em `scripts/srd/converterSrd.ts`. Os créditos aparecem na tela Créditos, no painel de importação e em `CREDITOS.md`.
+- **Pacotes de conteúdo** ficam em `public/pacotes/` (lista em `indice.json`). Importar só acrescenta entradas novas, nunca substitui as editadas. Do SRD, monstros chegam "Só o mestre" e o resto "Todos"; características de classe idênticas viram uma entrada só; sub-espécies viram espécies completas; subclasses ainda não são um tipo (as habilidades delas entram com o requisito escrito). As entradas de pacote seguem o formato atual do compêndio: se ele mudar de versão, rode `npm run srd` de novo.
 - Fórmulas e ações de itens são dados, editáveis, interpretados sem executar texto como código. O jogador só edita a ficha inteira se o mestre liberar; notas pessoais, nome, imagem, organização e ações pré-programadas são sempre permitidas.
 - Notas de hex são uma lista, cada nota com sua própria visibilidade. Nome e descrição são visíveis a todos. Só hexes com terreno guardam informação; trocar o terreno mantém as anotações e apagar o hex as apaga.

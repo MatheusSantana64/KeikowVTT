@@ -189,6 +189,8 @@ export interface DadosMonstro {
   readonly tipoCriatura: string;
   readonly alinhamento: string;
   readonly classeArmadura: number;
+  /** De onde vem a CA, como "armadura natural" ou "couro, escudo". Vazio quando não há nota. */
+  readonly notaArmadura: string;
   readonly pontosVida: number;
   /** Fórmula, como `2d8+2`. */
   readonly dadosVida: string;
@@ -196,6 +198,10 @@ export interface DadosMonstro {
   readonly atributos: Readonly<Record<Atributo, number>>;
   readonly salvaguardas: Readonly<Partial<Record<Atributo, number>>>;
   readonly pericias: Readonly<Record<string, number>>;
+  readonly vulnerabilidades: readonly string[];
+  readonly resistencias: readonly string[];
+  readonly imunidades: readonly string[];
+  readonly imunidadesCondicao: readonly string[];
   readonly sentidos: string;
   readonly idiomas: string;
   readonly nivelDesafio: number;
@@ -288,12 +294,17 @@ const DADOS_INICIAIS: { readonly [T in TipoEntrada]: () => DadosPorTipo[T] } = {
     tipoCriatura: '',
     alinhamento: '',
     classeArmadura: 10,
+    notaArmadura: '',
     pontosVida: 1,
     dadosVida: '1d8',
     deslocamento: '30 pés',
     atributos: { ...ATRIBUTOS_PADRAO },
     salvaguardas: {},
     pericias: {},
+    vulnerabilidades: [],
+    resistencias: [],
+    imunidades: [],
+    imunidadesCondicao: [],
     sentidos: '',
     idiomas: '',
     nivelDesafio: 0,

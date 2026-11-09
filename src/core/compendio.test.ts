@@ -192,6 +192,14 @@ describe('buscarEntradas', () => {
     expect(nomes(buscarEntradas(comExemplos(), { etiqueta: 'marc' }))).toEqual([]);
   });
 
+  it('filtra pela origem', () => {
+    const doSrd: Entrada = { ...comNome(criarEntrada('item', 'srd/adaga'), 'Dagger'), origem: { tipo: 'pacote', pacote: 'srd-5.1' } };
+    const estado = aplicarAcaoCompendio(comExemplos(), { tipo: 'AdicionarEntrada', entrada: doSrd });
+    expect(nomes(buscarEntradas(estado, { origem: 'srd-5.1' }))).toEqual(['Dagger']);
+    expect(nomes(buscarEntradas(estado, { origem: 'campanha' }))).toHaveLength(4);
+    expect(nomes(buscarEntradas(estado, { origem: 'outro-pacote' }))).toEqual([]);
+  });
+
   it('combina os filtros', () => {
     expect(nomes(buscarEntradas(comExemplos(), { texto: 'es', tipos: ['item'], etiqueta: 'arma' }))).toEqual([
       'Espada Longa',

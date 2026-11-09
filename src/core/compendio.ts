@@ -99,6 +99,12 @@ export interface FiltroCompendio {
   readonly tipos?: readonly TipoEntrada[];
   /** Etiqueta exata, também sem diferenciar maiúsculas nem acentos. */
   readonly etiqueta?: string;
+  /** `'campanha'` para as criadas na campanha, ou o id de um pacote, como `'srd-5.1'`. */
+  readonly origem?: string;
+}
+
+function origemDe(entrada: Entrada): string {
+  return entrada.origem.tipo === 'campanha' ? 'campanha' : entrada.origem.pacote;
 }
 
 export function normalizarBusca(texto: string): string {
@@ -107,6 +113,24 @@ export function normalizarBusca(texto: string): string {
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .trim();
+}
+
+/** Criar o comparador uma vez só é muito mais rápido que chamar `localeCompare` a cada par. */
+const ORDEM_ALFABETICA = new Intl.Collator('pt-BR', { sensitivity: 'base' });
+
+/**
+ * Nome e etiquetas já preparados para a busca. As entradas nunca são alteradas
+ * (uma edição cria outra), então o que foi preparado continua valendo.
+ */
+const preparadas = new WeakMap<Entrada, { readonly nome: string; readonly etiquetas: readonly string[] }>();
+
+function paraBusca(entrada: Entrada) {
+  let pronta = preparadas.get(entrada);
+  if (!pronta) {
+    pronta = { nome: normalizarBusca(entrada.nome), etiquetas: entrada.etiquetas.map(normalizarBusca) };
+    preparadas.set(entrada, pronta);
+  }
+  return pronta;
 }
 
 /** As entradas que passam no filtro, em ordem alfabética. */
@@ -120,17 +144,16 @@ export function buscarEntradas(estado: EstadoCompendio, filtro: FiltroCompendio 
       if (tipos && !tipos.has(entrada.tipo)) {
         return false;
       }
-      const etiquetas = entrada.etiquetas.map(normalizarBusca);
+      if (filtro.origem && origemDe(entrada) !== filtro.origem) {
+        return false;
+      }
+      const { nome, etiquetas } = paraBusca(entrada);
       if (etiqueta && !etiquetas.includes(etiqueta)) {
         return false;
       }
-      return (
-        !texto ||
-        normalizarBusca(entrada.nome).includes(texto) ||
-        etiquetas.some((e) => e.includes(texto))
-      );
+      return !texto || nome.includes(texto) || etiquetas.some((e) => e.includes(texto));
     })
-    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+    .sort((a, b) => ORDEM_ALFABETICA.compare(a.nome, b.nome));
 }
 
 export type LojaCompendio = LojaComHistorico<EstadoCompendio, AcaoCompendio>;

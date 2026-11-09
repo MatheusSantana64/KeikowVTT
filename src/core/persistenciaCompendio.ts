@@ -30,7 +30,7 @@ import {
   type ResultadoDe,
 } from './persistencia';
 
-const VERSAO_COMPENDIO = 1;
+const VERSAO_COMPENDIO = 2;
 
 type Dado = Record<string, unknown>;
 
@@ -316,12 +316,17 @@ const LER_DADOS: LeitorDeDados = {
     tipoCriatura: texto(d, 'tipoCriatura', onde),
     alinhamento: texto(d, 'alinhamento', onde),
     classeArmadura: numero(d, 'classeArmadura', onde, { inteiro: true }),
+    notaArmadura: texto(d, 'notaArmadura', onde),
     pontosVida: numero(d, 'pontosVida', onde, { inteiro: true, minimo: 0 }),
     dadosVida: texto(d, 'dadosVida', onde),
     deslocamento: texto(d, 'deslocamento', onde),
     atributos: numerosPorAtributo(d, 'atributos', onde, true) as Record<Atributo, number>,
     salvaguardas: numerosPorAtributo(d, 'salvaguardas', onde, false),
     pericias: numerosPorNome(d, 'pericias', onde),
+    vulnerabilidades: listaDeTextos(d, 'vulnerabilidades', onde),
+    resistencias: listaDeTextos(d, 'resistencias', onde),
+    imunidades: listaDeTextos(d, 'imunidades', onde),
+    imunidadesCondicao: listaDeTextos(d, 'imunidadesCondicao', onde),
     sentidos: texto(d, 'sentidos', onde),
     idiomas: texto(d, 'idiomas', onde),
     nivelDesafio: numero(d, 'nivelDesafio', onde, { minimo: 0 }),
@@ -369,10 +374,35 @@ export function lerEntradas(valor: unknown, onde: string): Entrada[] {
 }
 
 export function compendioParaObjeto(estado: EstadoCompendio) {
-  return { entradas: Object.values(estado.entradas) };
+  return { versao: VERSAO_COMPENDIO, entradas: Object.values(estado.entradas) };
 }
 
-function lerJson(texto: string, oQue: string): unknown {
+/**
+ * Atualiza entradas gravadas na versão 1, antes de a ficha de monstro ter
+ * a nota da CA, as vulnerabilidades, as resistências e as imunidades.
+ */
+function converterDaVersao1(entradas: unknown): unknown {
+  if (!Array.isArray(entradas)) {
+    return entradas;
+  }
+  return entradas.map((entrada) =>
+    ehObjeto(entrada) && entrada.tipo === 'monstro' && ehObjeto(entrada.dados)
+      ? {
+          ...entrada,
+          dados: {
+            notaArmadura: '',
+            vulnerabilidades: [],
+            resistencias: [],
+            imunidades: [],
+            imunidadesCondicao: [],
+            ...entrada.dados,
+          },
+        }
+      : entrada,
+  );
+}
+
+export function lerJson(texto: string, oQue: string): unknown {
   try {
     return JSON.parse(texto);
   } catch {
@@ -380,13 +410,17 @@ function lerJson(texto: string, oQue: string): unknown {
   }
 }
 
-function lerEstado(dados: unknown, onde: string): EstadoCompendio {
+/** Arquivos salvos antes da versão 2 guardavam o compêndio sem número de versão. */
+function lerEstado(dados: unknown, onde: string, versaoPadrao?: number): EstadoCompendio {
   exigir(ehObjeto(dados), `${onde} não é válido.`);
-  const entradas = lerEntradas(dados.entradas, onde);
+  const versao = dados.versao ?? versaoPadrao;
+  exigir(versao === 1 || versao === VERSAO_COMPENDIO, `${onde} usa um formato desconhecido.`);
+  const brutas = versao === 1 ? converterDaVersao1(dados.entradas) : dados.entradas;
+  const entradas = lerEntradas(brutas, onde);
   return { entradas: Object.fromEntries(entradas.map((e) => [e.id, e])) };
 }
 
-function comoResultado<T>(ler: () => T): ResultadoDe<T> {
+export function comoResultado<T>(ler: () => T): ResultadoDe<T> {
   try {
     return { ok: true, ...ler() };
   } catch (erro) {
@@ -399,20 +433,13 @@ function comoResultado<T>(ler: () => T): ResultadoDe<T> {
 
 /** Formato do salvamento automático do compêndio, separado do mapa e da campanha. */
 export function serializarCompendio(estado: EstadoCompendio): string {
-  return JSON.stringify({ versao: VERSAO_COMPENDIO, ...compendioParaObjeto(estado) });
+  return JSON.stringify(compendioParaObjeto(estado));
 }
 
 export function desserializarCompendio(
   texto: string,
 ): ResultadoDe<{ readonly estado: EstadoCompendio }> {
-  return comoResultado(() => {
-    const dados = lerJson(texto, 'O compêndio');
-    exigir(
-      ehObjeto(dados) && dados.versao === VERSAO_COMPENDIO,
-      'O compêndio usa um formato desconhecido.',
-    );
-    return { estado: lerEstado(dados, 'O compêndio') };
-  });
+  return comoResultado(() => ({ estado: lerEstado(lerJson(texto, 'O compêndio'), 'O compêndio') }));
 }
 
 /** O compêndio dentro de um arquivo salvo. Arquivos sem compêndio devolvem `estado: null`. */
@@ -424,6 +451,6 @@ export function lerCompendioDoArquivo(
     if (!ehObjeto(dados) || !('compendio' in dados)) {
       return { estado: null };
     }
-    return { estado: lerEstado(dados.compendio, 'O compêndio do arquivo') };
+    return { estado: lerEstado(dados.compendio, 'O compêndio do arquivo', 1) };
   });
 }
