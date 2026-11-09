@@ -8,7 +8,33 @@ import {
   linhaHex,
   mundoParaHex,
   pontaInferiorHex,
+  vizinhosHex,
 } from './hex';
+
+describe('vizinhosHex', () => {
+  it('devolve 6 hexes diferentes, nenhum deles o próprio', () => {
+    const centro = { q: 2, r: -3 };
+    const chaves = new Set(vizinhosHex(centro).map(chaveHex));
+    expect(chaves.size).toBe(6);
+    expect(chaves.has(chaveHex(centro))).toBe(false);
+  });
+
+  it('cada vizinho está a um passo de distância', () => {
+    const centro = { q: -4, r: 7 };
+    for (const vizinho of vizinhosHex(centro)) {
+      expect(linhaHex(centro, vizinho)).toHaveLength(2);
+    }
+  });
+
+  it('os vizinhos encostam no hex na tela', () => {
+    const centro = hexParaMundo({ q: 0, r: 0 });
+    for (const vizinho of vizinhosHex({ q: 0, r: 0 })) {
+      const ponto = hexParaMundo(vizinho);
+      // 256 na mesma linha; nas linhas de cima e de baixo, a hipotenusa de 128 e 192.
+      expect(Math.hypot(ponto.x - centro.x, ponto.y - centro.y)).toBeLessThan(257);
+    }
+  });
+});
 
 describe('linhaHex', () => {
   it('um hex só devolve ele mesmo', () => {

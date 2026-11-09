@@ -1,4 +1,5 @@
 import { chaveHex, hexParaMundo, type ChaveHex, type CoordHex, type PontoMundo } from './hex';
+import { APARENCIA_PADRAO, aparenciasIguais, type AparenciaOculta } from './aparencia';
 import type { Visibilidade } from './visibilidade';
 
 export interface Decoracao {
@@ -28,11 +29,14 @@ export interface Hex extends InformacaoHex {
   /** Id do tile no manifesto de assets. A imagem em si não faz parte do estado. */
   readonly terreno: string;
   readonly decoracoes: readonly Decoracao[];
+  /** Revelado manualmente pelo mestre: os jogadores o avistam de onde estiverem. */
+  readonly revelado: boolean;
 }
 
 export interface EstadoMapa {
   /** Só os hexes preenchidos existem aqui, então o mapa não tem limite de tamanho. */
   readonly hexes: Readonly<Record<ChaveHex, Hex>>;
+  readonly aparenciaOculta: AparenciaOculta;
 }
 
 export type AcaoMapa =
@@ -66,10 +70,13 @@ export type AcaoMapa =
       readonly notaId: string;
       readonly visibilidade: Visibilidade;
     }
-  | { readonly tipo: 'RemoverNota'; readonly coord: CoordHex; readonly notaId: string };
+  | { readonly tipo: 'RemoverNota'; readonly coord: CoordHex; readonly notaId: string }
+  | { readonly tipo: 'RevelarHex'; readonly coord: CoordHex }
+  | { readonly tipo: 'OcultarHex'; readonly coord: CoordHex }
+  | { readonly tipo: 'DefinirAparenciaOculta'; readonly aparencia: AparenciaOculta };
 
 export function criarMapaVazio(): EstadoMapa {
-  return { hexes: {} };
+  return { hexes: {}, aparenciaOculta: APARENCIA_PADRAO };
 }
 
 export function hexEm(estado: EstadoMapa, coord: CoordHex): Hex | undefined {
@@ -117,6 +124,14 @@ export function aplicarAcao(estado: EstadoMapa, acao: AcaoMapa): EstadoMapa {
       );
     case 'RemoverNota':
       return removerNota(estado, acao.coord, acao.notaId);
+    case 'RevelarHex':
+      return definirRevelado(estado, acao.coord, true);
+    case 'OcultarHex':
+      return definirRevelado(estado, acao.coord, false);
+    case 'DefinirAparenciaOculta':
+      return aparenciasIguais(estado.aparenciaOculta, acao.aparencia)
+        ? estado
+        : { ...estado, aparenciaOculta: acao.aparencia };
   }
 }
 
@@ -135,13 +150,19 @@ export function centroDoMapa(estado: EstadoMapa): PontoMundo | null {
 }
 
 function comHex(estado: EstadoMapa, hex: Hex): EstadoMapa {
-  return { hexes: { ...estado.hexes, [chaveHex(hex.coord)]: hex } };
+  return { ...estado, hexes: { ...estado.hexes, [chaveHex(hex.coord)]: hex } };
 }
 
 function colocarTile(estado: EstadoMapa, coord: CoordHex, terreno: string): EstadoMapa {
   const hex = hexEm(estado, coord);
   if (!hex) {
-    return comHex(estado, { ...INFORMACAO_VAZIA, coord, terreno, decoracoes: [] });
+    return comHex(estado, {
+      ...INFORMACAO_VAZIA,
+      coord,
+      terreno,
+      decoracoes: [],
+      revelado: false,
+    });
   }
   if (hex.terreno === terreno) {
     return estado;
@@ -156,7 +177,15 @@ function removerTile(estado: EstadoMapa, coord: CoordHex): EstadoMapa {
   }
   const hexes = { ...estado.hexes };
   delete hexes[chaveHex(coord)];
-  return { hexes };
+  return { ...estado, hexes };
+}
+
+function definirRevelado(estado: EstadoMapa, coord: CoordHex, revelado: boolean): EstadoMapa {
+  const hex = hexEm(estado, coord);
+  if (!hex || hex.revelado === revelado) {
+    return estado;
+  }
+  return comHex(estado, { ...hex, revelado });
 }
 
 function colocarDecoracao(estado: EstadoMapa, coord: CoordHex, decoracao: Decoracao): EstadoMapa {

@@ -47,6 +47,20 @@ export function pontaInferiorHex(coord: CoordHex): PontoMundo {
   return { x: centro.x, y: centro.y + METADE_ALTURA_HEX };
 }
 
+const DIRECOES_VIZINHAS = [
+  [1, 0],
+  [1, -1],
+  [0, -1],
+  [-1, 0],
+  [-1, 1],
+  [0, 1],
+] as const;
+
+/** Os 6 hexes ao redor de um hex. */
+export function vizinhosHex({ q, r }: CoordHex): CoordHex[] {
+  return DIRECOES_VIZINHAS.map(([dq, dr]) => ({ q: q + dq, r: r + dr }));
+}
+
 /** Os seis cantos do hex como lista [x1, y1, x2, y2, ...], em pixels do mundo. */
 export function contornoHex(coord: CoordHex): number[] {
   const { x, y } = hexParaMundo(coord);

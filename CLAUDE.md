@@ -70,7 +70,15 @@ Cada fase deve funcionar sozinha antes de avançar.
 9. **Extras** — integração mais profunda com Discord (bot de rolagens, Discord Activity), mais gamificação.
 
 ## Status atual
-- **Fase 2 concluída** (informação por hex). Próxima: Fase 3. Os passos foram:
+- **Fase 3 em andamento** (visão dos jogadores), dividida em 7 passos:
+  1. ✅ Teste visual das aparências dos hexes não vistos. Provisório: `/?teste=neblina`, em `src/render/testeNeblina.ts`, `src/ui/TesteNeblina.tsx` e `src/main.tsx`. Fica fora dos commits; o desenho é aproveitado no passo 5 e depois a página é apagada.
+  2. ✅ Regras em `core/`: vizinhos, posição do grupo, revelar e ocultar, visão do jogador e aparência do mapa.
+  3. Formato do arquivo com revelação, aparência e posição do grupo, convertendo mapas antigos (próximo). Até lá, esses dados não são salvos.
+  4. Ferramentas Posicionar grupo, Revelar e Ocultar.
+  5. Ver como jogador, com todas as aparências.
+  6. Tela para escolher a aparência do mapa.
+  7. Painel do mestre e painel somente leitura do jogador.
+- **Fase 2 concluída** (informação por hex). Os passos foram:
   1. ✅ Regras em `core/`: nome, descrição, notas e visão do jogador.
   2. ✅ Formato do arquivo com as informações, convertendo mapas antigos.
   3. ✅ Seleção de hex: sem ferramenta, um clique marca o hex e abre o painel.
@@ -92,4 +100,6 @@ Cada fase deve funcionar sozinha antes de avançar.
 - Rios só têm o rio desenhado: vão por cima de um terreno, encaixados no centro do hex, sem conexão automática.
 - Mapa sem limite de tamanho. Decorações têm posição livre, presas a um hex: apagar o hex apaga as decorações; trocar o terreno as mantém.
 - O botão esquerdo fica para editar o mapa; a câmera arrasta com o direito ou o do meio.
+- Visão dos jogadores: hex do grupo (tudo o que é público) e os 6 vizinhos (só terreno e decorações), mais hexes revelados pelo mestre (só terreno e decorações). O que fica para trás volta a ficar oculto; registrar descobertas será da profissão "cartógrafo", no futuro. A posição do grupo fica fora do histórico do mapa.
+- Aparência dos hexes não vistos é configuração de cada mapa: fundo escuro (com ou sem grid), neblina clara ou escura, ou um tile à escolha, com bordas suaves opcionais.
 - Notas de hex são uma lista, cada nota com sua própria visibilidade. Nome e descrição são visíveis a todos. Só hexes com terreno guardam informação; trocar o terreno mantém as anotações e apagar o hex as apaga.

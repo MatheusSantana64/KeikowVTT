@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { APARENCIA_PADRAO } from './aparencia';
 import { aplicarAcao, criarMapaVazio, type EstadoMapa } from './mapa';
 import type { Manifesto } from './manifesto';
 import { assetsDesconhecidos, desserializarMapa, serializarMapa } from './persistencia';
@@ -67,6 +68,7 @@ describe('mapas no formato antigo (versão 1)', () => {
     expect(desserializarMapa(antigo)).toEqual({
       ok: true,
       estado: {
+        aparenciaOculta: APARENCIA_PADRAO,
         hexes: {
           '2,-1': {
             coord: { q: 2, r: -1 },
@@ -75,6 +77,7 @@ describe('mapas no formato antigo (versão 1)', () => {
             nome: '',
             descricao: '',
             notas: [],
+            revelado: false,
           },
         },
       },

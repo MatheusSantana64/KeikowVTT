@@ -34,6 +34,7 @@ describe('ColocarTile', () => {
       nome: '',
       descricao: '',
       notas: [],
+      revelado: false,
     });
   });
 

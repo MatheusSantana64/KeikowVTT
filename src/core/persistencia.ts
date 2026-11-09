@@ -1,3 +1,4 @@
+import { APARENCIA_PADRAO } from './aparencia';
 import { chaveHex, type ChaveHex } from './hex';
 import type { Manifesto } from './manifesto';
 import { INFORMACAO_VAZIA, type Decoracao, type EstadoMapa, type Hex, type Nota } from './mapa';
@@ -65,6 +66,7 @@ function lerHex(dado: unknown, posicao: number): Hex {
     nome,
     descricao,
     notas: notas.map((n, i) => lerNota(n, `A nota nº ${i + 1} de ${onde}`)),
+    revelado: false,
   };
 }
 
@@ -108,7 +110,7 @@ function lerArquivo(texto: string): EstadoMapa {
     hexes[chave] = hex;
   });
 
-  return { hexes };
+  return { hexes, aparenciaOculta: APARENCIA_PADRAO };
 }
 
 export function serializarMapa(estado: EstadoMapa): string {

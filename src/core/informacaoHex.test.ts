@@ -9,7 +9,7 @@ import {
   type Hex,
   type Nota,
 } from './mapa';
-import { SO_MESTRE, VISIVEL_A_TODOS, visaoDoJogador } from './visibilidade';
+import { SO_MESTRE, VISIVEL_A_TODOS } from './visibilidade';
 
 const A = { q: 0, r: 0 };
 const B = { q: 1, r: 0 };
@@ -200,37 +200,3 @@ describe('temAnotacoes', () => {
   });
 });
 
-describe('visaoDoJogador', () => {
-  it('remove as notas secretas', () => {
-    const visao = visaoDoJogador(mapaComNotas());
-    expect(hexEm(visao, A)?.notas).toEqual([publica]);
-  });
-
-  it('nenhum texto secreto sobra em lugar nenhum da visão', () => {
-    expect(JSON.stringify(visaoDoJogador(mapaComNotas()))).not.toContain(secreta.texto);
-  });
-
-  it('mantém nome, descrição e terreno', () => {
-    expect(hexEm(visaoDoJogador(mapaComNotas()), A)).toMatchObject({
-      nome: 'Vau',
-      descricao: 'Um rio raso',
-      terreno: 'hexPlains00',
-    });
-  });
-
-  it('uma nota tornada pública passa a aparecer', () => {
-    const mapa = aplicarAcao(mapaComNotas(), {
-      tipo: 'DefinirVisibilidadeNota',
-      coord: A,
-      notaId: 'n2',
-      visibilidade: VISIVEL_A_TODOS,
-    });
-    expect(hexEm(visaoDoJogador(mapa), A)?.notas).toHaveLength(2);
-  });
-
-  it('não altera o mapa do mestre', () => {
-    const mapa = mapaComNotas();
-    visaoDoJogador(mapa);
-    expect(hexEm(mapa, A)?.notas).toHaveLength(2);
-  });
-});
