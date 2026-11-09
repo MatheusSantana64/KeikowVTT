@@ -1,13 +1,19 @@
 import { Application } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
+import type { LojaGrupo } from '../core/grupo';
 import { linhaHex, mundoParaHex, type CoordHex, type PontoMundo } from '../core/hex';
 import type { LojaMapa } from '../core/loja';
-import { centroDoMapa } from '../core/mapa';
+import { centroDoMapa, type EstadoMapa } from '../core/mapa';
 import type { Manifesto } from '../core/manifesto';
+import { visaoDoJogador } from '../core/visibilidade';
 import { carregarCatalogo, type Catalogo } from './assets';
 import { criarCamadaDecoracoes, type DecoracaoEncontrada } from './camadaDecoracoes';
 import { criarCamadaGrid, criarDestaqueHex, criarSelecaoHex } from './camadaGrid';
-import { criarCamadaMarcadores } from './camadaMarcadores';
+import {
+  criarCamadaMarcadores,
+  criarContornoRevelados,
+  criarMarcadorGrupo,
+} from './camadaMarcadores';
 import { criarCamadaTiles } from './camadaTiles';
 
 const ZOOM_MINIMO = 0.15;
@@ -16,9 +22,11 @@ const ZOOM_INICIAL = 0.6;
 const BOTAO_ESQUERDO = 0;
 /** Abaixo desta distância na tela, apertar e soltar o botão conta como um clique. */
 const LIMITE_ARRASTO_PX = 5;
+const COR_HEX_OCULTO = 0x4a4d5c;
 
 export interface OpcoesCena {
   readonly loja: LojaMapa;
+  readonly lojaGrupo: LojaGrupo;
   readonly manifesto: Manifesto;
   /** Chamada quando o hex sob o mouse muda; recebe `null` quando o mouse sai do mapa. */
   readonly aoMudarHexSobMouse: (coord: CoordHex | null) => void;
@@ -45,6 +53,8 @@ interface ControlesCena {
   sincronizarDecoracoes(): void;
   centralizarNoMapa(): void;
   selecionarHex(coord: CoordHex | null): void;
+  /** Liga ou desliga o escurecimento dos hexes que os jogadores não veriam. */
+  definirConferenciaDeVisao(ativa: boolean): void;
   cancelarAssinatura(): void;
 }
 
@@ -98,6 +108,7 @@ export function createMapScene(container: HTMLElement, opcoes: OpcoesCena): Cena
     sincronizarDecoracoes: () => controles?.sincronizarDecoracoes(),
     centralizarNoMapa: () => controles?.centralizarNoMapa(),
     selecionarHex: (coord) => controles?.selecionarHex(coord),
+    definirConferenciaDeVisao: (ativa) => controles?.definirConferenciaDeVisao(ativa),
     destruir() {
       disposed = true;
       controles?.cancelarAssinatura();
@@ -107,6 +118,12 @@ export function createMapScene(container: HTMLElement, opcoes: OpcoesCena): Cena
       }
     },
   };
+}
+
+/** Hexes do mapa que os jogadores não veriam agora. */
+function chavesOcultas(estado: EstadoMapa, posicao: CoordHex | null): ReadonlySet<string> {
+  const visao = visaoDoJogador(estado, posicao ? [posicao] : []);
+  return new Set(Object.keys(estado.hexes).filter((chave) => !(chave in visao.hexes)));
 }
 
 function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): ControlesCena {
@@ -131,25 +148,39 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
   const tiles = criarCamadaTiles(catalogo);
   const decoracoes = criarCamadaDecoracoes(catalogo, tiles.container);
   const marcadores = criarCamadaMarcadores();
+  const contornoRevelados = criarContornoRevelados();
+  const marcadorGrupo = criarMarcadorGrupo();
   const selecao = criarSelecaoHex();
   const destaque = criarDestaqueHex();
   camera.addChild(
     grid.grafico,
     tiles.container,
     decoracoes.container,
+    contornoRevelados.grafico,
     marcadores.grafico,
+    marcadorGrupo.grafico,
     selecao.grafico,
     destaque.grafico,
   );
 
+  let conferindoVisao = false;
+
   const atualizarCamadas = () => {
     const estado = opcoes.loja.obterEstado();
+    const { posicao } = opcoes.lojaGrupo.obterEstado();
     tiles.atualizar(estado);
     decoracoes.atualizar(estado);
     marcadores.atualizar(estado);
+    marcadorGrupo.atualizar(posicao);
+    contornoRevelados.atualizar(estado, conferindoVisao);
+
+    const ocultos = conferindoVisao ? chavesOcultas(estado, posicao) : null;
+    tiles.escurecer(ocultos, COR_HEX_OCULTO);
+    decoracoes.escurecer(ocultos, COR_HEX_OCULTO);
   };
   atualizarCamadas();
-  const cancelarAssinatura = opcoes.loja.assinar(atualizarCamadas);
+  const cancelarAssinaturaMapa = opcoes.loja.assinar(atualizarCamadas);
+  const cancelarAssinaturaGrupo = opcoes.lojaGrupo.assinar(atualizarCamadas);
 
   const centralizarNoMapa = () => {
     const centro = centroDoMapa(opcoes.loja.obterEstado());
@@ -279,6 +310,13 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
     sincronizarDecoracoes: () => decoracoes.atualizar(opcoes.loja.obterEstado()),
     centralizarNoMapa,
     selecionarHex: selecao.atualizar,
-    cancelarAssinatura,
+    definirConferenciaDeVisao: (ativa) => {
+      conferindoVisao = ativa;
+      atualizarCamadas();
+    },
+    cancelarAssinatura: () => {
+      cancelarAssinaturaMapa();
+      cancelarAssinaturaGrupo();
+    },
   };
 }

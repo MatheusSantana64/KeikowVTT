@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { criarLojaGrupo } from '../core/grupo';
 import { hexParaMundo } from '../core/hex';
 import { criarLojaMapa } from '../core/loja';
 import { hexEm } from '../core/mapa';
@@ -30,15 +31,115 @@ function montar() {
   };
   const aoSelecionarHex = vi.fn();
   const aoAvisar = vi.fn();
-  const controlador = criarControlador(loja, manifesto, () => cena, aoSelecionarHex, aoAvisar);
+  const lojaGrupo = criarLojaGrupo();
+  const controlador = criarControlador(
+    loja,
+    lojaGrupo,
+    manifesto,
+    () => cena,
+    aoSelecionarHex,
+    aoAvisar,
+  );
   const usar = (ferramenta: Ferramenta) => controlador.definirFerramenta(ferramenta);
   const colocarTerreno = () => {
     loja.despachar({ tipo: 'ColocarTile', coord: A, terreno: 'tile' });
     loja.despachar({ tipo: 'ColocarTile', coord: B, terreno: 'tile' });
   };
   const decoracoes = (coord = A) => hexEm(loja.obterEstado(), coord)?.decoracoes ?? [];
-  return { loja, cena, controlador, usar, colocarTerreno, decoracoes, aoSelecionarHex, aoAvisar };
+  return {
+    loja,
+    lojaGrupo,
+    cena,
+    controlador,
+    usar,
+    colocarTerreno,
+    decoracoes,
+    aoSelecionarHex,
+    aoAvisar,
+  };
 }
+
+describe('posicionar o grupo', () => {
+  it('coloca o grupo no hex clicado', () => {
+    const { lojaGrupo, controlador, usar, colocarTerreno } = montar();
+    colocarTerreno();
+    usar({ tipo: 'posicionar' });
+    controlador.aoIniciarTraco(centroB);
+    controlador.aoTerminarTraco();
+    expect(lojaGrupo.obterEstado().posicao).toEqual(B);
+  });
+
+  it('não coloca o grupo em hex vazio', () => {
+    const { lojaGrupo, controlador, usar } = montar();
+    usar({ tipo: 'posicionar' });
+    controlador.aoIniciarTraco(centroB);
+    controlador.aoTerminarTraco();
+    expect(lojaGrupo.obterEstado().posicao).toBeNull();
+  });
+
+  it('arrastar não leva o grupo junto', () => {
+    const { lojaGrupo, controlador, usar, colocarTerreno } = montar();
+    colocarTerreno();
+    usar({ tipo: 'posicionar' });
+    controlador.aoIniciarTraco({ x: 0, y: 0 });
+    controlador.aoContinuarTraco(B);
+    controlador.aoTerminarTraco();
+    expect(lojaGrupo.obterEstado().posicao).toEqual(A);
+  });
+
+  it('o Ctrl+Z do mapa não move o grupo', () => {
+    const { loja, lojaGrupo, controlador, usar, colocarTerreno } = montar();
+    colocarTerreno();
+    usar({ tipo: 'posicionar' });
+    controlador.aoIniciarTraco(centroB);
+    controlador.aoTerminarTraco();
+    loja.desfazer();
+    expect(lojaGrupo.obterEstado().posicao).toEqual(B);
+  });
+
+  it('um clique com a ferramenta não abre o painel', () => {
+    const { controlador, usar, aoSelecionarHex } = montar();
+    usar({ tipo: 'posicionar' });
+    controlador.aoClicar(centroB);
+    expect(aoSelecionarHex).not.toHaveBeenCalled();
+  });
+});
+
+describe('revelar e ocultar', () => {
+  const revelado = (loja: ReturnType<typeof montar>['loja'], coord: typeof A) =>
+    hexEm(loja.obterEstado(), coord)?.revelado;
+
+  it('uma pincelada revela vários hexes e é desfeita de uma vez', () => {
+    const { loja, controlador, usar, colocarTerreno } = montar();
+    colocarTerreno();
+    usar({ tipo: 'revelar' });
+    controlador.aoIniciarTraco({ x: 0, y: 0 });
+    controlador.aoContinuarTraco(B);
+    controlador.aoTerminarTraco();
+    expect(revelado(loja, A)).toBe(true);
+    expect(revelado(loja, B)).toBe(true);
+    loja.desfazer();
+    expect(revelado(loja, A)).toBe(false);
+    expect(revelado(loja, B)).toBe(false);
+  });
+
+  it('ocultar desfaz a revelação', () => {
+    const { loja, controlador, usar, colocarTerreno } = montar();
+    colocarTerreno();
+    loja.despachar({ tipo: 'RevelarHex', coord: A });
+    usar({ tipo: 'ocultar' });
+    controlador.aoIniciarTraco({ x: 0, y: 0 });
+    controlador.aoTerminarTraco();
+    expect(revelado(loja, A)).toBe(false);
+  });
+
+  it('um clique com a ferramenta não abre o painel', () => {
+    const { controlador, usar, aoSelecionarHex } = montar();
+    usar({ tipo: 'revelar' });
+    controlador.aoClicar(centroB);
+    expect(aoSelecionarHex).not.toHaveBeenCalled();
+  });
+});
 
 describe('aviso ao apagar hexes anotados', () => {
   function comAnotacao() {

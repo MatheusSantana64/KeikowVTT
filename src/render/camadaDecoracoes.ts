@@ -1,5 +1,5 @@
 import { Container, type Sprite } from 'pixi.js';
-import { hexParaMundo, type CoordHex, type PontoMundo } from '../core/hex';
+import { chaveHex, hexParaMundo, type CoordHex, type PontoMundo } from '../core/hex';
 import type { EstadoMapa } from '../core/mapa';
 import type { Asset } from '../core/manifesto';
 import { criarSpriteDoAsset, type Catalogo } from './assets';
@@ -23,6 +23,7 @@ interface MascaraAlfa {
 }
 
 const OPACIDADE_PREVIA = 0.7;
+const COR_ORIGINAL = 0xffffff;
 /** Abaixo desta opacidade (0 a 255), o pixel conta como vazio ao clicar. */
 const ALFA_MINIMO_CLIQUE = 40;
 const Z_PREVIA = Number.MAX_SAFE_INTEGER;
@@ -78,6 +79,13 @@ export function criarCamadaDecoracoes(catalogo: Catalogo, containerTerreno: Cont
         desenhada.sprite.destroy();
         desenhadas.delete(id);
       }
+    }
+  };
+
+  /** Pinta com `cor` as decorações dos hexes em `chaves`; as demais ficam com a cor original. */
+  const escurecer = (chaves: ReadonlySet<string> | null, cor: number) => {
+    for (const desenhada of desenhadas.values()) {
+      desenhada.sprite.tint = chaves?.has(chaveHex(desenhada.coord)) ? cor : COR_ORIGINAL;
     }
   };
 
@@ -151,5 +159,5 @@ export function criarCamadaDecoracoes(catalogo: Catalogo, containerTerreno: Cont
     previa!.sprite.position.set(posicao.x, posicao.y);
   };
 
-  return { container, atualizar, decoracaoEm, moverVisual, mostrarPrevia, limparPrevia };
+  return { container, atualizar, escurecer, decoracaoEm, moverVisual, mostrarPrevia, limparPrevia };
 }

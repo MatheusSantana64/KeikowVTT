@@ -22,6 +22,15 @@ import { PainelHex } from './PainelHex';
 import { Paleta } from './Paleta';
 
 const BORRACHA: Ferramenta = { tipo: 'apagar' };
+const POSICIONAR: Ferramenta = { tipo: 'posicionar' };
+const REVELAR: Ferramenta = { tipo: 'revelar' };
+const OCULTAR: Ferramenta = { tipo: 'ocultar' };
+/** Com estas ferramentas, os hexes que os jogadores não veriam ficam escurecidos. */
+const FERRAMENTAS_DE_VISAO: ReadonlySet<Ferramenta['tipo']> = new Set([
+  'posicionar',
+  'revelar',
+  'ocultar',
+]);
 const DURACAO_MENSAGEM_MS = 6000;
 
 function ehCampoDeTexto(alvo: EventTarget | null): alvo is HTMLElement {
@@ -75,14 +84,23 @@ export function App() {
   const controlador = useMemo(
     () =>
       manifesto
-        ? criarControlador(loja, manifesto, () => cenaRef.current, setHexSelecionado, (texto) =>
-            setMensagem({ tipo: 'aviso', texto }),
+        ? criarControlador(
+            loja,
+            lojaGrupo,
+            manifesto,
+            () => cenaRef.current,
+            setHexSelecionado,
+            (texto) => setMensagem({ tipo: 'aviso', texto }),
           )
         : null,
-    [loja, manifesto],
+    [loja, lojaGrupo, manifesto],
   );
 
   useEffect(() => cenaRef.current?.selecionarHex(hexSelecionado), [hexSelecionado]);
+
+  useEffect(() => {
+    cenaRef.current?.definirConferenciaDeVisao(FERRAMENTAS_DE_VISAO.has(ferramenta.tipo));
+  }, [ferramenta]);
 
   const selecionarFerramenta = useCallback(
     (nova: Ferramenta) => {
@@ -132,6 +150,7 @@ export function App() {
     }
     const cena = createMapScene(mapRef.current!, {
       loja,
+      lojaGrupo,
       manifesto,
       aoMudarHexSobMouse: setHexSobMouse,
       aoMoverPonteiro: controlador.aoMoverPonteiro,
@@ -146,7 +165,7 @@ export function App() {
       cena.destruir();
       cenaRef.current = null;
     };
-  }, [loja, manifesto, controlador]);
+  }, [loja, lojaGrupo, manifesto, controlador]);
 
   useEffect(() => {
     const aoApertarTecla = (evento: KeyboardEvent) => {
@@ -249,6 +268,11 @@ export function App() {
             <dd>Sem ferramenta (Esc), arraste com o botão esquerdo</dd>
             <dt>Zoom e câmera</dt>
             <dd>Roda do mouse; arrastar com o botão direito ou o do meio</dd>
+            <dt>Visão dos jogadores</dt>
+            <dd>
+              Grupo, Revelar e Ocultar escurecem o que os jogadores não veriam. O contorno verde
+              marca o que foi revelado à mão
+            </dd>
             <dt>Salvamento</dt>
             <dd>O mapa fica guardado neste navegador; use Salvar para ter uma cópia em arquivo</dd>
           </dl>
@@ -282,6 +306,27 @@ export function App() {
           <button type="button" disabled={!podeRefazer} onClick={loja.refazer} title="Ctrl+Y">
             Refazer
           </button>
+        </div>
+        <div className="ferramentas">
+          {(
+            [
+              [POSICIONAR, 'Grupo', 'Clique em um hex para colocar o grupo nele'],
+              [REVELAR, 'Revelar', 'Pinte para mostrar hexes aos jogadores'],
+              [OCULTAR, 'Ocultar', 'Pinte para desfazer a revelação'],
+            ] as const
+          ).map(([alvo, rotulo, dica]) => (
+            <button
+              key={alvo.tipo}
+              type="button"
+              title={dica}
+              aria-pressed={ferramenta.tipo === alvo.tipo}
+              onClick={() =>
+                selecionarFerramenta(ferramenta.tipo === alvo.tipo ? SEM_FERRAMENTA : alvo)
+              }
+            >
+              {rotulo}
+            </button>
+          ))}
         </div>
         <p className="coordenada">
           {hexSobMouse ? `Hex: q ${hexSobMouse.q}, r ${hexSobMouse.r}` : 'Hex: —'}

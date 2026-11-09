@@ -9,6 +9,7 @@ interface TileDesenhado {
 }
 
 const OPACIDADE_PREVIA = 0.7;
+const COR_ORIGINAL = 0xffffff;
 
 function posicionarNoHex(sprite: Sprite, coord: CoordHex): void {
   const ponta = pontaInferiorHex(coord);
@@ -52,6 +53,13 @@ export function criarCamadaTiles(catalogo: Catalogo) {
     }
   };
 
+  /** Pinta com `cor` os tiles de `chaves`; os demais ficam com a cor original. */
+  const escurecer = (chaves: ReadonlySet<string> | null, cor: number) => {
+    for (const [chave, tile] of desenhados) {
+      tile.sprite.tint = chaves?.has(chave) ? cor : COR_ORIGINAL;
+    }
+  };
+
   const limparPrevia = () => {
     previa?.sprite.destroy();
     previa = null;
@@ -73,5 +81,5 @@ export function criarCamadaTiles(catalogo: Catalogo) {
     previa!.sprite.zIndex = coord.r + 0.5;
   };
 
-  return { container, atualizar, mostrarPrevia, limparPrevia };
+  return { container, atualizar, escurecer, mostrarPrevia, limparPrevia };
 }

@@ -1,15 +1,58 @@
 import { Graphics } from 'pixi.js';
-import { hexParaMundo } from '../core/hex';
+import { contornoHex, hexParaMundo, type CoordHex } from '../core/hex';
 import { temAnotacoes, type EstadoMapa } from '../core/mapa';
 
 const COR_FUNDO = 0x1d2029;
 const COR_MARCADOR = 0xf0c870;
+const COR_GRUPO = 0xff8a5c;
+const COR_REVELADO = 0x9be08a;
 const RAIO = 24;
 /** Posição do marcador em relação ao centro do hex: no canto superior direito do chão. */
 const DESLOCAMENTO_X = 72;
 const DESLOCAMENTO_Y = -56;
 const MEIA_LARGURA_LINHA = 11;
 const ALTURAS_DAS_LINHAS = [-8, 0, 8];
+
+/** Mostra onde o grupo está. */
+export function criarMarcadorGrupo() {
+  const grafico = new Graphics()
+    .circle(0, 0, 46)
+    .fill({ color: COR_GRUPO, alpha: 0.25 })
+    .stroke({ width: 8, color: COR_GRUPO })
+    .circle(0, 0, 14)
+    .fill(COR_GRUPO);
+  grafico.visible = false;
+
+  const atualizar = (posicao: CoordHex | null) => {
+    grafico.visible = posicao !== null;
+    if (posicao) {
+      const centro = hexParaMundo(posicao);
+      grafico.position.set(centro.x, centro.y);
+    }
+  };
+
+  return { grafico, atualizar };
+}
+
+/** Contorna os hexes revelados à mão, enquanto o mestre confere o que está visível. */
+export function criarContornoRevelados() {
+  const grafico = new Graphics();
+
+  const atualizar = (estado: EstadoMapa, visivel: boolean) => {
+    grafico.clear();
+    if (!visivel) {
+      return;
+    }
+    for (const hex of Object.values(estado.hexes)) {
+      if (hex.revelado) {
+        grafico.poly(contornoHex(hex.coord));
+      }
+    }
+    grafico.stroke({ width: 6, color: COR_REVELADO });
+  };
+
+  return { grafico, atualizar };
+}
 
 /** Mostra quais hexes têm anotações, com um pequeno ícone de texto. */
 export function criarCamadaMarcadores() {

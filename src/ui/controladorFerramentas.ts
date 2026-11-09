@@ -1,4 +1,5 @@
 import { hexParaMundo, mundoParaHex, type CoordHex, type PontoMundo } from '../core/hex';
+import type { LojaGrupo } from '../core/grupo';
 import type { LojaMapa } from '../core/loja';
 import { hexEm, temAnotacoes } from '../core/mapa';
 import type { Manifesto } from '../core/manifesto';
@@ -7,7 +8,10 @@ import type { CenaMapa } from '../render/createMapScene';
 export type Ferramenta =
   | { readonly tipo: 'nenhuma' }
   | { readonly tipo: 'colocar'; readonly assetId: string }
-  | { readonly tipo: 'apagar' };
+  | { readonly tipo: 'apagar' }
+  | { readonly tipo: 'posicionar' }
+  | { readonly tipo: 'revelar' }
+  | { readonly tipo: 'ocultar' };
 
 export const SEM_FERRAMENTA: Ferramenta = { tipo: 'nenhuma' };
 
@@ -33,6 +37,7 @@ interface Movimento {
 /** Traduz o que o mouse faz no mapa em ações, de acordo com a ferramenta atual. */
 export function criarControlador(
   loja: LojaMapa,
+  lojaGrupo: LojaGrupo,
   manifesto: Manifesto,
   obterCena: () => CenaControlada | null,
   aoSelecionarHex: (coord: CoordHex) => void,
@@ -50,6 +55,10 @@ export function criarControlador(
       hexesAnotadosApagados += 1;
     }
     loja.despachar({ tipo: 'RemoverTile', coord });
+  };
+
+  const aplicarRevelacao = (tipo: 'revelar' | 'ocultar', coord: CoordHex) => {
+    loja.despachar({ tipo: tipo === 'revelar' ? 'RevelarHex' : 'OcultarHex', coord });
   };
 
   const avisarHexesApagados = () => {
@@ -175,19 +184,35 @@ export function criarControlador(
     },
 
     aoIniciarTraco(ponto: PontoMundo) {
-      if (ferramenta.tipo === 'nenhuma') {
-        iniciarMovimento(ponto);
-      } else if (ferramenta.tipo === 'apagar') {
-        loja.iniciarTraco();
-        apagandoDecoracoes = apagarDecoracaoEm(ponto);
-        if (!apagandoDecoracoes) {
-          removerHex(mundoParaHex(ponto));
-        }
-      } else if (ehTile(ferramenta.assetId)) {
-        loja.iniciarTraco();
-        colocarAsset(ferramenta.assetId, ponto);
-      } else {
-        colocarAsset(ferramenta.assetId, ponto);
+      const coord = mundoParaHex(ponto);
+      switch (ferramenta.tipo) {
+        case 'nenhuma':
+          iniciarMovimento(ponto);
+          break;
+        case 'apagar':
+          loja.iniciarTraco();
+          apagandoDecoracoes = apagarDecoracaoEm(ponto);
+          if (!apagandoDecoracoes) {
+            removerHex(coord);
+          }
+          break;
+        case 'colocar':
+          if (ehTile(ferramenta.assetId)) {
+            loja.iniciarTraco();
+          }
+          colocarAsset(ferramenta.assetId, ponto);
+          break;
+        case 'posicionar':
+          // O grupo só pode ficar em um hex com terreno.
+          if (hexEm(loja.obterEstado(), coord)) {
+            lojaGrupo.despachar({ tipo: 'PosicionarGrupo', coord });
+          }
+          break;
+        case 'revelar':
+        case 'ocultar':
+          loja.iniciarTraco();
+          aplicarRevelacao(ferramenta.tipo, coord);
+          break;
       }
     },
 
@@ -196,6 +221,8 @@ export function criarControlador(
         loja.despachar({ tipo: 'ColocarTile', coord, terreno: ferramenta.assetId });
       } else if (ferramenta.tipo === 'apagar' && !apagandoDecoracoes) {
         removerHex(coord);
+      } else if (ferramenta.tipo === 'revelar' || ferramenta.tipo === 'ocultar') {
+        aplicarRevelacao(ferramenta.tipo, coord);
       }
     },
 
