@@ -70,7 +70,13 @@ Cada fase deve funcionar sozinha antes de avançar.
 9. **Extras** — integração mais profunda com Discord (bot de rolagens, Discord Activity), mais gamificação.
 
 ## Status atual
-- **Fase 1 concluída** (editor de mapa local). Próxima: Fase 2. Os passos da Fase 1 foram:
+- **Fase 2 em andamento** (informação por hex), dividida em 5 passos:
+  1. ✅ Regras em `core/`: nome, descrição, notas e visão do jogador.
+  2. Formato do arquivo com as informações, convertendo mapas antigos (próximo). Até lá, as informações não são salvas.
+  3. Seleção de hex: sem ferramenta, um clique marca o hex e abre o painel.
+  4. Painel de edição, com as notas. Atalhos do mapa não podem agir enquanto se digita.
+  5. Marcador no mapa para hexes com anotações e aviso ao apagar um deles.
+- **Fase 1 concluída** (editor de mapa local). Os passos foram:
   1. ✅ Estrutura do projeto.
   2. ✅ Regras do mapa em `core/`.
   3. ✅ Assets e manifesto.
@@ -86,3 +92,4 @@ Cada fase deve funcionar sozinha antes de avançar.
 - Rios só têm o rio desenhado: vão por cima de um terreno, encaixados no centro do hex, sem conexão automática.
 - Mapa sem limite de tamanho. Decorações têm posição livre, presas a um hex: apagar o hex apaga as decorações; trocar o terreno as mantém.
 - O botão esquerdo fica para editar o mapa; a câmera arrasta com o direito ou o do meio.
+- Notas de hex são uma lista, cada nota com sua própria visibilidade. Nome e descrição são visíveis a todos. Só hexes com terreno guardam informação; trocar o terreno mantém as anotações e apagar o hex as apaga.

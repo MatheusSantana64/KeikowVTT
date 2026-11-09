@@ -1,4 +1,5 @@
 import { chaveHex, hexParaMundo, type ChaveHex, type CoordHex, type PontoMundo } from './hex';
+import type { Visibilidade } from './visibilidade';
 
 export interface Decoracao {
   readonly id: string;
@@ -7,7 +8,22 @@ export interface Decoracao {
   readonly deslocamento: PontoMundo;
 }
 
-export interface Hex {
+export interface Nota {
+  readonly id: string;
+  readonly texto: string;
+  readonly visibilidade: Visibilidade;
+}
+
+/** O que o mestre escreve sobre um hex. Nome e descrição são visíveis a todos. */
+export interface InformacaoHex {
+  readonly nome: string;
+  readonly descricao: string;
+  readonly notas: readonly Nota[];
+}
+
+export const INFORMACAO_VAZIA: InformacaoHex = { nome: '', descricao: '', notas: [] };
+
+export interface Hex extends InformacaoHex {
   readonly coord: CoordHex;
   /** Id do tile no manifesto de assets. A imagem em si não faz parte do estado. */
   readonly terreno: string;
@@ -31,7 +47,26 @@ export type AcaoMapa =
       readonly deslocamento: PontoMundo;
     }
   | { readonly tipo: 'RemoverDecoracao'; readonly coord: CoordHex; readonly decoracaoId: string }
-  | { readonly tipo: 'CarregarMapa'; readonly estado: EstadoMapa };
+  | { readonly tipo: 'CarregarMapa'; readonly estado: EstadoMapa }
+  | {
+      readonly tipo: 'EditarInformacaoHex';
+      readonly coord: CoordHex;
+      readonly campos: Partial<Pick<InformacaoHex, 'nome' | 'descricao'>>;
+    }
+  | { readonly tipo: 'AdicionarNota'; readonly coord: CoordHex; readonly nota: Nota }
+  | {
+      readonly tipo: 'EditarNota';
+      readonly coord: CoordHex;
+      readonly notaId: string;
+      readonly texto: string;
+    }
+  | {
+      readonly tipo: 'DefinirVisibilidadeNota';
+      readonly coord: CoordHex;
+      readonly notaId: string;
+      readonly visibilidade: Visibilidade;
+    }
+  | { readonly tipo: 'RemoverNota'; readonly coord: CoordHex; readonly notaId: string };
 
 export function criarMapaVazio(): EstadoMapa {
   return { hexes: {} };
@@ -59,6 +94,22 @@ export function aplicarAcao(estado: EstadoMapa, acao: AcaoMapa): EstadoMapa {
       return removerDecoracao(estado, acao.coord, acao.decoracaoId);
     case 'CarregarMapa':
       return acao.estado;
+    case 'EditarInformacaoHex':
+      return editarInformacaoHex(estado, acao.coord, acao.campos);
+    case 'AdicionarNota':
+      return adicionarNota(estado, acao.coord, acao.nota);
+    case 'EditarNota':
+      return alterarNota(estado, acao.coord, acao.notaId, (nota) =>
+        nota.texto === acao.texto ? nota : { ...nota, texto: acao.texto },
+      );
+    case 'DefinirVisibilidadeNota':
+      return alterarNota(estado, acao.coord, acao.notaId, (nota) =>
+        nota.visibilidade.tipo === acao.visibilidade.tipo
+          ? nota
+          : { ...nota, visibilidade: acao.visibilidade },
+      );
+    case 'RemoverNota':
+      return removerNota(estado, acao.coord, acao.notaId);
   }
 }
 
@@ -83,12 +134,12 @@ function comHex(estado: EstadoMapa, hex: Hex): EstadoMapa {
 function colocarTile(estado: EstadoMapa, coord: CoordHex, terreno: string): EstadoMapa {
   const hex = hexEm(estado, coord);
   if (!hex) {
-    return comHex(estado, { coord, terreno, decoracoes: [] });
+    return comHex(estado, { ...INFORMACAO_VAZIA, coord, terreno, decoracoes: [] });
   }
   if (hex.terreno === terreno) {
     return estado;
   }
-  // Trocar o terreno mantém as decorações; elas só somem quando o hex é apagado.
+  // Trocar o terreno mantém decorações e anotações; elas só somem quando o hex é apagado.
   return comHex(estado, { ...hex, terreno });
 }
 
@@ -132,6 +183,58 @@ function moverDecoracao(
 
   const semDecoracao = removerDecoracao(estado, origem, decoracaoId);
   return colocarDecoracao(semDecoracao, destino, { ...decoracao, deslocamento });
+}
+
+function editarInformacaoHex(
+  estado: EstadoMapa,
+  coord: CoordHex,
+  campos: Partial<Pick<InformacaoHex, 'nome' | 'descricao'>>,
+): EstadoMapa {
+  const hex = hexEm(estado, coord);
+  if (!hex) {
+    return estado;
+  }
+  const nome = campos.nome ?? hex.nome;
+  const descricao = campos.descricao ?? hex.descricao;
+  if (nome === hex.nome && descricao === hex.descricao) {
+    return estado;
+  }
+  return comHex(estado, { ...hex, nome, descricao });
+}
+
+function adicionarNota(estado: EstadoMapa, coord: CoordHex, nota: Nota): EstadoMapa {
+  const hex = hexEm(estado, coord);
+  if (!hex || hex.notas.some((n) => n.id === nota.id)) {
+    return estado;
+  }
+  return comHex(estado, { ...hex, notas: [...hex.notas, nota] });
+}
+
+/** `mudar` devolve a mesma nota quando não há o que alterar. */
+function alterarNota(
+  estado: EstadoMapa,
+  coord: CoordHex,
+  notaId: string,
+  mudar: (nota: Nota) => Nota,
+): EstadoMapa {
+  const hex = hexEm(estado, coord);
+  const nota = hex?.notas.find((n) => n.id === notaId);
+  if (!hex || !nota) {
+    return estado;
+  }
+  const alterada = mudar(nota);
+  if (alterada === nota) {
+    return estado;
+  }
+  return comHex(estado, { ...hex, notas: hex.notas.map((n) => (n === nota ? alterada : n)) });
+}
+
+function removerNota(estado: EstadoMapa, coord: CoordHex, notaId: string): EstadoMapa {
+  const hex = hexEm(estado, coord);
+  if (!hex || !hex.notas.some((n) => n.id === notaId)) {
+    return estado;
+  }
+  return comHex(estado, { ...hex, notas: hex.notas.filter((n) => n.id !== notaId) });
 }
 
 function removerDecoracao(estado: EstadoMapa, coord: CoordHex, decoracaoId: string): EstadoMapa {

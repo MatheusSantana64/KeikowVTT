@@ -1,6 +1,6 @@
 import { chaveHex, type ChaveHex } from './hex';
 import type { Manifesto } from './manifesto';
-import type { Decoracao, EstadoMapa, Hex } from './mapa';
+import { INFORMACAO_VAZIA, type Decoracao, type EstadoMapa, type Hex } from './mapa';
 
 /** Aumente ao mudar o formato do arquivo, para poder converter mapas antigos. */
 const VERSAO_ARQUIVO = 1;
@@ -40,6 +40,7 @@ function lerHex(dado: unknown, posicao: number): Hex {
   exigir(typeof terreno === 'string' && terreno !== '', `${onde} está sem terreno.`);
   exigir(Array.isArray(decoracoes), `${onde} está sem a lista de decorações.`);
   return {
+    ...INFORMACAO_VAZIA,
     coord: { q: q as number, r: r as number },
     terreno,
     decoracoes: decoracoes.map((d, i) => lerDecoracao(d, `A decoração nº ${i + 1} de ${onde}`)),

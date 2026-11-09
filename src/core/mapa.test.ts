@@ -27,7 +27,14 @@ const mapaComCasa = () =>
 describe('ColocarTile', () => {
   it('cria o hex sem decorações', () => {
     const mapa = aplicarAcao(criarMapaVazio(), { tipo: 'ColocarTile', coord: A, terreno: 'hexPlains00' });
-    expect(hexEm(mapa, A)).toEqual({ coord: A, terreno: 'hexPlains00', decoracoes: [] });
+    expect(hexEm(mapa, A)).toEqual({
+      coord: A,
+      terreno: 'hexPlains00',
+      decoracoes: [],
+      nome: '',
+      descricao: '',
+      notas: [],
+    });
   });
 
   it('não altera o estado anterior', () => {
