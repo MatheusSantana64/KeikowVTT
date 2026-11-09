@@ -70,12 +70,12 @@ Cada fase deve funcionar sozinha antes de avançar.
 9. **Extras** — integração mais profunda com Discord (bot de rolagens, Discord Activity), mais gamificação.
 
 ## Status atual
-- **Fase 2 em andamento** (informação por hex), dividida em 5 passos:
+- **Fase 2 concluída** (informação por hex). Próxima: Fase 3. Os passos foram:
   1. ✅ Regras em `core/`: nome, descrição, notas e visão do jogador.
   2. ✅ Formato do arquivo com as informações, convertendo mapas antigos.
   3. ✅ Seleção de hex: sem ferramenta, um clique marca o hex e abre o painel.
   4. ✅ Painel de edição, com as notas. Atalhos do mapa não agem enquanto se digita.
-  5. Marcador no mapa para hexes com anotações e aviso ao apagar um deles (próximo).
+  5. ✅ Marcador no mapa para hexes com anotações e aviso ao apagar um deles.
 - **Fase 1 concluída** (editor de mapa local). Os passos foram:
   1. ✅ Estrutura do projeto.
   2. ✅ Regras do mapa em `core/`.

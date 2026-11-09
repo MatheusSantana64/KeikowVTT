@@ -94,7 +94,12 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.sidebar .mensagem-aviso {
+  color: #f0c870;
+}
+
 .sidebar .mensagem-erro,
+.sidebar .mensagem-aviso,
 .sidebar .mensagem-info {
   margin-bottom: 12px;
   font-size: 12px;

@@ -69,7 +69,9 @@ export function App() {
   const controlador = useMemo(
     () =>
       manifesto
-        ? criarControlador(loja, manifesto, () => cenaRef.current, setHexSelecionado)
+        ? criarControlador(loja, manifesto, () => cenaRef.current, setHexSelecionado, (texto) =>
+            setMensagem({ tipo: 'aviso', texto }),
+          )
         : null,
     [loja, manifesto],
   );
@@ -111,7 +113,7 @@ export function App() {
   }, [loja, manifesto]);
 
   useEffect(() => {
-    if (mensagem?.tipo !== 'info') {
+    if (!mensagem || mensagem.tipo === 'erro') {
       return;
     }
     const temporizador = setTimeout(() => setMensagem(null), DURACAO_MENSAGEM_MS);

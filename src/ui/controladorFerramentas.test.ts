@@ -29,15 +29,60 @@ function montar() {
     sincronizarDecoracoes: vi.fn(),
   };
   const aoSelecionarHex = vi.fn();
-  const controlador = criarControlador(loja, manifesto, () => cena, aoSelecionarHex);
+  const aoAvisar = vi.fn();
+  const controlador = criarControlador(loja, manifesto, () => cena, aoSelecionarHex, aoAvisar);
   const usar = (ferramenta: Ferramenta) => controlador.definirFerramenta(ferramenta);
   const colocarTerreno = () => {
     loja.despachar({ tipo: 'ColocarTile', coord: A, terreno: 'tile' });
     loja.despachar({ tipo: 'ColocarTile', coord: B, terreno: 'tile' });
   };
   const decoracoes = (coord = A) => hexEm(loja.obterEstado(), coord)?.decoracoes ?? [];
-  return { loja, cena, controlador, usar, colocarTerreno, decoracoes, aoSelecionarHex };
+  return { loja, cena, controlador, usar, colocarTerreno, decoracoes, aoSelecionarHex, aoAvisar };
 }
+
+describe('aviso ao apagar hexes anotados', () => {
+  function comAnotacao() {
+    const montado = montar();
+    montado.colocarTerreno();
+    montado.loja.despachar({ tipo: 'EditarInformacaoHex', coord: A, campos: { nome: 'Vau' } });
+    montado.usar({ tipo: 'apagar' });
+    return montado;
+  }
+
+  it('avisa ao fim do traço, uma única vez', () => {
+    const { controlador, aoAvisar } = comAnotacao();
+    controlador.aoIniciarTraco({ x: 0, y: 0 });
+    expect(aoAvisar).not.toHaveBeenCalled();
+    controlador.aoTerminarTraco();
+    expect(aoAvisar).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('Um hex'));
+  });
+
+  it('conta quantos hexes anotados o traço apagou', () => {
+    const { loja, controlador, aoAvisar } = comAnotacao();
+    loja.despachar({ tipo: 'EditarInformacaoHex', coord: B, campos: { descricao: 'Algo' } });
+    controlador.aoIniciarTraco({ x: 0, y: 0 });
+    controlador.aoContinuarTraco(B);
+    controlador.aoTerminarTraco();
+    expect(aoAvisar).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('2 hexes'));
+  });
+
+  it('não avisa ao apagar hexes sem anotações', () => {
+    const { controlador, aoAvisar } = comAnotacao();
+    controlador.aoIniciarTraco(centroB);
+    controlador.aoTerminarTraco();
+    expect(aoAvisar).not.toHaveBeenCalled();
+  });
+
+  it('a contagem recomeça a cada traço', () => {
+    const { loja, controlador, aoAvisar } = comAnotacao();
+    controlador.aoIniciarTraco({ x: 0, y: 0 });
+    controlador.aoTerminarTraco();
+    loja.despachar({ tipo: 'EditarInformacaoHex', coord: B, campos: { nome: 'Outro' } });
+    controlador.aoIniciarTraco(centroB);
+    controlador.aoTerminarTraco();
+    expect(aoAvisar).toHaveBeenLastCalledWith(expect.stringContaining('Um hex'));
+  });
+});
 
 describe('selecionar hex', () => {
   it('sem ferramenta, um clique seleciona o hex do ponto', () => {

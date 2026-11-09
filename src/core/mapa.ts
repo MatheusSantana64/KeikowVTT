@@ -76,6 +76,13 @@ export function hexEm(estado: EstadoMapa, coord: CoordHex): Hex | undefined {
   return estado.hexes[chaveHex(coord)];
 }
 
+/** Só conta o que tem texto de verdade: notas em branco não são anotações. */
+export function temAnotacoes(hex: Hex): boolean {
+  return [hex.nome, hex.descricao, ...hex.notas.map((nota) => nota.texto)].some(
+    (texto) => texto.trim() !== '',
+  );
+}
+
 /**
  * Única forma de mudar o mapa. Nunca altera o estado recebido: devolve um novo.
  * Uma ação sem efeito devolve o mesmo objeto, o que permite detectar que nada mudou.

@@ -1,6 +1,6 @@
 import { hexParaMundo, mundoParaHex, type CoordHex, type PontoMundo } from '../core/hex';
 import type { LojaMapa } from '../core/loja';
-import { hexEm } from '../core/mapa';
+import { hexEm, temAnotacoes } from '../core/mapa';
 import type { Manifesto } from '../core/manifesto';
 import type { CenaMapa } from '../render/createMapScene';
 
@@ -36,11 +36,32 @@ export function criarControlador(
   manifesto: Manifesto,
   obterCena: () => CenaControlada | null,
   aoSelecionarHex: (coord: CoordHex) => void,
+  aoAvisar: (texto: string) => void,
 ) {
   const assets = new Map(manifesto.assets.map((asset) => [asset.id, asset]));
   let ferramenta: Ferramenta = SEM_FERRAMENTA;
   let movimento: Movimento | null = null;
   let apagandoDecoracoes = false;
+  let hexesAnotadosApagados = 0;
+
+  const removerHex = (coord: CoordHex) => {
+    const hex = hexEm(loja.obterEstado(), coord);
+    if (hex && temAnotacoes(hex)) {
+      hexesAnotadosApagados += 1;
+    }
+    loja.despachar({ tipo: 'RemoverTile', coord });
+  };
+
+  const avisarHexesApagados = () => {
+    if (hexesAnotadosApagados > 0) {
+      aoAvisar(
+        hexesAnotadosApagados === 1
+          ? 'Um hex com anotações foi apagado. Ctrl+Z traz de volta.'
+          : `${hexesAnotadosApagados} hexes com anotações foram apagados. Ctrl+Z traz de volta.`,
+      );
+      hexesAnotadosApagados = 0;
+    }
+  };
 
   const ehTile = (assetId: string) => assets.get(assetId)?.tipo === 'tile';
   const ehSobreposicao = (assetId: string) => assets.get(assetId)?.tipo === 'sobreposicao';
@@ -160,7 +181,7 @@ export function criarControlador(
         loja.iniciarTraco();
         apagandoDecoracoes = apagarDecoracaoEm(ponto);
         if (!apagandoDecoracoes) {
-          loja.despachar({ tipo: 'RemoverTile', coord: mundoParaHex(ponto) });
+          removerHex(mundoParaHex(ponto));
         }
       } else if (ehTile(ferramenta.assetId)) {
         loja.iniciarTraco();
@@ -174,7 +195,7 @@ export function criarControlador(
       if (ferramenta.tipo === 'colocar' && ehTile(ferramenta.assetId)) {
         loja.despachar({ tipo: 'ColocarTile', coord, terreno: ferramenta.assetId });
       } else if (ferramenta.tipo === 'apagar' && !apagandoDecoracoes) {
-        loja.despachar({ tipo: 'RemoverTile', coord });
+        removerHex(coord);
       }
     },
 
@@ -197,6 +218,7 @@ export function criarControlador(
       }
       apagandoDecoracoes = false;
       loja.terminarTraco();
+      avisarHexesApagados();
     },
 
     aoClicar(ponto: PontoMundo) {

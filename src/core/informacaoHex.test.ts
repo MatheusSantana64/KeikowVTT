@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { aplicarAcao, criarMapaVazio, hexEm, type AcaoMapa, type EstadoMapa, type Nota } from './mapa';
+import {
+  aplicarAcao,
+  criarMapaVazio,
+  hexEm,
+  temAnotacoes,
+  type AcaoMapa,
+  type EstadoMapa,
+  type Hex,
+  type Nota,
+} from './mapa';
 import { SO_MESTRE, VISIVEL_A_TODOS, visaoDoJogador } from './visibilidade';
 
 const A = { q: 0, r: 0 };
@@ -162,6 +171,32 @@ describe('relação com o terreno', () => {
       mapaComNotas(),
     );
     expect(hexEm(mapa, A)).toMatchObject({ nome: '', descricao: '', notas: [] });
+  });
+});
+
+describe('temAnotacoes', () => {
+  const hexBase = (): Hex => hexEm(aplicarAcao(criarMapaVazio(), {
+    tipo: 'ColocarTile',
+    coord: A,
+    terreno: 't',
+  }), A)!;
+
+  it('um hex recém-criado não tem anotações', () => {
+    expect(temAnotacoes(hexBase())).toBe(false);
+  });
+
+  it.each([
+    ['nome', { nome: 'Vau' }],
+    ['descrição', { descricao: 'Um rio' }],
+    ['nota pública', { notas: [publica] }],
+    ['nota secreta', { notas: [secreta] }],
+  ])('conta %s', (_, campos) => {
+    expect(temAnotacoes({ ...hexBase(), ...campos })).toBe(true);
+  });
+
+  it('ignora textos só com espaços e notas em branco', () => {
+    const emBranco: Nota = { ...publica, texto: '  \n ' };
+    expect(temAnotacoes({ ...hexBase(), nome: '   ', notas: [emBranco] })).toBe(false);
   });
 });
 

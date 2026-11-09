@@ -4,7 +4,7 @@ import { criarMapaVazio, type EstadoMapa } from '../core/mapa';
 import { desserializarMapa, serializarMapa } from '../core/persistencia';
 
 export interface Mensagem {
-  readonly tipo: 'info' | 'erro';
+  readonly tipo: 'info' | 'aviso' | 'erro';
   readonly texto: string;
 }
 

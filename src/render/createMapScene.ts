@@ -7,6 +7,7 @@ import type { Manifesto } from '../core/manifesto';
 import { carregarCatalogo, type Catalogo } from './assets';
 import { criarCamadaDecoracoes, type DecoracaoEncontrada } from './camadaDecoracoes';
 import { criarCamadaGrid, criarDestaqueHex, criarSelecaoHex } from './camadaGrid';
+import { criarCamadaMarcadores } from './camadaMarcadores';
 import { criarCamadaTiles } from './camadaTiles';
 
 const ZOOM_MINIMO = 0.15;
@@ -129,12 +130,14 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
   const grid = criarCamadaGrid();
   const tiles = criarCamadaTiles(catalogo);
   const decoracoes = criarCamadaDecoracoes(catalogo, tiles.container);
+  const marcadores = criarCamadaMarcadores();
   const selecao = criarSelecaoHex();
   const destaque = criarDestaqueHex();
   camera.addChild(
     grid.grafico,
     tiles.container,
     decoracoes.container,
+    marcadores.grafico,
     selecao.grafico,
     destaque.grafico,
   );
@@ -143,6 +146,7 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
     const estado = opcoes.loja.obterEstado();
     tiles.atualizar(estado);
     decoracoes.atualizar(estado);
+    marcadores.atualizar(estado);
   };
   atualizarCamadas();
   const cancelarAssinatura = opcoes.loja.assinar(atualizarCamadas);
