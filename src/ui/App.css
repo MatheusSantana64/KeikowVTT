@@ -94,8 +94,33 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.sidebar .erro {
+.sidebar .mensagem-erro,
+.sidebar .mensagem-info {
+  margin-bottom: 12px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.sidebar .mensagem-erro {
   color: #f08a70;
+}
+
+.sidebar .mensagem-info {
+  color: #a8d08a;
+}
+
+.seletor-arquivo {
+  display: none;
+}
+
+.ajuda-bloco {
+  margin-bottom: 10px;
+}
+
+.ajuda-bloco summary {
+  color: #a5a79f;
+  cursor: pointer;
+  font-size: 13px;
 }
 
 .paleta-bloco {

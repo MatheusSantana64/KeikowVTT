@@ -70,7 +70,7 @@ Cada fase deve funcionar sozinha antes de avançar.
 9. **Extras** — integração mais profunda com Discord (bot de rolagens, Discord Activity), mais gamificação.
 
 ## Status atual
-- **Fase 1 em andamento** (editor de mapa local), dividida em 8 passos:
+- **Fase 1 concluída** (editor de mapa local). Próxima: Fase 2. Os passos da Fase 1 foram:
   1. ✅ Estrutura do projeto.
   2. ✅ Regras do mapa em `core/`.
   3. ✅ Assets e manifesto.
@@ -78,7 +78,7 @@ Cada fase deve funcionar sozinha antes de avançar.
   5. ✅ Paleta e arrastar e soltar com snap.
   6. ✅ Pintar arrastando, apagar, desfazer e refazer.
   7. ✅ Decorações e rios na paleta e no mapa.
-  8. Salvar e carregar JSON, com salvamento automático no navegador (próximo).
+  8. ✅ Salvar e carregar JSON, com salvamento automático no navegador.
 - Comandos: `npm run dev` (editor), `npm test`, `npm run build`, `npm run assets` (regera `public/assets/` a partir de `Hex Samples/`).
 
 ## Decisões já tomadas

@@ -2,6 +2,7 @@ import { Application } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import { linhaHex, mundoParaHex, type CoordHex, type PontoMundo } from '../core/hex';
 import type { LojaMapa } from '../core/loja';
+import { centroDoMapa } from '../core/mapa';
 import type { Manifesto } from '../core/manifesto';
 import { carregarCatalogo, type Catalogo } from './assets';
 import { criarCamadaDecoracoes, type DecoracaoEncontrada } from './camadaDecoracoes';
@@ -37,6 +38,7 @@ interface ControlesCena {
   decoracaoEm(ponto: PontoMundo): DecoracaoEncontrada | null;
   moverDecoracaoVisual(decoracaoId: string, posicao: PontoMundo): void;
   sincronizarDecoracoes(): void;
+  centralizarNoMapa(): void;
   cancelarAssinatura(): void;
 }
 
@@ -88,6 +90,7 @@ export function createMapScene(container: HTMLElement, opcoes: OpcoesCena): Cena
     moverDecoracaoVisual: (decoracaoId, posicao) =>
       controles?.moverDecoracaoVisual(decoracaoId, posicao),
     sincronizarDecoracoes: () => controles?.sincronizarDecoracoes(),
+    centralizarNoMapa: () => controles?.centralizarNoMapa(),
     destruir() {
       disposed = true;
       controles?.cancelarAssinatura();
@@ -130,6 +133,15 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
   };
   atualizarCamadas();
   const cancelarAssinatura = opcoes.loja.assinar(atualizarCamadas);
+
+  const centralizarNoMapa = () => {
+    const centro = centroDoMapa(opcoes.loja.obterEstado());
+    if (centro) {
+      camera.moveCenter(centro.x, centro.y);
+    }
+  };
+  // Um mapa guardado pode estar longe da origem e parecer vazio ao abrir.
+  centralizarNoMapa();
 
   const mundoDoEvento = (evento: PointerEvent): PontoMundo => {
     const { x, y } = camera.toWorld(evento.offsetX, evento.offsetY);
@@ -232,6 +244,7 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
     decoracaoEm: decoracoes.decoracaoEm,
     moverDecoracaoVisual: decoracoes.moverVisual,
     sincronizarDecoracoes: () => decoracoes.atualizar(opcoes.loja.obterEstado()),
+    centralizarNoMapa,
     cancelarAssinatura,
   };
 }

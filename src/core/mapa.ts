@@ -1,4 +1,4 @@
-import { chaveHex, type ChaveHex, type CoordHex, type PontoMundo } from './hex';
+import { chaveHex, hexParaMundo, type ChaveHex, type CoordHex, type PontoMundo } from './hex';
 
 export interface Decoracao {
   readonly id: string;
@@ -30,7 +30,8 @@ export type AcaoMapa =
       readonly destino: CoordHex;
       readonly deslocamento: PontoMundo;
     }
-  | { readonly tipo: 'RemoverDecoracao'; readonly coord: CoordHex; readonly decoracaoId: string };
+  | { readonly tipo: 'RemoverDecoracao'; readonly coord: CoordHex; readonly decoracaoId: string }
+  | { readonly tipo: 'CarregarMapa'; readonly estado: EstadoMapa };
 
 export function criarMapaVazio(): EstadoMapa {
   return { hexes: {} };
@@ -56,7 +57,23 @@ export function aplicarAcao(estado: EstadoMapa, acao: AcaoMapa): EstadoMapa {
       return moverDecoracao(estado, acao.origem, acao.decoracaoId, acao.destino, acao.deslocamento);
     case 'RemoverDecoracao':
       return removerDecoracao(estado, acao.coord, acao.decoracaoId);
+    case 'CarregarMapa':
+      return acao.estado;
   }
+}
+
+/** Centro do retângulo que contém todos os hexes, ou `null` se o mapa estiver vazio. */
+export function centroDoMapa(estado: EstadoMapa): PontoMundo | null {
+  const centros = Object.values(estado.hexes).map((hex) => hexParaMundo(hex.coord));
+  if (centros.length === 0) {
+    return null;
+  }
+  const xs = centros.map((c) => c.x);
+  const ys = centros.map((c) => c.y);
+  return {
+    x: (Math.min(...xs) + Math.max(...xs)) / 2,
+    y: (Math.min(...ys) + Math.max(...ys)) / 2,
+  };
 }
 
 function comHex(estado: EstadoMapa, hex: Hex): EstadoMapa {

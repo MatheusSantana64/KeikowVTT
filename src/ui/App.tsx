@@ -9,21 +9,48 @@ import {
 } from 'react';
 import type { CoordHex, PontoMundo } from '../core/hex';
 import { criarLojaMapa } from '../core/loja';
+import type { EstadoMapa } from '../core/mapa';
 import type { Manifesto } from '../core/manifesto';
+import { assetsDesconhecidos } from '../core/persistencia';
+import { lerSalvamentoLocal, manterSalvamentoLocal } from '../net/salvamentoLocal';
 import { carregarManifesto } from '../render/assets';
 import { createMapScene, type CenaMapa } from '../render/createMapScene';
+import { BarraArquivo, type Mensagem } from './BarraArquivo';
 import { criarControlador, SEM_FERRAMENTA, type Ferramenta } from './controladorFerramentas';
 import { Paleta } from './Paleta';
 
 const BORRACHA: Ferramenta = { tipo: 'apagar' };
+const DURACAO_MENSAGEM_MS = 6000;
+
+function iniciarEditor(): { loja: ReturnType<typeof criarLojaMapa>; aviso: Mensagem | null } {
+  const salvo = lerSalvamentoLocal();
+  if (salvo && !salvo.ok) {
+    return {
+      loja: criarLojaMapa(),
+      aviso: { tipo: 'erro', texto: `O salvamento automático não pôde ser lido: ${salvo.erro}` },
+    };
+  }
+  return { loja: criarLojaMapa(salvo?.estado), aviso: null };
+}
+
+function avisoDeImagensFaltando(estado: EstadoMapa, manifesto: Manifesto): Mensagem | null {
+  const faltando = assetsDesconhecidos(estado, manifesto);
+  if (faltando.length === 0) {
+    return null;
+  }
+  return {
+    tipo: 'erro',
+    texto: `Imagens não encontradas, que não serão desenhadas: ${faltando.join(', ')}`,
+  };
+}
 
 export function App() {
   const mapRef = useRef<HTMLDivElement>(null);
   const cenaRef = useRef<CenaMapa | null>(null);
   const assetArrastado = useRef<string | null>(null);
-  const [loja] = useState(() => criarLojaMapa());
+  const [{ loja, aviso }] = useState(iniciarEditor);
   const [manifesto, setManifesto] = useState<Manifesto | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
+  const [mensagem, setMensagem] = useState<Mensagem | null>(aviso);
   const [hexSobMouse, setHexSobMouse] = useState<CoordHex | null>(null);
   const [ferramenta, setFerramenta] = useState<Ferramenta>(SEM_FERRAMENTA);
   const podeDesfazer = useSyncExternalStore(loja.assinar, loja.podeDesfazer);
@@ -45,8 +72,36 @@ export function App() {
   useEffect(() => {
     carregarManifesto()
       .then(setManifesto)
-      .catch((motivo: unknown) => setErro(String(motivo)));
+      .catch((motivo: unknown) => setMensagem({ tipo: 'erro', texto: String(motivo) }));
   }, []);
+
+  useEffect(
+    () =>
+      manterSalvamentoLocal(loja, () =>
+        setMensagem({
+          tipo: 'erro',
+          texto: 'O navegador recusou o salvamento automático. Use o botão Salvar.',
+        }),
+      ),
+    [loja],
+  );
+
+  useEffect(() => {
+    if (manifesto) {
+      const avisoImagens = avisoDeImagensFaltando(loja.obterEstado(), manifesto);
+      if (avisoImagens) {
+        setMensagem(avisoImagens);
+      }
+    }
+  }, [loja, manifesto]);
+
+  useEffect(() => {
+    if (mensagem?.tipo !== 'info') {
+      return;
+    }
+    const temporizador = setTimeout(() => setMensagem(null), DURACAO_MENSAGEM_MS);
+    return () => clearTimeout(temporizador);
+  }, [mensagem]);
 
   useEffect(() => {
     if (!manifesto || !controlador) {
@@ -148,14 +203,30 @@ export function App() {
     <div className="app">
       <aside className="sidebar">
         <h1>KeikowVTT</h1>
-        <dl className="ajuda">
-          <dt>Colocar</dt>
-          <dd>Clique em um item e use o botão esquerdo, ou arraste o item para o mapa</dd>
-          <dt>Mover decoração</dt>
-          <dd>Sem ferramenta (Esc), arraste com o botão esquerdo</dd>
-          <dt>Zoom e câmera</dt>
-          <dd>Roda do mouse; arrastar com o botão direito ou o do meio</dd>
-        </dl>
+        <details className="ajuda-bloco">
+          <summary>Ajuda</summary>
+          <dl className="ajuda">
+            <dt>Colocar</dt>
+            <dd>Clique em um item e use o botão esquerdo, ou arraste o item para o mapa</dd>
+            <dt>Mover decoração</dt>
+            <dd>Sem ferramenta (Esc), arraste com o botão esquerdo</dd>
+            <dt>Zoom e câmera</dt>
+            <dd>Roda do mouse; arrastar com o botão direito ou o do meio</dd>
+            <dt>Salvamento</dt>
+            <dd>O mapa fica guardado neste navegador; use Salvar para ter uma cópia em arquivo</dd>
+          </dl>
+        </details>
+        <BarraArquivo
+          loja={loja}
+          aoAbrirMapa={(estado) => {
+            cenaRef.current?.centralizarNoMapa();
+            const avisoImagens = manifesto && avisoDeImagensFaltando(estado, manifesto);
+            if (avisoImagens) {
+              setMensagem(avisoImagens);
+            }
+          }}
+          aoMensagem={setMensagem}
+        />
         <div className="ferramentas">
           <button
             type="button"
@@ -176,7 +247,7 @@ export function App() {
         <p className="coordenada">
           {hexSobMouse ? `Hex: q ${hexSobMouse.q}, r ${hexSobMouse.r}` : 'Hex: —'}
         </p>
-        {erro && <p className="erro">{erro}</p>}
+        {mensagem && <p className={`mensagem-${mensagem.tipo}`}>{mensagem.texto}</p>}
         {manifesto && (
           <Paleta
             manifesto={manifesto}

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { aplicarAcao, criarMapaVazio, hexEm, type AcaoMapa, type Decoracao, type EstadoMapa } from './mapa';
+import {
+  aplicarAcao,
+  centroDoMapa,
+  criarMapaVazio,
+  hexEm,
+  type AcaoMapa,
+  type Decoracao,
+  type EstadoMapa,
+} from './mapa';
 
 const A = { q: 0, r: 0 };
 const B = { q: 1, r: 0 };
@@ -120,6 +128,29 @@ describe('RemoverDecoracao', () => {
   it('id inexistente não muda nada', () => {
     const mapa = mapaComCasa();
     expect(aplicarAcao(mapa, { tipo: 'RemoverDecoracao', coord: A, decoracaoId: 'nao-existe' })).toBe(mapa);
+  });
+});
+
+describe('CarregarMapa', () => {
+  it('substitui o mapa inteiro', () => {
+    const novo = aplicarAcao(criarMapaVazio(), { tipo: 'ColocarTile', coord: B, terreno: 'hexDirt00' });
+    expect(aplicarAcao(mapaComCasa(), { tipo: 'CarregarMapa', estado: novo })).toBe(novo);
+  });
+});
+
+describe('centroDoMapa', () => {
+  it('um mapa vazio não tem centro', () => {
+    expect(centroDoMapa(criarMapaVazio())).toBeNull();
+  });
+
+  it('fica no meio dos extremos do mapa', () => {
+    const mapa = aplicarTodas([
+      { tipo: 'ColocarTile', coord: { q: 10, r: 0 }, terreno: 't' },
+      { tipo: 'ColocarTile', coord: { q: 12, r: 0 }, terreno: 't' },
+      { tipo: 'ColocarTile', coord: { q: 11, r: 4 }, terreno: 't' },
+    ]);
+    // Centros: (2560, 0), (3072, 0) e (3328, 768).
+    expect(centroDoMapa(mapa)).toEqual({ x: 2944, y: 384 });
   });
 });
 
