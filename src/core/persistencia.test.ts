@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { aplicarAcao, criarMapaVazio, type EstadoMapa } from './mapa';
 import type { Manifesto } from './manifesto';
 import { assetsDesconhecidos, desserializarMapa, serializarMapa } from './persistencia';
+import { SO_MESTRE, VISIVEL_A_TODOS } from './visibilidade';
 
 const A = { q: -2, r: 3 };
 const B = { q: 1, r: 0 };
@@ -15,13 +16,17 @@ function mapaExemplo(): EstadoMapa {
       coord: A,
       decoracao: { id: 'd1', assetId: 'house00', deslocamento: { x: 10.5, y: -20 } },
     },
+    { tipo: 'EditarInformacaoHex', coord: A, campos: { nome: 'Vau', descricao: 'Rio "raso"\nAo norte' } },
+    { tipo: 'AdicionarNota', coord: A, nota: { id: 'n1', texto: 'Ponte', visibilidade: VISIVEL_A_TODOS } },
+    { tipo: 'AdicionarNota', coord: A, nota: { id: 'n2', texto: 'Dragão', visibilidade: SO_MESTRE } },
   ].reduce(aplicarAcao as never, criarMapaVazio()) as EstadoMapa;
 }
 
-const hexValido = { q: 0, r: 0, terreno: 't', decoracoes: [] };
+const hexValido = { q: 0, r: 0, terreno: 't', decoracoes: [], nome: '', descricao: '', notas: [] };
 const arquivo = (conteudo: unknown) => JSON.stringify(conteudo);
-const comHexes = (...hexes: unknown[]) => arquivo({ versao: 1, hexes });
+const comHexes = (...hexes: unknown[]) => arquivo({ versao: 2, hexes });
 const decoracao = (id: string) => ({ id, assetId: 'a', deslocamento: { x: 0, y: 0 } });
+const nota = (id: string) => ({ id, texto: 'x', visibilidade: { tipo: 'mestre' } });
 
 function erroDe(texto: string): string {
   const resultado = desserializarMapa(texto);
@@ -42,6 +47,51 @@ describe('salvar e carregar', () => {
       ok: true,
       estado: criarMapaVazio(),
     });
+  });
+});
+
+describe('mapas no formato antigo (versão 1)', () => {
+  const antigo = arquivo({
+    versao: 1,
+    hexes: [
+      {
+        q: 2,
+        r: -1,
+        terreno: 'hexPlains00',
+        decoracoes: [decoracao('d1')],
+      },
+    ],
+  });
+
+  it('abre preservando terreno e decorações, com as informações vazias', () => {
+    expect(desserializarMapa(antigo)).toEqual({
+      ok: true,
+      estado: {
+        hexes: {
+          '2,-1': {
+            coord: { q: 2, r: -1 },
+            terreno: 'hexPlains00',
+            decoracoes: [decoracao('d1')],
+            nome: '',
+            descricao: '',
+            notas: [],
+          },
+        },
+      },
+    });
+  });
+
+  it('continua recusando hexes inválidos', () => {
+    expect(erroDe(arquivo({ versao: 1, hexes: [{ q: 'a', r: 0 }] }))).toContain('coordenadas');
+    expect(erroDe(arquivo({ versao: 1, hexes: ['texto'] }))).toContain('nº 1');
+  });
+
+  it('ao salvar de novo, passa para a versão atual', () => {
+    const resultado = desserializarMapa(antigo);
+    if (!resultado.ok) {
+      throw new Error(resultado.erro);
+    }
+    expect(JSON.parse(serializarMapa(resultado.estado)).versao).toBe(2);
   });
 });
 
@@ -83,6 +133,38 @@ describe('arquivos inválidos', () => {
     ['com posição em texto', { id: 'd', assetId: 'a', deslocamento: { x: '1', y: 0 } }],
   ])('recusa uma decoração %s', (_, invalida) => {
     expect(erroDe(comHexes({ ...hexValido, decoracoes: [invalida] }))).toContain('decoração');
+  });
+
+  it.each([
+    ['sem nome', { q: 0, r: 0, terreno: 't', decoracoes: [], descricao: '', notas: [] }],
+    ['com nome que não é texto', { ...hexValido, nome: 5 }],
+    ['sem descrição', { q: 0, r: 0, terreno: 't', decoracoes: [], nome: '', notas: [] }],
+    ['sem lista de notas', { q: 0, r: 0, terreno: 't', decoracoes: [], nome: '', descricao: '' }],
+  ])('recusa um hex %s', (_, hex) => {
+    expect(erroDe(comHexes(hex))).toContain('nº 1');
+  });
+
+  it.each([
+    ['sem id', { texto: 'x', visibilidade: { tipo: 'todos' } }],
+    ['sem texto', { id: 'n', visibilidade: { tipo: 'todos' } }],
+    ['sem visibilidade', { id: 'n', texto: 'x' }],
+    ['com visibilidade em texto', { id: 'n', texto: 'x', visibilidade: 'todos' }],
+    ['com visibilidade desconhecida', { id: 'n', texto: 'x', visibilidade: { tipo: 'outra' } }],
+  ])('recusa uma nota %s', (_, invalida) => {
+    expect(erroDe(comHexes({ ...hexValido, notas: [invalida] }))).toContain('nota nº 1');
+  });
+
+  it('aceita uma nota com texto vazio', () => {
+    const vazia = { id: 'n', texto: '', visibilidade: { tipo: 'todos' } };
+    expect(desserializarMapa(comHexes({ ...hexValido, notas: [vazia] })).ok).toBe(true);
+  });
+
+  it('recusa o mesmo id de nota em hexes diferentes', () => {
+    const texto = comHexes(
+      { ...hexValido, notas: [nota('n')] },
+      { ...hexValido, q: 1, notas: [nota('n')] },
+    );
+    expect(erroDe(texto)).toContain('repetida');
   });
 
   it('recusa um hex repetido', () => {
