@@ -48,6 +48,8 @@ export function criarControlador(
   let movimento: Movimento | null = null;
   let apagandoDecoracoes = false;
   let hexesAnotadosApagados = 0;
+  // No modo jogador, nada que venha do mouse pode alterar o mapa.
+  let somenteLeitura = false;
 
   const removerHex = (coord: CoordHex) => {
     const hex = hexEm(loja.obterEstado(), coord);
@@ -88,6 +90,9 @@ export function criarControlador(
   };
 
   const colocarAsset = (assetId: string, ponto: PontoMundo) => {
+    if (somenteLeitura) {
+      return;
+    }
     const posicao = posicaoFinal(assetId, ponto);
     const coord = mundoParaHex(posicao);
     if (ehTile(assetId)) {
@@ -110,6 +115,9 @@ export function criarControlador(
   };
 
   const mostrarPrevia = (assetId: string, ponto: PontoMundo) => {
+    if (somenteLeitura) {
+      return;
+    }
     const cena = obterCena();
     const posicao = posicaoFinal(assetId, ponto);
     const coord = mundoParaHex(posicao);
@@ -172,6 +180,16 @@ export function criarControlador(
       obterCena()?.limparPrevia();
     },
 
+    /** Ao ligar, solta a ferramenta atual e passa a ignorar edições. */
+    definirSomenteLeitura(ativo: boolean) {
+      somenteLeitura = ativo;
+      if (ativo) {
+        ferramenta = SEM_FERRAMENTA;
+        movimento = null;
+        obterCena()?.limparPrevia();
+      }
+    },
+
     colocarAsset,
     mostrarPrevia,
 
@@ -184,6 +202,9 @@ export function criarControlador(
     },
 
     aoIniciarTraco(ponto: PontoMundo) {
+      if (somenteLeitura) {
+        return;
+      }
       const coord = mundoParaHex(ponto);
       switch (ferramenta.tipo) {
         case 'nenhuma':
@@ -217,6 +238,9 @@ export function criarControlador(
     },
 
     aoContinuarTraco(coord: CoordHex) {
+      if (somenteLeitura) {
+        return;
+      }
       if (ferramenta.tipo === 'colocar' && ehTile(ferramenta.assetId)) {
         loja.despachar({ tipo: 'ColocarTile', coord, terreno: ferramenta.assetId });
       } else if (ferramenta.tipo === 'apagar' && !apagandoDecoracoes) {
@@ -227,6 +251,9 @@ export function criarControlador(
     },
 
     aoMoverDuranteTraco(ponto: PontoMundo) {
+      if (somenteLeitura) {
+        return;
+      }
       if (movimento) {
         movimento.posicao = posicaoFinal(movimento.assetId, {
           x: ponto.x + movimento.agarre.x,
@@ -249,7 +276,7 @@ export function criarControlador(
     },
 
     aoClicar(ponto: PontoMundo) {
-      if (ferramenta.tipo === 'nenhuma') {
+      if (ferramenta.tipo === 'nenhuma' && !somenteLeitura) {
         aoSelecionarHex(mundoParaHex(ponto));
       }
     },

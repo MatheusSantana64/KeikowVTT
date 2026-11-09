@@ -71,12 +71,12 @@ Cada fase deve funcionar sozinha antes de avançar.
 
 ## Status atual
 - **Fase 3 em andamento** (visão dos jogadores), dividida em 7 passos:
-  1. ✅ Teste visual das aparências dos hexes não vistos. Provisório: `/?teste=neblina`, em `src/render/testeNeblina.ts`, `src/ui/TesteNeblina.tsx` e `src/main.tsx`. Fica fora dos commits; o desenho é aproveitado no passo 5 e depois a página é apagada.
+  1. ✅ Teste visual das aparências dos hexes não vistos (página provisória, já removida).
   2. ✅ Regras em `core/`: vizinhos, posição do grupo, revelar e ocultar, visão do jogador e aparência do mapa.
   3. ✅ Formato do arquivo com revelação, aparência e posição do grupo, convertendo mapas antigos.
   4. ✅ Ferramentas Posicionar grupo, Revelar e Ocultar.
-  5. Ver como jogador, com todas as aparências (próximo).
-  6. Tela para escolher a aparência do mapa.
+  5. ✅ Ver como jogador, com todas as aparências. O modo desenha só a visão filtrada e trava toda edição.
+  6. Tela para escolher a aparência do mapa (próximo).
   7. Painel do mestre e painel somente leitura do jogador.
 - **Fase 2 concluída** (informação por hex). Os passos foram:
   1. ✅ Regras em `core/`: nome, descrição, notas e visão do jogador.

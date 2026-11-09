@@ -225,6 +225,39 @@ body {
   white-space: nowrap;
 }
 
+.faixa-jogador {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: calc(100% - 24px);
+  padding: 8px 14px;
+  border: 1px solid #f0c870;
+  border-radius: 8px;
+  background: #1d2029;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+  font-size: 13px;
+  transform: translateX(-50%);
+}
+
+.faixa-jogador button {
+  padding: 5px 10px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #2a2e3a;
+  color: #e6e3da;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.faixa-jogador button:hover {
+  background: #363b4a;
+}
+
 .area-mapa {
   position: relative;
   display: flex;

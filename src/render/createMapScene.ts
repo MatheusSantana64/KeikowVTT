@@ -1,13 +1,20 @@
 import { Application } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import type { LojaGrupo } from '../core/grupo';
-import { linhaHex, mundoParaHex, type CoordHex, type PontoMundo } from '../core/hex';
+import {
+  linhaHex,
+  mundoParaHex,
+  type AreaMundo,
+  type CoordHex,
+  type PontoMundo,
+} from '../core/hex';
 import type { LojaMapa } from '../core/loja';
 import { centroDoMapa, type EstadoMapa } from '../core/mapa';
 import type { Manifesto } from '../core/manifesto';
 import { visaoDoJogador } from '../core/visibilidade';
 import { carregarCatalogo, type Catalogo } from './assets';
 import { criarCamadaDecoracoes, type DecoracaoEncontrada } from './camadaDecoracoes';
+import { criarCamadaFundoOculto } from './camadaFundoOculto';
 import { criarCamadaGrid, criarDestaqueHex, criarSelecaoHex } from './camadaGrid';
 import {
   criarCamadaMarcadores,
@@ -55,6 +62,8 @@ interface ControlesCena {
   selecionarHex(coord: CoordHex | null): void;
   /** Liga ou desliga o escurecimento dos hexes que os jogadores não veriam. */
   definirConferenciaDeVisao(ativa: boolean): void;
+  /** Passa a desenhar o mapa exatamente como os jogadores o veriam. */
+  definirModoJogador(ativo: boolean): void;
   cancelarAssinatura(): void;
 }
 
@@ -109,6 +118,7 @@ export function createMapScene(container: HTMLElement, opcoes: OpcoesCena): Cena
     centralizarNoMapa: () => controles?.centralizarNoMapa(),
     selecionarHex: (coord) => controles?.selecionarHex(coord),
     definirConferenciaDeVisao: (ativa) => controles?.definirConferenciaDeVisao(ativa),
+    definirModoJogador: (ativo) => controles?.definirModoJogador(ativo),
     destruir() {
       disposed = true;
       controles?.cancelarAssinatura();
@@ -144,6 +154,9 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
   app.stage.addChild(camera);
   app.renderer.on('resize', (largura: number, altura: number) => camera.resize(largura, altura));
 
+  const fundoOculto = criarCamadaFundoOculto(catalogo, (cor) => {
+    app.renderer.background.color = cor;
+  });
   const grid = criarCamadaGrid();
   const tiles = criarCamadaTiles(catalogo);
   const decoracoes = criarCamadaDecoracoes(catalogo, tiles.container);
@@ -153,9 +166,11 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
   const selecao = criarSelecaoHex();
   const destaque = criarDestaqueHex();
   camera.addChild(
+    fundoOculto.atras,
     grid.grafico,
     tiles.container,
     decoracoes.container,
+    fundoOculto.frente,
     contornoRevelados.grafico,
     marcadores.grafico,
     marcadorGrupo.grafico,
@@ -164,19 +179,31 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
   );
 
   let conferindoVisao = false;
+  let modoJogador = false;
 
   const atualizarCamadas = () => {
-    const estado = opcoes.loja.obterEstado();
+    const estadoDoMestre = opcoes.loja.obterEstado();
     const { posicao } = opcoes.lojaGrupo.obterEstado();
+    // No modo jogador, todas as camadas desenham só a visão filtrada: o que está oculto não chega aqui.
+    const estado = modoJogador
+      ? visaoDoJogador(estadoDoMestre, posicao ? [posicao] : [])
+      : estadoDoMestre;
+    const conferir = conferindoVisao && !modoJogador;
+
     tiles.atualizar(estado);
     decoracoes.atualizar(estado);
     marcadores.atualizar(estado);
     marcadorGrupo.atualizar(posicao);
-    contornoRevelados.atualizar(estado, conferindoVisao);
+    contornoRevelados.atualizar(estado, conferir);
 
-    const ocultos = conferindoVisao ? chavesOcultas(estado, posicao) : null;
+    const ocultos = conferir ? chavesOcultas(estado, posicao) : null;
     tiles.escurecer(ocultos, COR_HEX_OCULTO);
     decoracoes.escurecer(ocultos, COR_HEX_OCULTO);
+
+    grid.grafico.visible = fundoOculto.atualizar(
+      modoJogador ? estado.aparenciaOculta : null,
+      Object.values(estado.hexes).map((hex) => hex.coord),
+    );
   };
   atualizarCamadas();
   const cancelarAssinaturaMapa = opcoes.loja.assinar(atualizarCamadas);
@@ -264,13 +291,15 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
   let hexAtual: CoordHex | null = null;
   let pontoAtual: PontoMundo | null = null;
   // Roda a cada quadro para acompanhar também o zoom e o arrasto, com o mouse parado.
-  app.ticker.add(() => {
-    grid.atualizar({
+  app.ticker.add((ticker) => {
+    const areaVisivel: AreaMundo = {
       minX: camera.left,
       minY: camera.top,
       maxX: camera.right,
       maxY: camera.bottom,
-    });
+    };
+    grid.atualizar(areaVisivel);
+    fundoOculto.aoQuadro(areaVisivel, ticker.deltaMS);
 
     const mundo = ponteiro ? camera.toWorld(ponteiro.x, ponteiro.y) : null;
     if (mundo?.x !== pontoAtual?.x || mundo?.y !== pontoAtual?.y) {
@@ -307,11 +336,15 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
     limparPrevia,
     decoracaoEm: decoracoes.decoracaoEm,
     moverDecoracaoVisual: decoracoes.moverVisual,
-    sincronizarDecoracoes: () => decoracoes.atualizar(opcoes.loja.obterEstado()),
+    sincronizarDecoracoes: atualizarCamadas,
     centralizarNoMapa,
     selecionarHex: selecao.atualizar,
     definirConferenciaDeVisao: (ativa) => {
       conferindoVisao = ativa;
+      atualizarCamadas();
+    },
+    definirModoJogador: (ativo) => {
+      modoJogador = ativo;
       atualizarCamadas();
     },
     cancelarAssinatura: () => {

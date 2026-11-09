@@ -105,6 +105,85 @@ describe('posicionar o grupo', () => {
   });
 });
 
+describe('modo somente leitura', () => {
+  function emLeitura() {
+    const montado = montar();
+    montado.colocarTerreno();
+    montado.controlador.colocarAsset('casa', { x: 5, y: 5 });
+    return montado;
+  }
+
+  const ferramentas: Ferramenta[] = [
+    { tipo: 'colocar', assetId: 'tile' },
+    { tipo: 'colocar', assetId: 'casa' },
+    { tipo: 'apagar' },
+    { tipo: 'posicionar' },
+    { tipo: 'revelar' },
+    { tipo: 'ocultar' },
+    { tipo: 'nenhuma' },
+  ];
+
+  it.each(ferramentas)('nenhum traço altera o mapa ou o grupo: %j', (ferramenta) => {
+    const { loja, lojaGrupo, cena, controlador, usar, decoracoes } = emLeitura();
+    usar(ferramenta);
+    controlador.definirSomenteLeitura(true);
+    cena.decoracaoEm.mockReturnValue({
+      decoracaoId: decoracoes()[0].id,
+      assetId: 'casa',
+      coord: A,
+      posicao: { x: 5, y: 5 },
+    });
+    const antes = loja.obterEstado();
+    controlador.aoIniciarTraco({ x: 5, y: 5 });
+    controlador.aoContinuarTraco(B);
+    controlador.aoMoverDuranteTraco(centroB);
+    controlador.aoTerminarTraco();
+    expect(loja.obterEstado()).toBe(antes);
+    expect(lojaGrupo.obterEstado().posicao).toBeNull();
+  });
+
+  it('continua sem editar mesmo se uma ferramenta for escolhida depois', () => {
+    const { loja, controlador, usar } = emLeitura();
+    controlador.definirSomenteLeitura(true);
+    usar({ tipo: 'apagar' });
+    const antes = loja.obterEstado();
+    controlador.aoIniciarTraco({ x: 0, y: 0 });
+    controlador.aoContinuarTraco(B);
+    controlador.aoTerminarTraco();
+    expect(loja.obterEstado()).toBe(antes);
+  });
+
+  it('arrastar da paleta não coloca nem mostra prévia', () => {
+    const { loja, cena, controlador } = emLeitura();
+    controlador.definirSomenteLeitura(true);
+    const antes = loja.obterEstado();
+    controlador.colocarAsset('tile', centroB);
+    controlador.mostrarPrevia('tile', centroB);
+    expect(loja.obterEstado()).toBe(antes);
+    expect(cena.mostrarPrevia).not.toHaveBeenCalled();
+  });
+
+  it('o clique não abre o painel de edição', () => {
+    const { controlador, aoSelecionarHex } = emLeitura();
+    controlador.definirSomenteLeitura(true);
+    controlador.aoClicar(centroB);
+    expect(aoSelecionarHex).not.toHaveBeenCalled();
+  });
+
+  it('ao sair do modo, volta sem ferramenta e consegue editar', () => {
+    const { loja, controlador, usar, aoSelecionarHex } = emLeitura();
+    usar({ tipo: 'apagar' });
+    controlador.definirSomenteLeitura(true);
+    controlador.definirSomenteLeitura(false);
+    const antes = loja.obterEstado();
+    controlador.aoIniciarTraco(centroB);
+    controlador.aoTerminarTraco();
+    expect(loja.obterEstado()).toBe(antes);
+    controlador.aoClicar(centroB);
+    expect(aoSelecionarHex).toHaveBeenCalledExactlyOnceWith(B);
+  });
+});
+
 describe('revelar e ocultar', () => {
   const revelado = (loja: ReturnType<typeof montar>['loja'], coord: typeof A) =>
     hexEm(loja.obterEstado(), coord)?.revelado;

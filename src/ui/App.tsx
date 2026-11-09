@@ -80,6 +80,8 @@ export function App() {
   const podeRefazer = useSyncExternalStore(loja.assinar, loja.podeRefazer);
 
   const [hexSelecionado, setHexSelecionado] = useState<CoordHex | null>(null);
+  const [modoJogador, setModoJogador] = useState(false);
+  const grupo = useSyncExternalStore(lojaGrupo.assinar, lojaGrupo.obterEstado);
 
   const controlador = useMemo(
     () =>
@@ -101,6 +103,11 @@ export function App() {
   useEffect(() => {
     cenaRef.current?.definirConferenciaDeVisao(FERRAMENTAS_DE_VISAO.has(ferramenta.tipo));
   }, [ferramenta]);
+
+  useEffect(() => {
+    controlador?.definirSomenteLeitura(modoJogador);
+    cenaRef.current?.definirModoJogador(modoJogador);
+  }, [controlador, modoJogador]);
 
   const selecionarFerramenta = useCallback(
     (nova: Ferramenta) => {
@@ -176,6 +183,13 @@ export function App() {
         }
         return;
       }
+      if (modoJogador) {
+        // O modo jogador só olha: nenhum atalho de edição funciona aqui.
+        if (evento.key === 'Escape') {
+          setModoJogador(false);
+        }
+        return;
+      }
       if (evento.key === 'Escape') {
         if (ferramenta.tipo === 'nenhuma') {
           setHexSelecionado(null);
@@ -198,7 +212,7 @@ export function App() {
     };
     window.addEventListener('keydown', aoApertarTecla);
     return () => window.removeEventListener('keydown', aoApertarTecla);
-  }, [loja, selecionarFerramenta, ferramenta]);
+  }, [loja, selecionarFerramenta, ferramenta, modoJogador]);
 
   const pontoDoEvento = (evento: DragEvent<HTMLElement>): PontoMundo | null => {
     const limites = evento.currentTarget.getBoundingClientRect();
@@ -247,6 +261,12 @@ export function App() {
 
   const assetSelecionado = ferramenta.tipo === 'colocar' ? ferramenta.assetId : null;
 
+  const verComoJogador = () => {
+    selecionarFerramenta(SEM_FERRAMENTA);
+    setHexSelecionado(null);
+    setModoJogador(true);
+  };
+
   const aoSelecionarAsset = (assetId: string) => {
     selecionarFerramenta(
       assetId === assetSelecionado ? SEM_FERRAMENTA : { tipo: 'colocar', assetId },
@@ -257,6 +277,9 @@ export function App() {
     <div className="app">
       <aside className="sidebar">
         <h1>KeikowVTT</h1>
+        {modoJogador && <p>As ferramentas de edição ficam escondidas neste modo.</p>}
+        {!modoJogador && (
+          <>
         <details className="ajuda-bloco">
           <summary>Ajuda</summary>
           <dl className="ajuda">
@@ -328,6 +351,11 @@ export function App() {
             </button>
           ))}
         </div>
+        <div className="ferramentas">
+          <button type="button" onClick={verComoJogador}>
+            Ver como jogador
+          </button>
+        </div>
         <p className="coordenada">
           {hexSobMouse ? `Hex: q ${hexSobMouse.q}, r ${hexSobMouse.r}` : 'Hex: —'}
         </p>
@@ -343,6 +371,8 @@ export function App() {
             aoTerminarArraste={aoTerminarArraste}
           />
         )}
+          </>
+        )}
       </aside>
       <div className="area-mapa">
         <main
@@ -352,6 +382,17 @@ export function App() {
           onDragLeave={aoSairDoMapa}
           onDrop={aoSoltarNoMapa}
         />
+        {modoJogador && (
+          <div className="faixa-jogador">
+            <span>
+              Vendo como jogador
+              {!grupo.posicao && ': o grupo ainda não foi posicionado'}
+            </span>
+            <button type="button" onClick={() => setModoJogador(false)}>
+              Voltar ao modo mestre
+            </button>
+          </div>
+        )}
         {hexSelecionado && (
           <PainelHex
             key={chaveHex(hexSelecionado)}
