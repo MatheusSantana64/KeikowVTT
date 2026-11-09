@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { criarLojaGrupo } from '../core/grupo';
+import { criarLojaGrupo, GRUPO_SEM_POSICAO } from '../core/grupo';
 import { criarLojaMapa } from '../core/loja';
-import { hexEm, type AcaoMapa } from '../core/mapa';
+import { criarMapaVazio, hexEm, aplicarAcao, type AcaoMapa } from '../core/mapa';
+import { serializarMapa } from '../core/persistencia';
 import { lerSalvamentoLocal, manterSalvamentoLocal } from './salvamentoLocal';
 
 const A = { q: 0, r: 0 };
@@ -9,89 +10,254 @@ const B = { q: 1, r: 0 };
 const colocar: AcaoMapa = { tipo: 'ColocarTile', coord: A, terreno: 't' };
 const colocarEmB: AcaoMapa = { tipo: 'ColocarTile', coord: B, terreno: 't' };
 
-function armazenamentoFalso() {
+const CHAVE = 'keikow.mapa';
+const CHAVE_EMERGENCIA = 'keikow.mapa.emergencia';
+
+function armazenamentoPrincipal() {
   const dados = new Map<string, string>();
   return {
-    getItem: (chave: string) => dados.get(chave) ?? null,
-    setItem: vi.fn((chave: string, valor: string) => {
+    dados,
+    obter: vi.fn(async (chave: string) => dados.get(chave) ?? null),
+    gravar: vi.fn(async (chave: string, valor: string) => {
       dados.set(chave, valor);
     }),
   };
 }
 
+function armazenamentoRapido() {
+  const dados = new Map<string, string>();
+  return {
+    dados,
+    getItem: (chave: string) => dados.get(chave) ?? null,
+    setItem: vi.fn((chave: string, valor: string) => {
+      dados.set(chave, valor);
+    }),
+    removeItem: (chave: string) => {
+      dados.delete(chave);
+    },
+  };
+}
+
+function montar() {
+  const principal = armazenamentoPrincipal();
+  const rapido = armazenamentoRapido();
+  const loja = criarLojaMapa();
+  const lojaGrupo = criarLojaGrupo();
+  const aoFalhar = vi.fn();
+  const iniciar = () => manterSalvamentoLocal(loja, lojaGrupo, aoFalhar, principal, rapido);
+  return { principal, rapido, loja, lojaGrupo, aoFalhar, iniciar };
+}
+
+const mapaValido = () =>
+  serializarMapa(aplicarAcao(criarMapaVazio(), colocar), GRUPO_SEM_POSICAO);
+
+const esperarSalvamento = () => vi.advanceTimersByTimeAsync(600);
+
 beforeEach(() => vi.useFakeTimers());
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 describe('salvamento automático', () => {
-  it('sem nada salvo, a leitura devolve null', () => {
-    expect(lerSalvamentoLocal(armazenamentoFalso())).toBeNull();
+  it('sem nada salvo, a leitura devolve null', async () => {
+    const { principal, rapido } = montar();
+    expect(await lerSalvamentoLocal(principal, rapido)).toBeNull();
   });
 
-  it('salva pouco depois da mudança, e o mapa pode ser lido de volta', () => {
-    const armazenamento = armazenamentoFalso();
-    const loja = criarLojaMapa();
-    manterSalvamentoLocal(loja, criarLojaGrupo(),vi.fn(), armazenamento);
+  it('salva pouco depois da mudança, e o mapa pode ser lido de volta', async () => {
+    const { principal, rapido, loja, iniciar } = montar();
+    iniciar();
     loja.despachar(colocar);
-    expect(armazenamento.setItem).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(600);
-    const lido = lerSalvamentoLocal(armazenamento);
+    expect(principal.gravar).not.toHaveBeenCalled();
+    await esperarSalvamento();
+    const lido = await lerSalvamentoLocal(principal, rapido);
     expect(lido?.ok && hexEm(lido.estado, A)).toBeTruthy();
   });
 
-  it('mover o grupo também é salvo, e pode ser lido de volta', () => {
-    const armazenamento = armazenamentoFalso();
-    const lojaGrupo = criarLojaGrupo();
-    manterSalvamentoLocal(criarLojaMapa(), lojaGrupo, vi.fn(), armazenamento);
+  it('mover o grupo também é salvo, e pode ser lido de volta', async () => {
+    const { principal, rapido, lojaGrupo, iniciar } = montar();
+    iniciar();
     lojaGrupo.despachar({ tipo: 'PosicionarGrupo', coord: B });
-    vi.advanceTimersByTime(600);
-    expect(lerSalvamentoLocal(armazenamento)).toMatchObject({ ok: true, grupo: { posicao: B } });
+    await esperarSalvamento();
+    expect(await lerSalvamentoLocal(principal, rapido)).toMatchObject({
+      ok: true,
+      grupo: { posicao: B },
+    });
   });
 
-  it('várias mudanças seguidas geram uma única gravação', () => {
-    const armazenamento = armazenamentoFalso();
-    const loja = criarLojaMapa();
-    manterSalvamentoLocal(loja, criarLojaGrupo(),vi.fn(), armazenamento);
+  it('várias mudanças seguidas geram uma única gravação', async () => {
+    const { principal, loja, iniciar } = montar();
+    iniciar();
     loja.despachar(colocar);
-    vi.advanceTimersByTime(200);
+    await vi.advanceTimersByTimeAsync(200);
     loja.despachar(colocarEmB);
-    vi.advanceTimersByTime(600);
-    expect(armazenamento.setItem).toHaveBeenCalledTimes(1);
+    await esperarSalvamento();
+    expect(principal.gravar).toHaveBeenCalledTimes(1);
   });
 
-  it('não grava nada sem mudanças', () => {
-    const armazenamento = armazenamentoFalso();
-    manterSalvamentoLocal(criarLojaMapa(), criarLojaGrupo(), vi.fn(), armazenamento);
-    vi.advanceTimersByTime(5000);
-    expect(armazenamento.setItem).not.toHaveBeenCalled();
+  it('não grava nada sem mudanças', async () => {
+    const { principal, iniciar } = montar();
+    iniciar();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(principal.gravar).not.toHaveBeenCalled();
   });
 
-  it('ao encerrar, grava o que estava pendente e para de salvar', () => {
-    const armazenamento = armazenamentoFalso();
-    const loja = criarLojaMapa();
-    const encerrar = manterSalvamentoLocal(loja, criarLojaGrupo(),vi.fn(), armazenamento);
+  it('uma mudança feita durante a gravação não se perde', async () => {
+    const { principal, rapido, loja, iniciar } = montar();
+    let liberar = () => {};
+    principal.gravar.mockImplementationOnce(async (chave, valor) => {
+      await new Promise<void>((resolver) => {
+        liberar = resolver;
+      });
+      principal.dados.set(chave, valor);
+    });
+    iniciar();
+    loja.despachar(colocar);
+    await esperarSalvamento();
+    loja.despachar(colocarEmB);
+    liberar();
+    await esperarSalvamento();
+    const lido = await lerSalvamentoLocal(principal, rapido);
+    expect(lido?.ok && hexEm(lido.estado, B)).toBeTruthy();
+  });
+
+  it('ao encerrar, grava o que estava pendente e para de salvar', async () => {
+    const { principal, loja, iniciar } = montar();
+    const encerrar = iniciar();
     loja.despachar(colocar);
     encerrar();
-    expect(armazenamento.setItem).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(principal.gravar).toHaveBeenCalledTimes(1);
     loja.despachar(colocarEmB);
-    vi.advanceTimersByTime(600);
-    expect(armazenamento.setItem).toHaveBeenCalledTimes(1);
+    await esperarSalvamento();
+    expect(principal.gravar).toHaveBeenCalledTimes(1);
   });
 
-  it('avisa quando o navegador recusa guardar', () => {
-    const armazenamento = armazenamentoFalso();
-    armazenamento.setItem.mockImplementation(() => {
-      throw new Error('cheio');
-    });
-    const aoFalhar = vi.fn();
-    const loja = criarLojaMapa();
-    manterSalvamentoLocal(loja, criarLojaGrupo(),aoFalhar, armazenamento);
+  it('avisa quando o navegador recusa guardar, e tenta de novo na próxima mudança', async () => {
+    const { principal, loja, aoFalhar, iniciar } = montar();
+    principal.gravar.mockRejectedValueOnce(new Error('cheio'));
+    iniciar();
     loja.despachar(colocar);
-    vi.advanceTimersByTime(600);
+    await esperarSalvamento();
+    expect(aoFalhar).toHaveBeenCalledOnce();
+    loja.despachar(colocarEmB);
+    await esperarSalvamento();
+    expect(principal.gravar).toHaveBeenCalledTimes(2);
     expect(aoFalhar).toHaveBeenCalledOnce();
   });
 
-  it('um salvamento corrompido devolve o motivo em vez de quebrar', () => {
-    const armazenamento = { getItem: () => 'lixo', setItem: vi.fn() };
-    expect(lerSalvamentoLocal(armazenamento)).toMatchObject({ ok: false });
+  it('um salvamento corrompido devolve o motivo em vez de quebrar', async () => {
+    const { principal, rapido } = montar();
+    principal.dados.set(CHAVE, 'lixo');
+    expect(await lerSalvamentoLocal(principal, rapido)).toMatchObject({ ok: false });
+  });
+
+  it('avisa se o navegador não permitir ler, quando não há outra cópia', async () => {
+    const { principal, rapido } = montar();
+    principal.obter.mockRejectedValueOnce(new Error('bloqueado'));
+    expect(await lerSalvamentoLocal(principal, rapido)).toMatchObject({ ok: false });
+  });
+});
+
+describe('migração do armazenamento antigo', () => {
+  it('traz o mapa antigo, confere e só então apaga a cópia', async () => {
+    const { principal, rapido } = montar();
+    rapido.dados.set(CHAVE, mapaValido());
+    const lido = await lerSalvamentoLocal(principal, rapido);
+    expect(lido?.ok && hexEm(lido.estado, A)).toBeTruthy();
+    expect(principal.dados.get(CHAVE)).toBe(mapaValido());
+    expect(rapido.dados.has(CHAVE)).toBe(false);
+  });
+
+  it('se a gravação falhar, mostra o mapa e mantém a cópia antiga', async () => {
+    const { principal, rapido } = montar();
+    rapido.dados.set(CHAVE, mapaValido());
+    principal.gravar.mockRejectedValueOnce(new Error('cheio'));
+    const lido = await lerSalvamentoLocal(principal, rapido);
+    expect(lido?.ok).toBe(true);
+    expect(rapido.dados.has(CHAVE)).toBe(true);
+  });
+
+  it('se a conferência não bater, mantém a cópia antiga', async () => {
+    const { principal, rapido } = montar();
+    rapido.dados.set(CHAVE, mapaValido());
+    principal.obter.mockResolvedValueOnce(null).mockResolvedValueOnce('outro texto');
+    await lerSalvamentoLocal(principal, rapido);
+    expect(rapido.dados.has(CHAVE)).toBe(true);
+  });
+
+  it('um mapa antigo corrompido não é copiado nem apagado', async () => {
+    const { principal, rapido } = montar();
+    rapido.dados.set(CHAVE, 'lixo');
+    expect(await lerSalvamentoLocal(principal, rapido)).toMatchObject({ ok: false });
+    expect(principal.gravar).not.toHaveBeenCalled();
+    expect(rapido.dados.has(CHAVE)).toBe(true);
+  });
+
+  it('se o armazenamento novo estiver indisponível, ainda abre o mapa antigo', async () => {
+    const { principal, rapido } = montar();
+    rapido.dados.set(CHAVE, mapaValido());
+    principal.obter.mockRejectedValue(new Error('bloqueado'));
+    expect((await lerSalvamentoLocal(principal, rapido))?.ok).toBe(true);
+  });
+
+  it('com mapa no armazenamento novo, a cópia antiga é ignorada', async () => {
+    const { principal, rapido } = montar();
+    principal.dados.set(CHAVE, serializarMapa(criarMapaVazio(), GRUPO_SEM_POSICAO));
+    rapido.dados.set(CHAVE, mapaValido());
+    const lido = await lerSalvamentoLocal(principal, rapido);
+    expect(lido?.ok && hexEm(lido.estado, A)).toBeFalsy();
+  });
+});
+
+describe('fechar a página antes de terminar de gravar', () => {
+  function comJanela() {
+    const janela = new EventTarget();
+    vi.stubGlobal('window', janela);
+    return () => janela.dispatchEvent(new Event('pagehide'));
+  }
+
+  it('guarda uma cópia às pressas, usada na próxima abertura', async () => {
+    const fecharPagina = comJanela();
+    const { principal, rapido, loja, iniciar } = montar();
+    principal.gravar.mockImplementationOnce(() => new Promise<void>(() => {}));
+    iniciar();
+    loja.despachar(colocar);
+    fecharPagina();
+    expect(rapido.dados.has(CHAVE_EMERGENCIA)).toBe(true);
+
+    const reaberto = armazenamentoPrincipal();
+    const lido = await lerSalvamentoLocal(reaberto, rapido);
+    expect(lido?.ok && hexEm(lido.estado, A)).toBeTruthy();
+    expect(reaberto.dados.has(CHAVE)).toBe(true);
+    expect(rapido.dados.has(CHAVE_EMERGENCIA)).toBe(false);
+  });
+
+  it('sem mudanças pendentes, não cria cópia', () => {
+    const fecharPagina = comJanela();
+    const { rapido, iniciar } = montar();
+    iniciar();
+    fecharPagina();
+    expect(rapido.dados.has(CHAVE_EMERGENCIA)).toBe(false);
+  });
+
+  it('se a gravação terminar depois, a cópia às pressas é apagada', async () => {
+    const fecharPagina = comJanela();
+    const { rapido, loja, iniciar } = montar();
+    iniciar();
+    loja.despachar(colocar);
+    fecharPagina();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(rapido.dados.has(CHAVE_EMERGENCIA)).toBe(false);
+  });
+
+  it('uma cópia às pressas inválida é descartada e o mapa salvo é usado', async () => {
+    const { principal, rapido } = montar();
+    principal.dados.set(CHAVE, mapaValido());
+    rapido.dados.set(CHAVE_EMERGENCIA, 'lixo');
+    const lido = await lerSalvamentoLocal(principal, rapido);
+    expect(lido?.ok && hexEm(lido.estado, A)).toBeTruthy();
+    expect(rapido.dados.has(CHAVE_EMERGENCIA)).toBe(false);
   });
 });

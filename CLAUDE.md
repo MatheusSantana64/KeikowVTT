@@ -77,7 +77,21 @@ Cada fase deve funcionar sozinha antes de avançar.
 9. **Extras** — mais gamificação, personalização da aparência pelos jogadores, profissão "cartógrafo".
 
 ## Status atual
-- **Fase 3 concluída** (visão dos jogadores). Próxima: Fase 4 (banco de dados do jogo). Os passos foram:
+- **Fase 4 em andamento** (banco de dados do jogo), dividida em 12 passos:
+  1. ✅ Armazenamento novo (IndexedDB), trazendo o mapa do armazenamento antigo.
+  2. Campanha, jogadores simulados e registro de quem fez cada ação (próximo).
+  3. Regras das entradas do compêndio em `core/`.
+  4. Tela do compêndio: buscar, filtrar, criar, editar, duplicar, apagar.
+  5. Importar o SRD 5.1 completo, com os créditos exigidos; confirmar antes a licença da base organizada.
+  6. Motor de fórmulas e regras parecidas com 5e, guardadas como dados.
+  7. Ficha de personagem, NPC e monstro, mostrando de onde vem cada número.
+  8. Inventário e organização livre de itens, habilidades e notas.
+  9. Efeitos dos objetos: equipar altera a ficha.
+  10. Menu do botão direito com ações vindas do item, e rolagens de dados.
+  11. Permissões e "ver como" cada jogador.
+  12. Tela para alterar as fórmulas.
+- Depois da Fase 4, proposta: assistente de criação de personagem e subida de nível.
+- **Fase 3 concluída** (visão dos jogadores). Os passos foram:
   1. ✅ Teste visual das aparências dos hexes não vistos (página provisória, já removida).
   2. ✅ Regras em `core/`: vizinhos, posição do grupo, revelar e ocultar, visão do jogador e aparência do mapa.
   3. ✅ Formato do arquivo com revelação, aparência e posição do grupo, convertendo mapas antigos.
@@ -110,4 +124,6 @@ Cada fase deve funcionar sozinha antes de avançar.
 - O botão esquerdo fica para editar o mapa; a câmera arrasta com o direito ou o do meio.
 - Visão dos jogadores: hex do grupo (tudo o que é público) e os 6 vizinhos (só terreno e decorações), mais hexes revelados pelo mestre (só terreno e decorações). O que fica para trás volta a ficar oculto; registrar descobertas será da profissão "cartógrafo", no futuro. A posição do grupo fica fora do histórico do mapa.
 - Aparência dos hexes não vistos é configuração de cada mapa: fundo escuro (com ou sem grid), neblina clara ou escura, ou um tile à escolha, com bordas suaves opcionais.
+- Compêndio pertence à campanha, com exportação entre campanhas. Personagens recebem cópias das entradas. Personagens, NPCs e monstros usam a mesma ficha. Conteúdo inicial: SRD 5.1 em inglês, interface em português.
+- Fórmulas e ações de itens são dados, editáveis, interpretados sem executar texto como código. O jogador só edita a ficha inteira se o mestre liberar; notas pessoais, nome, imagem, organização e ações pré-programadas são sempre permitidas.
 - Notas de hex são uma lista, cada nota com sua própria visibilidade. Nome e descrição são visíveis a todos. Só hexes com terreno guardam informação; trocar o terreno mantém as anotações e apagar o hex as apaga.

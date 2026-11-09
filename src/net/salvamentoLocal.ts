@@ -1,23 +1,85 @@
 import type { LojaGrupo } from '../core/grupo';
 import type { LojaMapa } from '../core/loja';
 import { desserializarMapa, serializarMapa, type ResultadoLeitura } from '../core/persistencia';
+import type { ArmazenamentoLocal } from './armazenamentoLocal';
 
 const CHAVE = 'keikow.mapa';
+/** Última mudança, guardada às pressas quando a página fecha antes de terminar de gravar. */
+const CHAVE_EMERGENCIA = 'keikow.mapa.emergencia';
 const ESPERA_MS = 500;
 
-type Armazenamento = Pick<Storage, 'getItem' | 'setItem'>;
+/** Pequeno, mas imediato: serve para a migração e para salvar às pressas ao fechar a página. */
+export type ArmazenamentoRapido = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
-/** Devolve `null` quando ainda não há nada salvo neste navegador. */
-export function lerSalvamentoLocal(
-  armazenamento: Armazenamento = localStorage,
-): ResultadoLeitura | null {
-  let texto: string | null;
+function lerRapido(rapido: ArmazenamentoRapido, chave: string): string | null {
   try {
-    texto = armazenamento.getItem(CHAVE);
+    return rapido.getItem(chave);
   } catch {
-    return { ok: false, erro: 'O navegador não permitiu ler o salvamento automático.' };
+    return null;
   }
-  return texto === null ? null : desserializarMapa(texto);
+}
+
+function removerRapido(rapido: ArmazenamentoRapido, chave: string): void {
+  try {
+    rapido.removeItem(chave);
+  } catch {
+    // Sobrar uma cópia antiga não atrapalha.
+  }
+}
+
+/** Grava e confere. Só depois disso a cópia de origem pode ser apagada. */
+async function transferir(principal: ArmazenamentoLocal, texto: string): Promise<boolean> {
+  try {
+    await principal.gravar(CHAVE, texto);
+    return (await principal.obter(CHAVE)) === texto;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Lê o mapa guardado neste navegador, ou `null` se não houver nada.
+ * Na primeira vez, traz para `principal` o mapa que estava no armazenamento antigo.
+ */
+export async function lerSalvamentoLocal(
+  principal: ArmazenamentoLocal,
+  rapido: ArmazenamentoRapido,
+): Promise<ResultadoLeitura | null> {
+  const emergencia = lerRapido(rapido, CHAVE_EMERGENCIA);
+  if (emergencia !== null) {
+    const resultado = desserializarMapa(emergencia);
+    if (resultado.ok) {
+      if (await transferir(principal, emergencia)) {
+        removerRapido(rapido, CHAVE_EMERGENCIA);
+      }
+      return resultado;
+    }
+    removerRapido(rapido, CHAVE_EMERGENCIA);
+  }
+
+  let salvo: string | null = null;
+  let falhou = false;
+  try {
+    salvo = await principal.obter(CHAVE);
+  } catch {
+    falhou = true;
+  }
+  if (salvo !== null) {
+    return desserializarMapa(salvo);
+  }
+
+  const antigo = lerRapido(rapido, CHAVE);
+  if (antigo !== null) {
+    const resultado = desserializarMapa(antigo);
+    if (resultado.ok && (await transferir(principal, antigo))) {
+      removerRapido(rapido, CHAVE);
+    }
+    return resultado;
+  }
+
+  return falhou
+    ? { ok: false, erro: 'O navegador não permitiu ler o salvamento automático.' }
+    : null;
 }
 
 /**
@@ -29,44 +91,72 @@ export function manterSalvamentoLocal(
   loja: LojaMapa,
   lojaGrupo: LojaGrupo,
   aoFalhar: () => void,
-  armazenamento: Armazenamento = localStorage,
+  principal: ArmazenamentoLocal,
+  rapido: ArmazenamentoRapido,
 ): () => void {
   let temporizador: ReturnType<typeof setTimeout> | null = null;
+  let temMudancas = false;
+  let gravando = false;
 
-  const gravarPendente = () => {
-    if (temporizador === null) {
+  const textoAtual = () => serializarMapa(loja.obterEstado(), lojaGrupo.obterEstado());
+
+  const gravarAgora = async () => {
+    if (temporizador !== null) {
+      clearTimeout(temporizador);
+      temporizador = null;
+    }
+    if (gravando || !temMudancas) {
       return;
     }
-    clearTimeout(temporizador);
-    temporizador = null;
+    gravando = true;
     try {
-      armazenamento.setItem(CHAVE, serializarMapa(loja.obterEstado(), lojaGrupo.obterEstado()));
+      while (temMudancas) {
+        temMudancas = false;
+        await principal.gravar(CHAVE, textoAtual());
+      }
+      // A cópia às pressas ficou velha; se sobrasse, substituiria o mapa na próxima abertura.
+      removerRapido(rapido, CHAVE_EMERGENCIA);
     } catch {
+      temMudancas = true;
       aoFalhar();
+    } finally {
+      gravando = false;
     }
   };
 
   const agendarGravacao = () => {
+    temMudancas = true;
     if (temporizador !== null) {
       clearTimeout(temporizador);
     }
-    temporizador = setTimeout(gravarPendente, ESPERA_MS);
+    temporizador = setTimeout(() => void gravarAgora(), ESPERA_MS);
   };
   const cancelarAssinaturaMapa = loja.assinar(agendarGravacao);
   const cancelarAssinaturaGrupo = lojaGrupo.assinar(agendarGravacao);
 
-  // Garante que a última mudança seja salva se a página fechar logo depois dela.
+  // Uma gravação iniciada enquanto a página fecha pode não terminar. A cópia às pressas cobre isso.
+  const aoFecharPagina = () => {
+    if (temMudancas || gravando) {
+      try {
+        rapido.setItem(CHAVE_EMERGENCIA, textoAtual());
+      } catch {
+        // Sem espaço: resta a gravação normal abaixo.
+      }
+    }
+    void gravarAgora();
+  };
+
   const temJanela = typeof window !== 'undefined';
   if (temJanela) {
-    window.addEventListener('pagehide', gravarPendente);
+    window.addEventListener('pagehide', aoFecharPagina);
   }
 
   return () => {
-    gravarPendente();
+    void gravarAgora();
     cancelarAssinaturaMapa();
     cancelarAssinaturaGrupo();
     if (temJanela) {
-      window.removeEventListener('pagehide', gravarPendente);
+      window.removeEventListener('pagehide', aoFecharPagina);
     }
   };
 }

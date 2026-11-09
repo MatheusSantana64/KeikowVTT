@@ -13,6 +13,7 @@ import { criarLojaMapa, type LojaMapa } from '../core/loja';
 import type { EstadoMapa } from '../core/mapa';
 import type { Manifesto } from '../core/manifesto';
 import { assetsDesconhecidos } from '../core/persistencia';
+import { criarArmazenamentoNavegador, pedirProtecaoDosDados } from '../net/armazenamentoLocal';
 import { lerSalvamentoLocal, manterSalvamentoLocal } from '../net/salvamentoLocal';
 import { carregarManifesto } from '../render/assets';
 import { createMapScene, type CenaMapa } from '../render/createMapScene';
@@ -46,8 +47,17 @@ function ehCampoDeTexto(alvo: EventTarget | null): alvo is HTMLElement {
   return alvo.isContentEditable || alvo.tagName === 'TEXTAREA';
 }
 
-function iniciarEditor(): { loja: LojaMapa; lojaGrupo: LojaGrupo; aviso: Mensagem | null } {
-  const salvo = lerSalvamentoLocal();
+interface EditorCarregado {
+  readonly loja: LojaMapa;
+  readonly lojaGrupo: LojaGrupo;
+  readonly aviso: Mensagem | null;
+}
+
+const ARMAZENAMENTO = criarArmazenamentoNavegador();
+
+async function iniciarEditor(): Promise<EditorCarregado> {
+  pedirProtecaoDosDados();
+  const salvo = await lerSalvamentoLocal(ARMAZENAMENTO, localStorage);
   if (salvo && !salvo.ok) {
     return {
       loja: criarLojaMapa(),
@@ -73,11 +83,35 @@ function avisoDeImagensFaltando(estado: EstadoMapa, manifesto: Manifesto): Mensa
   };
 }
 
+/** Garante um único carregamento, mesmo que o React monte o componente duas vezes. */
+let carregamentoDoEditor: Promise<EditorCarregado> | null = null;
+
 export function App() {
+  const [editor, setEditor] = useState<EditorCarregado | null>(null);
+
+  useEffect(() => {
+    let ativo = true;
+    carregamentoDoEditor ??= iniciarEditor();
+    void carregamentoDoEditor.then((carregado) => {
+      if (ativo) {
+        setEditor(carregado);
+      }
+    });
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  if (!editor) {
+    return <p className="carregando">Carregando…</p>;
+  }
+  return <Editor loja={editor.loja} lojaGrupo={editor.lojaGrupo} aviso={editor.aviso} />;
+}
+
+function Editor({ loja, lojaGrupo, aviso }: EditorCarregado) {
   const mapRef = useRef<HTMLDivElement>(null);
   const cenaRef = useRef<CenaMapa | null>(null);
   const assetArrastado = useRef<string | null>(null);
-  const [{ loja, lojaGrupo, aviso }] = useState(iniciarEditor);
   const [manifesto, setManifesto] = useState<Manifesto | null>(null);
   const [mensagem, setMensagem] = useState<Mensagem | null>(aviso);
   const [hexSobMouse, setHexSobMouse] = useState<CoordHex | null>(null);
@@ -136,11 +170,16 @@ export function App() {
 
   useEffect(
     () =>
-      manterSalvamentoLocal(loja, lojaGrupo, () =>
-        setMensagem({
-          tipo: 'erro',
-          texto: 'O navegador recusou o salvamento automático. Use o botão Salvar.',
-        }),
+      manterSalvamentoLocal(
+        loja,
+        lojaGrupo,
+        () =>
+          setMensagem({
+            tipo: 'erro',
+            texto: 'O navegador recusou o salvamento automático. Use o botão Salvar.',
+          }),
+        ARMAZENAMENTO,
+        localStorage,
       ),
     [loja, lojaGrupo],
   );
