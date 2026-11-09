@@ -1,4 +1,6 @@
+import type { CoordHex } from './hex';
 import { aplicarAcao, criarMapaVazio, type AcaoMapa, type EstadoMapa } from './mapa';
+import { criarEmissor, type OpcoesRegistro } from './registro';
 
 type OuvinteMapa = (estado: EstadoMapa) => void;
 
@@ -20,7 +22,19 @@ export interface LojaMapa {
 export const LIMITE_HISTORICO = 200;
 
 /** Guarda o estado atual do mapa e o histórico. Toda mudança passa por uma ação. */
-export function criarLojaMapa(inicial: EstadoMapa = criarMapaVazio()): LojaMapa {
+function coordDaAcao(acao: AcaoMapa): CoordHex | null {
+  if ('coord' in acao) {
+    return acao.coord;
+  }
+  return acao.tipo === 'MoverDecoracao' ? acao.destino : null;
+}
+
+export function criarLojaMapa(
+  inicial: EstadoMapa = criarMapaVazio(),
+  opcoes: OpcoesRegistro = {},
+): LojaMapa {
+  const emitir = criarEmissor(opcoes);
+  let numeroDoTraco = 0;
   let estado = inicial;
   // Os estados nunca são alterados, então guardar cada um deles é barato.
   const passado: EstadoMapa[] = [];
@@ -65,6 +79,7 @@ export function criarLojaMapa(inicial: EstadoMapa = criarMapaVazio()): LojaMapa 
       }
       registrarNoHistorico(grupo);
       mudarPara(novo);
+      emitir(acao.tipo, coordDaAcao(acao), emTraco ? `traco:${numeroDoTraco}` : (grupo ?? null));
     },
     assinar(ouvinte) {
       ouvintes.add(ouvinte);
@@ -73,6 +88,7 @@ export function criarLojaMapa(inicial: EstadoMapa = criarMapaVazio()): LojaMapa 
     iniciarTraco() {
       emTraco = true;
       tracoJaRegistrado = false;
+      numeroDoTraco += 1;
     },
     terminarTraco: encerrarTraco,
     desfazer() {
@@ -81,6 +97,7 @@ export function criarLojaMapa(inicial: EstadoMapa = criarMapaVazio()): LojaMapa 
       if (anterior) {
         futuro.push(estado);
         mudarPara(anterior);
+        emitir('Desfazer', null, null);
       }
     },
     refazer() {
@@ -89,6 +106,7 @@ export function criarLojaMapa(inicial: EstadoMapa = criarMapaVazio()): LojaMapa 
       if (seguinte) {
         passado.push(estado);
         mudarPara(seguinte);
+        emitir('Refazer', null, null);
       }
     },
     podeDesfazer: () => passado.length > 0,

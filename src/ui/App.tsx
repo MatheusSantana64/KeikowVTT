@@ -8,13 +8,20 @@ import {
   type DragEvent,
 } from 'react';
 import { chaveHex, type CoordHex, type PontoMundo } from '../core/hex';
+import { criarLojaCampanha, ID_MESTRE, type LojaCampanha } from '../core/campanha';
+import { criarLojaRegistro, type LojaRegistro } from '../core/registro';
 import { criarLojaGrupo, type LojaGrupo } from '../core/grupo';
 import { criarLojaMapa, type LojaMapa } from '../core/loja';
 import type { EstadoMapa } from '../core/mapa';
 import type { Manifesto } from '../core/manifesto';
 import { assetsDesconhecidos } from '../core/persistencia';
 import { criarArmazenamentoNavegador, pedirProtecaoDosDados } from '../net/armazenamentoLocal';
-import { lerSalvamentoLocal, manterSalvamentoLocal } from '../net/salvamentoLocal';
+import {
+  lerCampanhaLocal,
+  lerSalvamentoLocal,
+  manterCampanhaLocal,
+  manterSalvamentoLocal,
+} from '../net/salvamentoLocal';
 import { carregarManifesto } from '../render/assets';
 import { createMapScene, type CenaMapa } from '../render/createMapScene';
 import { BarraArquivo, type Mensagem } from './BarraArquivo';
@@ -23,6 +30,7 @@ import { PainelHex } from './PainelHex';
 import { PainelHexJogador } from './PainelHexJogador';
 import { Paleta } from './Paleta';
 import { SeletorAparencia } from './SeletorAparencia';
+import { TelaCampanha } from './TelaCampanha';
 
 const BORRACHA: Ferramenta = { tipo: 'apagar' };
 const POSICIONAR: Ferramenta = { tipo: 'posicionar' };
@@ -50,6 +58,8 @@ function ehCampoDeTexto(alvo: EventTarget | null): alvo is HTMLElement {
 interface EditorCarregado {
   readonly loja: LojaMapa;
   readonly lojaGrupo: LojaGrupo;
+  readonly lojaCampanha: LojaCampanha;
+  readonly lojaRegistro: LojaRegistro;
   readonly aviso: Mensagem | null;
 }
 
@@ -57,18 +67,29 @@ const ARMAZENAMENTO = criarArmazenamentoNavegador();
 
 async function iniciarEditor(): Promise<EditorCarregado> {
   pedirProtecaoDosDados();
-  const salvo = await lerSalvamentoLocal(ARMAZENAMENTO, localStorage);
-  if (salvo && !salvo.ok) {
-    return {
-      loja: criarLojaMapa(),
-      lojaGrupo: criarLojaGrupo(),
-      aviso: { tipo: 'erro', texto: `O salvamento automático não pôde ser lido: ${salvo.erro}` },
-    };
-  }
+  const [salvo, salvaCampanha] = await Promise.all([
+    lerSalvamentoLocal(ARMAZENAMENTO, localStorage),
+    lerCampanhaLocal(ARMAZENAMENTO, localStorage),
+  ]);
+  const campanha = salvaCampanha?.ok ? salvaCampanha : null;
+  const mapa = salvo?.ok ? salvo : null;
+
+  const lojaRegistro = criarLojaRegistro(campanha?.registro);
+  // Enquanto não existirem contas, quem age neste computador é sempre o mestre.
+  const opcoesRegistro = {
+    obterAutorId: () => ID_MESTRE,
+    aoExecutar: lojaRegistro.registrar,
+  };
+
+  const falha = (salvo && !salvo.ok && salvo.erro) || (salvaCampanha && !salvaCampanha.ok && salvaCampanha.erro);
   return {
-    loja: criarLojaMapa(salvo?.estado),
-    lojaGrupo: criarLojaGrupo(salvo?.grupo),
-    aviso: null,
+    loja: criarLojaMapa(mapa?.estado, opcoesRegistro),
+    lojaGrupo: criarLojaGrupo(mapa?.grupo, opcoesRegistro),
+    lojaCampanha: criarLojaCampanha(campanha?.campanha, opcoesRegistro),
+    lojaRegistro,
+    aviso: falha
+      ? { tipo: 'erro', texto: `O salvamento automático não pôde ser lido: ${falha}` }
+      : null,
   };
 }
 
@@ -105,10 +126,10 @@ export function App() {
   if (!editor) {
     return <p className="carregando">Carregando…</p>;
   }
-  return <Editor loja={editor.loja} lojaGrupo={editor.lojaGrupo} aviso={editor.aviso} />;
+  return <Editor {...editor} />;
 }
 
-function Editor({ loja, lojaGrupo, aviso }: EditorCarregado) {
+function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, aviso }: EditorCarregado) {
   const mapRef = useRef<HTMLDivElement>(null);
   const cenaRef = useRef<CenaMapa | null>(null);
   const assetArrastado = useRef<string | null>(null);
@@ -121,6 +142,7 @@ function Editor({ loja, lojaGrupo, aviso }: EditorCarregado) {
 
   const [hexSelecionado, setHexSelecionado] = useState<CoordHex | null>(null);
   const [modoJogador, setModoJogador] = useState(false);
+  const [telaCampanhaAberta, setTelaCampanhaAberta] = useState(false);
   const grupo = useSyncExternalStore(lojaGrupo.assinar, lojaGrupo.obterEstado);
 
   const sairDoModoJogador = useCallback(() => {
@@ -184,6 +206,22 @@ function Editor({ loja, lojaGrupo, aviso }: EditorCarregado) {
     [loja, lojaGrupo],
   );
 
+  useEffect(
+    () =>
+      manterCampanhaLocal(
+        lojaCampanha,
+        lojaRegistro,
+        () =>
+          setMensagem({
+            tipo: 'erro',
+            texto: 'O navegador recusou guardar os dados da campanha. Use o botão Salvar.',
+          }),
+        ARMAZENAMENTO,
+        localStorage,
+      ),
+    [lojaCampanha, lojaRegistro],
+  );
+
   useEffect(() => {
     if (manifesto) {
       const avisoImagens = avisoDeImagensFaltando(loja.obterEstado(), manifesto);
@@ -233,6 +271,21 @@ function Editor({ loja, lojaGrupo, aviso }: EditorCarregado) {
         }
         return;
       }
+      if (telaCampanhaAberta || modoJogador) {
+        const teclaDeHistorico =
+          (evento.ctrlKey || evento.metaKey) && ['z', 'y'].includes(evento.key.toLowerCase());
+        if (teclaDeHistorico) {
+          // Sem isto, o navegador desfaria o último texto digitado, mesmo fora do campo.
+          evento.preventDefault();
+        }
+      }
+      if (telaCampanhaAberta) {
+        // O mapa está coberto: os atalhos dele não podem agir sem que ele apareça.
+        if (evento.key === 'Escape') {
+          setTelaCampanhaAberta(false);
+        }
+        return;
+      }
       if (modoJogador) {
         // O modo jogador só olha: nenhum atalho de edição funciona aqui.
         if (evento.key === 'Escape') {
@@ -266,7 +319,15 @@ function Editor({ loja, lojaGrupo, aviso }: EditorCarregado) {
     };
     window.addEventListener('keydown', aoApertarTecla);
     return () => window.removeEventListener('keydown', aoApertarTecla);
-  }, [loja, selecionarFerramenta, ferramenta, modoJogador, hexSelecionado, sairDoModoJogador]);
+  }, [
+    loja,
+    selecionarFerramenta,
+    ferramenta,
+    modoJogador,
+    hexSelecionado,
+    sairDoModoJogador,
+    telaCampanhaAberta,
+  ]);
 
   const pontoDoEvento = (evento: DragEvent<HTMLElement>): PontoMundo | null => {
     const limites = evento.currentTarget.getBoundingClientRect();
@@ -364,9 +425,16 @@ function Editor({ loja, lojaGrupo, aviso }: EditorCarregado) {
             <dd>O mapa fica guardado neste navegador; use Salvar para ter uma cópia em arquivo</dd>
           </dl>
         </details>
+        <div className="ferramentas">
+          <button type="button" onClick={() => setTelaCampanhaAberta(true)}>
+            Campanha
+          </button>
+        </div>
         <BarraArquivo
           loja={loja}
           lojaGrupo={lojaGrupo}
+          lojaCampanha={lojaCampanha}
+          lojaRegistro={lojaRegistro}
           aoAbrirMapa={(estado) => {
             setHexSelecionado(null);
             cenaRef.current?.centralizarNoMapa();
@@ -482,6 +550,13 @@ function Editor({ loja, lojaGrupo, aviso }: EditorCarregado) {
           />
         )}
       </div>
+      {telaCampanhaAberta && (
+        <TelaCampanha
+          lojaCampanha={lojaCampanha}
+          lojaRegistro={lojaRegistro}
+          aoFechar={() => setTelaCampanhaAberta(false)}
+        />
+      )}
     </div>
   );
 }

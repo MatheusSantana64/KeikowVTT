@@ -1,4 +1,5 @@
 import type { CoordHex } from './hex';
+import { criarEmissor, type OpcoesRegistro } from './registro';
 
 export interface EstadoGrupo {
   /** Hex onde o grupo está, ou `null` enquanto o mestre não o posicionou. */
@@ -28,9 +29,13 @@ export interface LojaGrupo {
 }
 
 /** Fica separada da loja do mapa para que o Ctrl+Z do mestre nunca mova o grupo. */
-export function criarLojaGrupo(inicial: EstadoGrupo = GRUPO_SEM_POSICAO): LojaGrupo {
+export function criarLojaGrupo(
+  inicial: EstadoGrupo = GRUPO_SEM_POSICAO,
+  opcoes: OpcoesRegistro = {},
+): LojaGrupo {
   let estado = inicial;
   const ouvintes = new Set<OuvinteGrupo>();
+  const emitir = criarEmissor(opcoes);
 
   return {
     obterEstado: () => estado,
@@ -39,6 +44,7 @@ export function criarLojaGrupo(inicial: EstadoGrupo = GRUPO_SEM_POSICAO): LojaGr
       if (novo !== estado) {
         estado = novo;
         ouvintes.forEach((ouvinte) => ouvinte(estado));
+        emitir(acao.tipo, acao.coord, null);
       }
     },
     assinar(ouvinte) {

@@ -79,8 +79,8 @@ Cada fase deve funcionar sozinha antes de avançar.
 ## Status atual
 - **Fase 4 em andamento** (banco de dados do jogo), dividida em 12 passos:
   1. ✅ Armazenamento novo (IndexedDB), trazendo o mapa do armazenamento antigo.
-  2. Campanha, jogadores simulados e registro de quem fez cada ação (próximo).
-  3. Regras das entradas do compêndio em `core/`.
+  2. ✅ Campanha, jogadores simulados e registro de quem fez cada ação.
+  3. Regras das entradas do compêndio em `core/` (próximo).
   4. Tela do compêndio: buscar, filtrar, criar, editar, duplicar, apagar.
   5. Importar o SRD 5.1 completo, com os créditos exigidos; confirmar antes a licença da base organizada.
   6. Motor de fórmulas e regras parecidas com 5e, guardadas como dados.

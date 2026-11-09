@@ -1,15 +1,38 @@
+import type { LojaCampanha } from '../core/campanha';
 import type { LojaGrupo } from '../core/grupo';
 import type { LojaMapa } from '../core/loja';
-import { desserializarMapa, serializarMapa, type ResultadoLeitura } from '../core/persistencia';
+import {
+  desserializarMapa,
+  serializarMapa,
+  type ResultadoDe,
+  type ResultadoLeitura,
+} from '../core/persistencia';
+import {
+  desserializarCampanha,
+  serializarCampanha,
+  type ConteudoCampanha,
+} from '../core/persistenciaCampanha';
+import type { LojaRegistro } from '../core/registro';
 import type { ArmazenamentoLocal } from './armazenamentoLocal';
 
-const CHAVE = 'keikow.mapa';
-/** Última mudança, guardada às pressas quando a página fecha antes de terminar de gravar. */
-const CHAVE_EMERGENCIA = 'keikow.mapa.emergencia';
 const ESPERA_MS = 500;
 
 /** Pequeno, mas imediato: serve para a migração e para salvar às pressas ao fechar a página. */
 export type ArmazenamentoRapido = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+interface Locais {
+  readonly principal: ArmazenamentoLocal;
+  readonly rapido: ArmazenamentoRapido;
+}
+
+interface DefinicaoDocumento<T> {
+  readonly chave: string;
+  /** Última mudança, guardada às pressas quando a página fecha antes de terminar de gravar. */
+  readonly chaveEmergencia: string;
+  /** Onde o documento ficava antes de existir o armazenamento principal. */
+  readonly chaveAntiga?: string;
+  readonly desserializar: (texto: string) => ResultadoDe<T>;
+}
 
 function lerRapido(rapido: ArmazenamentoRapido, chave: string): string | null {
   try {
@@ -28,51 +51,53 @@ function removerRapido(rapido: ArmazenamentoRapido, chave: string): void {
 }
 
 /** Grava e confere. Só depois disso a cópia de origem pode ser apagada. */
-async function transferir(principal: ArmazenamentoLocal, texto: string): Promise<boolean> {
+async function transferir(
+  principal: ArmazenamentoLocal,
+  chave: string,
+  texto: string,
+): Promise<boolean> {
   try {
-    await principal.gravar(CHAVE, texto);
-    return (await principal.obter(CHAVE)) === texto;
+    await principal.gravar(chave, texto);
+    return (await principal.obter(chave)) === texto;
   } catch {
     return false;
   }
 }
 
-/**
- * Lê o mapa guardado neste navegador, ou `null` se não houver nada.
- * Na primeira vez, traz para `principal` o mapa que estava no armazenamento antigo.
- */
-export async function lerSalvamentoLocal(
-  principal: ArmazenamentoLocal,
-  rapido: ArmazenamentoRapido,
-): Promise<ResultadoLeitura | null> {
-  const emergencia = lerRapido(rapido, CHAVE_EMERGENCIA);
+async function lerDocumento<T>(
+  definicao: DefinicaoDocumento<T>,
+  { principal, rapido }: Locais,
+): Promise<ResultadoDe<T> | null> {
+  const { chave, chaveEmergencia, chaveAntiga, desserializar } = definicao;
+
+  const emergencia = lerRapido(rapido, chaveEmergencia);
   if (emergencia !== null) {
-    const resultado = desserializarMapa(emergencia);
+    const resultado = desserializar(emergencia);
     if (resultado.ok) {
-      if (await transferir(principal, emergencia)) {
-        removerRapido(rapido, CHAVE_EMERGENCIA);
+      if (await transferir(principal, chave, emergencia)) {
+        removerRapido(rapido, chaveEmergencia);
       }
       return resultado;
     }
-    removerRapido(rapido, CHAVE_EMERGENCIA);
+    removerRapido(rapido, chaveEmergencia);
   }
 
   let salvo: string | null = null;
   let falhou = false;
   try {
-    salvo = await principal.obter(CHAVE);
+    salvo = await principal.obter(chave);
   } catch {
     falhou = true;
   }
   if (salvo !== null) {
-    return desserializarMapa(salvo);
+    return desserializar(salvo);
   }
 
-  const antigo = lerRapido(rapido, CHAVE);
-  if (antigo !== null) {
-    const resultado = desserializarMapa(antigo);
-    if (resultado.ok && (await transferir(principal, antigo))) {
-      removerRapido(rapido, CHAVE);
+  const antigo = chaveAntiga === undefined ? null : lerRapido(rapido, chaveAntiga);
+  if (antigo !== null && chaveAntiga !== undefined) {
+    const resultado = desserializar(antigo);
+    if (resultado.ok && (await transferir(principal, chave, antigo))) {
+      removerRapido(rapido, chaveAntiga);
     }
     return resultado;
   }
@@ -82,23 +107,18 @@ export async function lerSalvamentoLocal(
     : null;
 }
 
-/**
- * Salva o mapa no navegador pouco depois de cada mudança.
- * Devolve a função que encerra o salvamento, gravando o que estiver pendente.
- * `aoFalhar` avisa quando o navegador recusa guardar o mapa.
- */
-export function manterSalvamentoLocal(
-  loja: LojaMapa,
-  lojaGrupo: LojaGrupo,
+type Assinar = (ouvinte: () => void) => () => void;
+
+function manterDocumento(
+  { chave, chaveEmergencia }: Pick<DefinicaoDocumento<unknown>, 'chave' | 'chaveEmergencia'>,
+  textoAtual: () => string,
+  assinaturas: readonly Assinar[],
   aoFalhar: () => void,
-  principal: ArmazenamentoLocal,
-  rapido: ArmazenamentoRapido,
+  { principal, rapido }: Locais,
 ): () => void {
   let temporizador: ReturnType<typeof setTimeout> | null = null;
   let temMudancas = false;
   let gravando = false;
-
-  const textoAtual = () => serializarMapa(loja.obterEstado(), lojaGrupo.obterEstado());
 
   const gravarAgora = async () => {
     if (temporizador !== null) {
@@ -112,10 +132,10 @@ export function manterSalvamentoLocal(
     try {
       while (temMudancas) {
         temMudancas = false;
-        await principal.gravar(CHAVE, textoAtual());
+        await principal.gravar(chave, textoAtual());
       }
-      // A cópia às pressas ficou velha; se sobrasse, substituiria o mapa na próxima abertura.
-      removerRapido(rapido, CHAVE_EMERGENCIA);
+      // A cópia às pressas ficou velha; se sobrasse, substituiria os dados na próxima abertura.
+      removerRapido(rapido, chaveEmergencia);
     } catch {
       temMudancas = true;
       aoFalhar();
@@ -131,14 +151,13 @@ export function manterSalvamentoLocal(
     }
     temporizador = setTimeout(() => void gravarAgora(), ESPERA_MS);
   };
-  const cancelarAssinaturaMapa = loja.assinar(agendarGravacao);
-  const cancelarAssinaturaGrupo = lojaGrupo.assinar(agendarGravacao);
+  const cancelamentos = assinaturas.map((assinar) => assinar(agendarGravacao));
 
   // Uma gravação iniciada enquanto a página fecha pode não terminar. A cópia às pressas cobre isso.
   const aoFecharPagina = () => {
     if (temMudancas || gravando) {
       try {
-        rapido.setItem(CHAVE_EMERGENCIA, textoAtual());
+        rapido.setItem(chaveEmergencia, textoAtual());
       } catch {
         // Sem espaço: resta a gravação normal abaixo.
       }
@@ -153,10 +172,82 @@ export function manterSalvamentoLocal(
 
   return () => {
     void gravarAgora();
-    cancelarAssinaturaMapa();
-    cancelarAssinaturaGrupo();
+    cancelamentos.forEach((cancelar) => cancelar());
     if (temJanela) {
       window.removeEventListener('pagehide', aoFecharPagina);
     }
   };
+}
+
+const DOCUMENTO_MAPA = {
+  chave: 'keikow.mapa',
+  chaveEmergencia: 'keikow.mapa.emergencia',
+  chaveAntiga: 'keikow.mapa',
+  desserializar: desserializarMapa,
+};
+
+const DOCUMENTO_CAMPANHA = {
+  chave: 'keikow.campanha',
+  chaveEmergencia: 'keikow.campanha.emergencia',
+  desserializar: desserializarCampanha,
+};
+
+/**
+ * Lê o mapa guardado neste navegador, ou `null` se não houver nada.
+ * Na primeira vez, traz para `principal` o mapa que estava no armazenamento antigo.
+ */
+export function lerSalvamentoLocal(
+  principal: ArmazenamentoLocal,
+  rapido: ArmazenamentoRapido,
+): Promise<ResultadoLeitura | null> {
+  return lerDocumento(DOCUMENTO_MAPA, { principal, rapido });
+}
+
+/**
+ * Salva o mapa no navegador pouco depois de cada mudança.
+ * Devolve a função que encerra o salvamento, gravando o que estiver pendente.
+ * `aoFalhar` avisa quando o navegador recusa guardar o mapa.
+ */
+export function manterSalvamentoLocal(
+  loja: LojaMapa,
+  lojaGrupo: LojaGrupo,
+  aoFalhar: () => void,
+  principal: ArmazenamentoLocal,
+  rapido: ArmazenamentoRapido,
+): () => void {
+  return manterDocumento(
+    DOCUMENTO_MAPA,
+    () => serializarMapa(loja.obterEstado(), lojaGrupo.obterEstado()),
+    [loja.assinar, lojaGrupo.assinar],
+    aoFalhar,
+    { principal, rapido },
+  );
+}
+
+/** Lê os participantes e o registro da campanha, ou `null` se ainda não houver nada guardado. */
+export function lerCampanhaLocal(
+  principal: ArmazenamentoLocal,
+  rapido: ArmazenamentoRapido,
+): Promise<ResultadoDe<ConteudoCampanha> | null> {
+  return lerDocumento(DOCUMENTO_CAMPANHA, { principal, rapido });
+}
+
+export function manterCampanhaLocal(
+  lojaCampanha: LojaCampanha,
+  lojaRegistro: LojaRegistro,
+  aoFalhar: () => void,
+  principal: ArmazenamentoLocal,
+  rapido: ArmazenamentoRapido,
+): () => void {
+  return manterDocumento(
+    DOCUMENTO_CAMPANHA,
+    () =>
+      serializarCampanha({
+        campanha: lojaCampanha.obterEstado(),
+        registro: lojaRegistro.obterEntradas(),
+      }),
+    [lojaCampanha.assinar, lojaRegistro.assinar],
+    aoFalhar,
+    { principal, rapido },
+  );
 }

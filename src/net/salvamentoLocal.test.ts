@@ -3,7 +3,14 @@ import { criarLojaGrupo, GRUPO_SEM_POSICAO } from '../core/grupo';
 import { criarLojaMapa } from '../core/loja';
 import { criarMapaVazio, hexEm, aplicarAcao, type AcaoMapa } from '../core/mapa';
 import { serializarMapa } from '../core/persistencia';
-import { lerSalvamentoLocal, manterSalvamentoLocal } from './salvamentoLocal';
+import { criarLojaCampanha } from '../core/campanha';
+import { criarLojaRegistro } from '../core/registro';
+import {
+  lerCampanhaLocal,
+  lerSalvamentoLocal,
+  manterCampanhaLocal,
+  manterSalvamentoLocal,
+} from './salvamentoLocal';
 
 const A = { q: 0, r: 0 };
 const B = { q: 1, r: 0 };
@@ -208,6 +215,78 @@ describe('migração do armazenamento antigo', () => {
     rapido.dados.set(CHAVE, mapaValido());
     const lido = await lerSalvamentoLocal(principal, rapido);
     expect(lido?.ok && hexEm(lido.estado, A)).toBeFalsy();
+  });
+});
+
+describe('salvamento da campanha', () => {
+  function montarCampanha() {
+    const principal = armazenamentoPrincipal();
+    const rapido = armazenamentoRapido();
+    const lojaRegistro = criarLojaRegistro();
+    const lojaCampanha = criarLojaCampanha(undefined, { aoExecutar: lojaRegistro.registrar });
+    const aoFalhar = vi.fn();
+    const iniciar = () =>
+      manterCampanhaLocal(lojaCampanha, lojaRegistro, aoFalhar, principal, rapido);
+    return { principal, rapido, lojaRegistro, lojaCampanha, aoFalhar, iniciar };
+  }
+
+  it('sem nada salvo, a leitura devolve null', async () => {
+    const { principal, rapido } = montarCampanha();
+    expect(await lerCampanhaLocal(principal, rapido)).toBeNull();
+  });
+
+  it('participantes e registro podem ser lidos de volta', async () => {
+    const { principal, rapido, lojaCampanha, iniciar } = montarCampanha();
+    iniciar();
+    lojaCampanha.despachar({ tipo: 'AdicionarParticipante', id: 'j1', nome: 'Ana' });
+    await esperarSalvamento();
+    const lida = await lerCampanhaLocal(principal, rapido);
+    expect(lida).toMatchObject({
+      ok: true,
+      campanha: { participantes: [{ id: 'mestre' }, { id: 'j1', nome: 'Ana' }] },
+      registro: [{ tipo: 'AdicionarParticipante' }],
+    });
+  });
+
+  it('uma nova linha no registro também é salva', async () => {
+    const { principal, lojaRegistro, iniciar } = montarCampanha();
+    iniciar();
+    lojaRegistro.registrar({ tipo: 'RevelarHex', coord: A, autorId: 'mestre', agrupamento: null });
+    await esperarSalvamento();
+    expect(principal.dados.get('keikow.campanha')).toContain('RevelarHex');
+  });
+
+  it('não interfere no mapa guardado', async () => {
+    const { principal, rapido, lojaCampanha, iniciar } = montarCampanha();
+    principal.dados.set(CHAVE, mapaValido());
+    iniciar();
+    lojaCampanha.despachar({ tipo: 'RenomearCampanha', nome: 'Outra' });
+    await esperarSalvamento();
+    expect(principal.dados.get(CHAVE)).toBe(mapaValido());
+    const lido = await lerSalvamentoLocal(principal, rapido);
+    expect(lido?.ok && hexEm(lido.estado, A)).toBeTruthy();
+  });
+
+  it('um salvamento corrompido devolve o motivo', async () => {
+    const { principal, rapido } = montarCampanha();
+    principal.dados.set('keikow.campanha', 'lixo');
+    expect(await lerCampanhaLocal(principal, rapido)).toMatchObject({ ok: false });
+  });
+
+  it('usa uma cópia às pressas própria, sem misturar com a do mapa', async () => {
+    const janela = new EventTarget();
+    vi.stubGlobal('window', janela);
+    const { principal, rapido, lojaCampanha, iniciar } = montarCampanha();
+    principal.gravar.mockImplementationOnce(() => new Promise<void>(() => {}));
+    iniciar();
+    lojaCampanha.despachar({ tipo: 'RenomearCampanha', nome: 'Às pressas' });
+    janela.dispatchEvent(new Event('pagehide'));
+    expect(rapido.dados.has('keikow.campanha.emergencia')).toBe(true);
+    expect(rapido.dados.has(CHAVE_EMERGENCIA)).toBe(false);
+    expect(await lerCampanhaLocal(armazenamentoPrincipal(), rapido)).toMatchObject({
+      ok: true,
+      campanha: { nome: 'Às pressas' },
+    });
   });
 });
 

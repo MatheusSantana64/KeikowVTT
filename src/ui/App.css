@@ -15,6 +15,157 @@ body {
   font-family: system-ui, 'Segoe UI', sans-serif;
 }
 
+.tela-sobreposta {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  background: #14161c;
+}
+
+.tela-cabecalho {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 20px;
+  border-bottom: 1px solid #333846;
+  background: #1d2029;
+}
+
+.tela-cabecalho h1 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.tela-cabecalho .paleta-abas {
+  flex: 1;
+  max-width: 280px;
+  margin: 0;
+}
+
+.tela-fechar,
+.tela-lista button,
+.tela-adicionar button {
+  padding: 6px 12px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #2a2e3a;
+  color: #e6e3da;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.tela-fechar {
+  margin-left: auto;
+}
+
+.tela-fechar:hover,
+.tela-lista button:hover,
+.tela-adicionar button:hover:not(:disabled) {
+  background: #363b4a;
+}
+
+.tela-adicionar button:disabled {
+  color: #6b6d68;
+  cursor: default;
+}
+
+.tela-conteudo {
+  flex: 1;
+  width: 100%;
+  max-width: 720px;
+  min-height: 0;
+  margin: 0 auto;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.tela-conteudo h2 {
+  margin: 24px 0 4px;
+  font-size: 15px;
+}
+
+.tela-conteudo input[type='text'] {
+  padding: 6px 8px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #1d2029;
+  color: #e6e3da;
+  font: inherit;
+  font-size: 14px;
+}
+
+.tela-conteudo input[type='text']:focus {
+  border-color: #7fd4ff;
+  outline: none;
+}
+
+.tela-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #a5a79f;
+  font-size: 13px;
+}
+
+.tela-dica {
+  margin: 0 0 10px;
+  color: #a5a79f;
+  font-size: 13px;
+}
+
+.tela-lista,
+.tela-registro {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tela-lista li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.tela-lista input[type='text'] {
+  flex: 1;
+  min-width: 0;
+}
+
+.tela-papel {
+  width: 60px;
+  color: #a5a79f;
+  font-size: 12px;
+}
+
+.tela-adicionar {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.tela-adicionar input[type='text'] {
+  flex: 1;
+  min-width: 0;
+}
+
+.tela-registro li {
+  display: flex;
+  gap: 14px;
+  padding: 6px 0;
+  border-bottom: 1px solid #262a35;
+  font-size: 13px;
+}
+
+.tela-registro time {
+  flex: none;
+  color: #a5a79f;
+  font-variant-numeric: tabular-nums;
+}
+
 .carregando {
   margin: 0;
   padding: 24px;

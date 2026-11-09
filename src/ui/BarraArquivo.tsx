@@ -2,7 +2,10 @@ import { useRef, type ChangeEvent } from 'react';
 import type { LojaGrupo } from '../core/grupo';
 import type { LojaMapa } from '../core/loja';
 import { criarMapaVazio, type EstadoMapa } from '../core/mapa';
-import { desserializarMapa, serializarMapa } from '../core/persistencia';
+import { desserializarMapa } from '../core/persistencia';
+import { lerCampanhaDoArquivo, serializarArquivoCompleto } from '../core/persistenciaCampanha';
+import type { LojaRegistro } from '../core/registro';
+import type { LojaCampanha } from '../core/campanha';
 
 export interface Mensagem {
   readonly tipo: 'info' | 'aviso' | 'erro';
@@ -12,6 +15,8 @@ export interface Mensagem {
 interface BarraArquivoProps {
   readonly loja: LojaMapa;
   readonly lojaGrupo: LojaGrupo;
+  readonly lojaCampanha: LojaCampanha;
+  readonly lojaRegistro: LojaRegistro;
   readonly aoAbrirMapa: (estado: EstadoMapa) => void;
   readonly aoMensagem: (mensagem: Mensagem) => void;
 }
@@ -33,7 +38,14 @@ function baixarTexto(texto: string, nome: string): void {
   URL.revokeObjectURL(endereco);
 }
 
-export function BarraArquivo({ loja, lojaGrupo, aoAbrirMapa, aoMensagem }: BarraArquivoProps) {
+export function BarraArquivo({
+  loja,
+  lojaGrupo,
+  lojaCampanha,
+  lojaRegistro,
+  aoAbrirMapa,
+  aoMensagem,
+}: BarraArquivoProps) {
   const seletorRef = useRef<HTMLInputElement>(null);
 
   const novoMapa = () => {
@@ -44,7 +56,13 @@ export function BarraArquivo({ loja, lojaGrupo, aoAbrirMapa, aoMensagem }: Barra
 
   const salvar = () => {
     const nome = nomeDoArquivo();
-    baixarTexto(serializarMapa(loja.obterEstado(), lojaGrupo.obterEstado()), nome);
+    baixarTexto(
+      serializarArquivoCompleto(loja.obterEstado(), lojaGrupo.obterEstado(), {
+        campanha: lojaCampanha.obterEstado(),
+        registro: lojaRegistro.obterEntradas(),
+      }),
+      nome,
+    );
     aoMensagem({ tipo: 'info', texto: `Salvo em Downloads como ${nome}` });
   };
 
@@ -54,16 +72,29 @@ export function BarraArquivo({ loja, lojaGrupo, aoAbrirMapa, aoMensagem }: Barra
     if (!arquivo) {
       return;
     }
-    const resultado = desserializarMapa(await arquivo.text());
+    const texto = await arquivo.text();
+    const resultado = desserializarMapa(texto);
+    const lidaCampanha = lerCampanhaDoArquivo(texto);
     // Sem isso, escolher o mesmo arquivo de novo não dispararia este evento.
     entrada.value = '';
-    if (!resultado.ok) {
-      aoMensagem({ tipo: 'erro', texto: `Não foi possível abrir: ${resultado.erro}` });
+    if (!resultado.ok || !lidaCampanha.ok) {
+      const motivo = !resultado.ok ? resultado.erro : !lidaCampanha.ok ? lidaCampanha.erro : '';
+      aoMensagem({ tipo: 'erro', texto: `Não foi possível abrir: ${motivo}` });
       return;
+    }
+    // A campanha vem primeiro para que a abertura do mapa entre no registro que veio do arquivo.
+    if (lidaCampanha.conteudo) {
+      lojaRegistro.substituir(lidaCampanha.conteudo.registro);
+      lojaCampanha.despachar({ tipo: 'CarregarCampanha', estado: lidaCampanha.conteudo.campanha });
     }
     loja.despachar({ tipo: 'CarregarMapa', estado: resultado.estado });
     lojaGrupo.despachar({ tipo: 'PosicionarGrupo', coord: resultado.grupo.posicao });
-    aoMensagem({ tipo: 'info', texto: `Mapa aberto. Ctrl+Z traz o anterior de volta.` });
+    aoMensagem({
+      tipo: 'info',
+      texto: lidaCampanha.conteudo
+        ? 'Campanha aberta. Ctrl+Z traz o mapa anterior de volta, mas não os jogadores.'
+        : 'Mapa aberto. Ctrl+Z traz o anterior de volta.',
+    });
     aoAbrirMapa(resultado.estado);
   };
 

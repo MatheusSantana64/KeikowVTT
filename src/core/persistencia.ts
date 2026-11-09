@@ -13,17 +13,20 @@ interface ConteudoArquivo {
   readonly grupo: EstadoGrupo;
 }
 
-export type ResultadoLeitura =
-  | ({ readonly ok: true } & ConteudoArquivo)
+/** O que foi lido de um texto salvo, ou o motivo de não ter sido possível ler. */
+export type ResultadoDe<T> =
+  | ({ readonly ok: true } & T)
   | { readonly ok: false; readonly erro: string };
 
-class ErroDeFormato extends Error {}
+export type ResultadoLeitura = ResultadoDe<ConteudoArquivo>;
 
-function ehObjeto(valor: unknown): valor is Record<string, unknown> {
+export class ErroDeFormato extends Error {}
+
+export function ehObjeto(valor: unknown): valor is Record<string, unknown> {
   return typeof valor === 'object' && valor !== null && !Array.isArray(valor);
 }
 
-function exigir(condicao: boolean, mensagem: string): asserts condicao {
+export function exigir(condicao: boolean, mensagem: string): asserts condicao {
   if (!condicao) {
     throw new ErroDeFormato(mensagem);
   }
@@ -41,7 +44,7 @@ function lerDecoracao(dado: unknown, onde: string): Decoracao {
 }
 
 /** Uma visibilidade desconhecida é recusada: um segredo nunca pode virar público por engano. */
-function lerVisibilidade(dado: unknown, onde: string): Visibilidade {
+export function lerVisibilidade(dado: unknown, onde: string): Visibilidade {
   exigir(ehObjeto(dado), `${onde} está sem visibilidade.`);
   exigir(dado.tipo === 'todos' || dado.tipo === 'mestre', `${onde} tem uma visibilidade inválida.`);
   return dado.tipo === 'todos' ? VISIVEL_A_TODOS : SO_MESTRE;
@@ -160,7 +163,7 @@ function lerArquivo(texto: string): ConteudoArquivo {
   return { estado: { hexes, aparenciaOculta }, grupo };
 }
 
-export function serializarMapa(estado: EstadoMapa, grupo: EstadoGrupo): string {
+export function mapaParaObjeto(estado: EstadoMapa, grupo: EstadoGrupo) {
   const hexes = Object.values(estado.hexes).map(
     ({ coord, terreno, decoracoes, nome, descricao, notas, revelado }) => ({
       q: coord.q,
@@ -173,16 +176,16 @@ export function serializarMapa(estado: EstadoMapa, grupo: EstadoGrupo): string {
       revelado,
     }),
   );
-  return JSON.stringify(
-    {
-      versao: VERSAO_ARQUIVO,
-      aparenciaOculta: estado.aparenciaOculta,
-      posicaoGrupo: grupo.posicao,
-      hexes,
-    },
-    null,
-    2,
-  );
+  return {
+    versao: VERSAO_ARQUIVO,
+    aparenciaOculta: estado.aparenciaOculta,
+    posicaoGrupo: grupo.posicao,
+    hexes,
+  };
+}
+
+export function serializarMapa(estado: EstadoMapa, grupo: EstadoGrupo): string {
+  return JSON.stringify(mapaParaObjeto(estado, grupo), null, 2);
 }
 
 /** Lê um mapa salvo. Nunca lança erro: um arquivo inválido devolve o motivo. */
