@@ -1,3 +1,4 @@
+import type { LojaGrupo } from '../core/grupo';
 import type { LojaMapa } from '../core/loja';
 import { desserializarMapa, serializarMapa, type ResultadoLeitura } from '../core/persistencia';
 
@@ -26,6 +27,7 @@ export function lerSalvamentoLocal(
  */
 export function manterSalvamentoLocal(
   loja: LojaMapa,
+  lojaGrupo: LojaGrupo,
   aoFalhar: () => void,
   armazenamento: Armazenamento = localStorage,
 ): () => void {
@@ -38,18 +40,20 @@ export function manterSalvamentoLocal(
     clearTimeout(temporizador);
     temporizador = null;
     try {
-      armazenamento.setItem(CHAVE, serializarMapa(loja.obterEstado()));
+      armazenamento.setItem(CHAVE, serializarMapa(loja.obterEstado(), lojaGrupo.obterEstado()));
     } catch {
       aoFalhar();
     }
   };
 
-  const cancelarAssinatura = loja.assinar(() => {
+  const agendarGravacao = () => {
     if (temporizador !== null) {
       clearTimeout(temporizador);
     }
     temporizador = setTimeout(gravarPendente, ESPERA_MS);
-  });
+  };
+  const cancelarAssinaturaMapa = loja.assinar(agendarGravacao);
+  const cancelarAssinaturaGrupo = lojaGrupo.assinar(agendarGravacao);
 
   // Garante que a última mudança seja salva se a página fechar logo depois dela.
   const temJanela = typeof window !== 'undefined';
@@ -59,7 +63,8 @@ export function manterSalvamentoLocal(
 
   return () => {
     gravarPendente();
-    cancelarAssinatura();
+    cancelarAssinaturaMapa();
+    cancelarAssinaturaGrupo();
     if (temJanela) {
       window.removeEventListener('pagehide', gravarPendente);
     }

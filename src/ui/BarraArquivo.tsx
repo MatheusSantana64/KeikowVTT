@@ -1,4 +1,5 @@
 import { useRef, type ChangeEvent } from 'react';
+import type { LojaGrupo } from '../core/grupo';
 import type { LojaMapa } from '../core/loja';
 import { criarMapaVazio, type EstadoMapa } from '../core/mapa';
 import { desserializarMapa, serializarMapa } from '../core/persistencia';
@@ -10,6 +11,7 @@ export interface Mensagem {
 
 interface BarraArquivoProps {
   readonly loja: LojaMapa;
+  readonly lojaGrupo: LojaGrupo;
   readonly aoAbrirMapa: (estado: EstadoMapa) => void;
   readonly aoMensagem: (mensagem: Mensagem) => void;
 }
@@ -31,17 +33,18 @@ function baixarTexto(texto: string, nome: string): void {
   URL.revokeObjectURL(endereco);
 }
 
-export function BarraArquivo({ loja, aoAbrirMapa, aoMensagem }: BarraArquivoProps) {
+export function BarraArquivo({ loja, lojaGrupo, aoAbrirMapa, aoMensagem }: BarraArquivoProps) {
   const seletorRef = useRef<HTMLInputElement>(null);
 
   const novoMapa = () => {
     loja.despachar({ tipo: 'CarregarMapa', estado: criarMapaVazio() });
+    lojaGrupo.despachar({ tipo: 'PosicionarGrupo', coord: null });
     aoMensagem({ tipo: 'info', texto: 'Novo mapa criado. Ctrl+Z traz o anterior de volta.' });
   };
 
   const salvar = () => {
     const nome = nomeDoArquivo();
-    baixarTexto(serializarMapa(loja.obterEstado()), nome);
+    baixarTexto(serializarMapa(loja.obterEstado(), lojaGrupo.obterEstado()), nome);
     aoMensagem({ tipo: 'info', texto: `Salvo em Downloads como ${nome}` });
   };
 
@@ -59,6 +62,7 @@ export function BarraArquivo({ loja, aoAbrirMapa, aoMensagem }: BarraArquivoProp
       return;
     }
     loja.despachar({ tipo: 'CarregarMapa', estado: resultado.estado });
+    lojaGrupo.despachar({ tipo: 'PosicionarGrupo', coord: resultado.grupo.posicao });
     aoMensagem({ tipo: 'info', texto: `Mapa aberto. Ctrl+Z traz o anterior de volta.` });
     aoAbrirMapa(resultado.estado);
   };

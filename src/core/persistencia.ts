@@ -1,14 +1,20 @@
-import { APARENCIA_PADRAO } from './aparencia';
+import { APARENCIA_PADRAO, type AparenciaOculta, type FundoOculto } from './aparencia';
+import { GRUPO_SEM_POSICAO, type EstadoGrupo } from './grupo';
 import { chaveHex, type ChaveHex } from './hex';
 import type { Manifesto } from './manifesto';
 import { INFORMACAO_VAZIA, type Decoracao, type EstadoMapa, type Hex, type Nota } from './mapa';
 import { SO_MESTRE, VISIVEL_A_TODOS, type Visibilidade } from './visibilidade';
 
 /** Aumente ao mudar o formato do arquivo, para poder converter mapas antigos. */
-const VERSAO_ARQUIVO = 2;
+const VERSAO_ARQUIVO = 3;
+
+interface ConteudoArquivo {
+  readonly estado: EstadoMapa;
+  readonly grupo: EstadoGrupo;
+}
 
 export type ResultadoLeitura =
-  | { readonly ok: true; readonly estado: EstadoMapa }
+  | ({ readonly ok: true } & ConteudoArquivo)
   | { readonly ok: false; readonly erro: string };
 
 class ErroDeFormato extends Error {}
@@ -52,13 +58,14 @@ function lerNota(dado: unknown, onde: string): Nota {
 function lerHex(dado: unknown, posicao: number): Hex {
   const onde = `O hex nº ${posicao + 1}`;
   exigir(ehObjeto(dado), `${onde} não é válido.`);
-  const { q, r, terreno, decoracoes, nome, descricao, notas } = dado;
+  const { q, r, terreno, decoracoes, nome, descricao, notas, revelado } = dado;
   exigir(Number.isInteger(q) && Number.isInteger(r), `${onde} tem coordenadas inválidas.`);
   exigir(typeof terreno === 'string' && terreno !== '', `${onde} está sem terreno.`);
   exigir(Array.isArray(decoracoes), `${onde} está sem a lista de decorações.`);
   exigir(typeof nome === 'string', `${onde} está sem nome.`);
   exigir(typeof descricao === 'string', `${onde} está sem descrição.`);
   exigir(Array.isArray(notas), `${onde} está sem a lista de notas.`);
+  exigir(typeof revelado === 'boolean', `${onde} não diz se está revelado.`);
   return {
     coord: { q: q as number, r: r as number },
     terreno,
@@ -66,16 +73,51 @@ function lerHex(dado: unknown, posicao: number): Hex {
     nome,
     descricao,
     notas: notas.map((n, i) => lerNota(n, `A nota nº ${i + 1} de ${onde}`)),
-    revelado: false,
+    revelado,
   };
 }
 
-/** A versão 1 não tinha nome, descrição nem notas. */
-function converterHexesDaVersao1(hexes: unknown[]): unknown[] {
-  return hexes.map((hex) => (ehObjeto(hex) ? { ...INFORMACAO_VAZIA, ...hex } : hex));
+function lerFundoOculto(dado: unknown): FundoOculto {
+  const erro = 'A aparência dos hexes não vistos é inválida.';
+  exigir(ehObjeto(dado), erro);
+  if (dado.tipo === 'escuro' && typeof dado.grid === 'boolean') {
+    return { tipo: 'escuro', grid: dado.grid };
+  }
+  if (dado.tipo === 'neblina' && (dado.variante === 'clara' || dado.variante === 'escura')) {
+    return { tipo: 'neblina', variante: dado.variante };
+  }
+  if (dado.tipo === 'tile' && typeof dado.assetId === 'string' && dado.assetId !== '') {
+    return { tipo: 'tile', assetId: dado.assetId };
+  }
+  throw new ErroDeFormato(erro);
 }
 
-function lerArquivo(texto: string): EstadoMapa {
+function lerAparencia(dado: unknown): AparenciaOculta {
+  exigir(ehObjeto(dado), 'O arquivo não tem a aparência dos hexes não vistos.');
+  exigir(typeof dado.bordasSuaves === 'boolean', 'A aparência não diz se as bordas são suaves.');
+  return { fundo: lerFundoOculto(dado.fundo), bordasSuaves: dado.bordasSuaves };
+}
+
+function lerGrupo(dado: unknown): EstadoGrupo {
+  if (dado === null) {
+    return GRUPO_SEM_POSICAO;
+  }
+  exigir(
+    ehObjeto(dado) && Number.isInteger(dado.q) && Number.isInteger(dado.r),
+    'A posição do grupo é inválida.',
+  );
+  return { posicao: { q: dado.q as number, r: dado.r as number } };
+}
+
+/** A versão 1 não tinha nome, descrição nem notas; as versões 1 e 2 não tinham revelação. */
+function converterHexAntigo(hex: unknown, versao: number): unknown {
+  if (!ehObjeto(hex)) {
+    return hex;
+  }
+  return { ...(versao === 1 ? INFORMACAO_VAZIA : {}), revelado: false, ...hex };
+}
+
+function lerArquivo(texto: string): ConteudoArquivo {
   let dados: unknown;
   try {
     dados = JSON.parse(texto);
@@ -84,12 +126,17 @@ function lerArquivo(texto: string): EstadoMapa {
   }
   exigir(ehObjeto(dados) && 'versao' in dados, 'O arquivo não é um mapa do KeikowVTT.');
   exigir(
-    dados.versao === 1 || dados.versao === VERSAO_ARQUIVO,
+    dados.versao === 1 || dados.versao === 2 || dados.versao === VERSAO_ARQUIVO,
     `Este mapa usa a versão ${String(dados.versao)} do formato, que não é suportada.`,
   );
   exigir(Array.isArray(dados.hexes), 'O arquivo não tem a lista de hexes.');
-  const listaDeHexes: unknown[] =
-    dados.versao === 1 ? converterHexesDaVersao1(dados.hexes) : dados.hexes;
+  const versao = dados.versao;
+  const ehAtual = versao === VERSAO_ARQUIVO;
+  const listaDeHexes: unknown[] = ehAtual
+    ? dados.hexes
+    : dados.hexes.map((hex: unknown) => converterHexAntigo(hex, versao));
+  const aparenciaOculta = ehAtual ? lerAparencia(dados.aparenciaOculta) : APARENCIA_PADRAO;
+  const grupo = ehAtual ? lerGrupo(dados.posicaoGrupo) : GRUPO_SEM_POSICAO;
 
   const hexes: Record<ChaveHex, Hex> = {};
   const idsDeDecoracao = new Set<string>();
@@ -110,12 +157,12 @@ function lerArquivo(texto: string): EstadoMapa {
     hexes[chave] = hex;
   });
 
-  return { hexes, aparenciaOculta: APARENCIA_PADRAO };
+  return { estado: { hexes, aparenciaOculta }, grupo };
 }
 
-export function serializarMapa(estado: EstadoMapa): string {
+export function serializarMapa(estado: EstadoMapa, grupo: EstadoGrupo): string {
   const hexes = Object.values(estado.hexes).map(
-    ({ coord, terreno, decoracoes, nome, descricao, notas }) => ({
+    ({ coord, terreno, decoracoes, nome, descricao, notas, revelado }) => ({
       q: coord.q,
       r: coord.r,
       terreno,
@@ -123,15 +170,25 @@ export function serializarMapa(estado: EstadoMapa): string {
       nome,
       descricao,
       notas,
+      revelado,
     }),
   );
-  return JSON.stringify({ versao: VERSAO_ARQUIVO, hexes }, null, 2);
+  return JSON.stringify(
+    {
+      versao: VERSAO_ARQUIVO,
+      aparenciaOculta: estado.aparenciaOculta,
+      posicaoGrupo: grupo.posicao,
+      hexes,
+    },
+    null,
+    2,
+  );
 }
 
 /** Lê um mapa salvo. Nunca lança erro: um arquivo inválido devolve o motivo. */
 export function desserializarMapa(texto: string): ResultadoLeitura {
   try {
-    return { ok: true, estado: lerArquivo(texto) };
+    return { ok: true, ...lerArquivo(texto) };
   } catch (erro) {
     if (erro instanceof ErroDeFormato) {
       return { ok: false, erro: erro.message };
@@ -144,6 +201,10 @@ export function desserializarMapa(texto: string): ResultadoLeitura {
 export function assetsDesconhecidos(estado: EstadoMapa, manifesto: Manifesto): string[] {
   const conhecidos = new Set(manifesto.assets.map((asset) => asset.id));
   const desconhecidos = new Set<string>();
+  const { fundo } = estado.aparenciaOculta;
+  if (fundo.tipo === 'tile' && !conhecidos.has(fundo.assetId)) {
+    desconhecidos.add(fundo.assetId);
+  }
   for (const hex of Object.values(estado.hexes)) {
     for (const assetId of [hex.terreno, ...hex.decoracoes.map((d) => d.assetId)]) {
       if (!conhecidos.has(assetId)) {

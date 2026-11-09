@@ -8,7 +8,8 @@ import {
   type DragEvent,
 } from 'react';
 import { chaveHex, type CoordHex, type PontoMundo } from '../core/hex';
-import { criarLojaMapa } from '../core/loja';
+import { criarLojaGrupo, type LojaGrupo } from '../core/grupo';
+import { criarLojaMapa, type LojaMapa } from '../core/loja';
 import type { EstadoMapa } from '../core/mapa';
 import type { Manifesto } from '../core/manifesto';
 import { assetsDesconhecidos } from '../core/persistencia';
@@ -30,15 +31,20 @@ function ehCampoDeTexto(alvo: EventTarget | null): alvo is HTMLElement {
   );
 }
 
-function iniciarEditor(): { loja: ReturnType<typeof criarLojaMapa>; aviso: Mensagem | null } {
+function iniciarEditor(): { loja: LojaMapa; lojaGrupo: LojaGrupo; aviso: Mensagem | null } {
   const salvo = lerSalvamentoLocal();
   if (salvo && !salvo.ok) {
     return {
       loja: criarLojaMapa(),
+      lojaGrupo: criarLojaGrupo(),
       aviso: { tipo: 'erro', texto: `O salvamento automático não pôde ser lido: ${salvo.erro}` },
     };
   }
-  return { loja: criarLojaMapa(salvo?.estado), aviso: null };
+  return {
+    loja: criarLojaMapa(salvo?.estado),
+    lojaGrupo: criarLojaGrupo(salvo?.grupo),
+    aviso: null,
+  };
 }
 
 function avisoDeImagensFaltando(estado: EstadoMapa, manifesto: Manifesto): Mensagem | null {
@@ -56,7 +62,7 @@ export function App() {
   const mapRef = useRef<HTMLDivElement>(null);
   const cenaRef = useRef<CenaMapa | null>(null);
   const assetArrastado = useRef<string | null>(null);
-  const [{ loja, aviso }] = useState(iniciarEditor);
+  const [{ loja, lojaGrupo, aviso }] = useState(iniciarEditor);
   const [manifesto, setManifesto] = useState<Manifesto | null>(null);
   const [mensagem, setMensagem] = useState<Mensagem | null>(aviso);
   const [hexSobMouse, setHexSobMouse] = useState<CoordHex | null>(null);
@@ -94,13 +100,13 @@ export function App() {
 
   useEffect(
     () =>
-      manterSalvamentoLocal(loja, () =>
+      manterSalvamentoLocal(loja, lojaGrupo, () =>
         setMensagem({
           tipo: 'erro',
           texto: 'O navegador recusou o salvamento automático. Use o botão Salvar.',
         }),
       ),
-    [loja],
+    [loja, lojaGrupo],
   );
 
   useEffect(() => {
@@ -249,6 +255,7 @@ export function App() {
         </details>
         <BarraArquivo
           loja={loja}
+          lojaGrupo={lojaGrupo}
           aoAbrirMapa={(estado) => {
             setHexSelecionado(null);
             cenaRef.current?.centralizarNoMapa();

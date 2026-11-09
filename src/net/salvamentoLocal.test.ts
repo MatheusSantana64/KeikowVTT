@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { criarLojaGrupo } from '../core/grupo';
 import { criarLojaMapa } from '../core/loja';
 import { hexEm, type AcaoMapa } from '../core/mapa';
 import { lerSalvamentoLocal, manterSalvamentoLocal } from './salvamentoLocal';
@@ -29,7 +30,7 @@ describe('salvamento automático', () => {
   it('salva pouco depois da mudança, e o mapa pode ser lido de volta', () => {
     const armazenamento = armazenamentoFalso();
     const loja = criarLojaMapa();
-    manterSalvamentoLocal(loja, vi.fn(), armazenamento);
+    manterSalvamentoLocal(loja, criarLojaGrupo(),vi.fn(), armazenamento);
     loja.despachar(colocar);
     expect(armazenamento.setItem).not.toHaveBeenCalled();
     vi.advanceTimersByTime(600);
@@ -37,10 +38,19 @@ describe('salvamento automático', () => {
     expect(lido?.ok && hexEm(lido.estado, A)).toBeTruthy();
   });
 
+  it('mover o grupo também é salvo, e pode ser lido de volta', () => {
+    const armazenamento = armazenamentoFalso();
+    const lojaGrupo = criarLojaGrupo();
+    manterSalvamentoLocal(criarLojaMapa(), lojaGrupo, vi.fn(), armazenamento);
+    lojaGrupo.despachar({ tipo: 'PosicionarGrupo', coord: B });
+    vi.advanceTimersByTime(600);
+    expect(lerSalvamentoLocal(armazenamento)).toMatchObject({ ok: true, grupo: { posicao: B } });
+  });
+
   it('várias mudanças seguidas geram uma única gravação', () => {
     const armazenamento = armazenamentoFalso();
     const loja = criarLojaMapa();
-    manterSalvamentoLocal(loja, vi.fn(), armazenamento);
+    manterSalvamentoLocal(loja, criarLojaGrupo(),vi.fn(), armazenamento);
     loja.despachar(colocar);
     vi.advanceTimersByTime(200);
     loja.despachar(colocarEmB);
@@ -50,7 +60,7 @@ describe('salvamento automático', () => {
 
   it('não grava nada sem mudanças', () => {
     const armazenamento = armazenamentoFalso();
-    manterSalvamentoLocal(criarLojaMapa(), vi.fn(), armazenamento);
+    manterSalvamentoLocal(criarLojaMapa(), criarLojaGrupo(), vi.fn(), armazenamento);
     vi.advanceTimersByTime(5000);
     expect(armazenamento.setItem).not.toHaveBeenCalled();
   });
@@ -58,7 +68,7 @@ describe('salvamento automático', () => {
   it('ao encerrar, grava o que estava pendente e para de salvar', () => {
     const armazenamento = armazenamentoFalso();
     const loja = criarLojaMapa();
-    const encerrar = manterSalvamentoLocal(loja, vi.fn(), armazenamento);
+    const encerrar = manterSalvamentoLocal(loja, criarLojaGrupo(),vi.fn(), armazenamento);
     loja.despachar(colocar);
     encerrar();
     expect(armazenamento.setItem).toHaveBeenCalledTimes(1);
@@ -74,7 +84,7 @@ describe('salvamento automático', () => {
     });
     const aoFalhar = vi.fn();
     const loja = criarLojaMapa();
-    manterSalvamentoLocal(loja, aoFalhar, armazenamento);
+    manterSalvamentoLocal(loja, criarLojaGrupo(),aoFalhar, armazenamento);
     loja.despachar(colocar);
     vi.advanceTimersByTime(600);
     expect(aoFalhar).toHaveBeenCalledOnce();

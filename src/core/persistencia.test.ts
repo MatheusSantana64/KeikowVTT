@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { APARENCIA_PADRAO } from './aparencia';
+import { APARENCIA_PADRAO, type AparenciaOculta } from './aparencia';
+import { GRUPO_SEM_POSICAO } from './grupo';
 import { aplicarAcao, criarMapaVazio, type EstadoMapa } from './mapa';
 import type { Manifesto } from './manifesto';
 import { assetsDesconhecidos, desserializarMapa, serializarMapa } from './persistencia';
@@ -23,9 +24,19 @@ function mapaExemplo(): EstadoMapa {
   ].reduce(aplicarAcao as never, criarMapaVazio()) as EstadoMapa;
 }
 
-const hexValido = { q: 0, r: 0, terreno: 't', decoracoes: [], nome: '', descricao: '', notas: [] };
+const hexValido = {
+  q: 0,
+  r: 0,
+  terreno: 't',
+  decoracoes: [],
+  nome: '',
+  descricao: '',
+  notas: [],
+  revelado: false,
+};
 const arquivo = (conteudo: unknown) => JSON.stringify(conteudo);
-const comHexes = (...hexes: unknown[]) => arquivo({ versao: 2, hexes });
+const comHexes = (...hexes: unknown[]) =>
+  arquivo({ versao: 3, aparenciaOculta: APARENCIA_PADRAO, posicaoGrupo: null, hexes });
 const decoracao = (id: string) => ({ id, assetId: 'a', deslocamento: { x: 0, y: 0 } });
 const nota = (id: string) => ({ id, texto: 'x', visibilidade: { tipo: 'mestre' } });
 
@@ -40,14 +51,68 @@ function erroDe(texto: string): string {
 describe('salvar e carregar', () => {
   it('um mapa salvo e carregado volta idêntico', () => {
     const mapa = mapaExemplo();
-    expect(desserializarMapa(serializarMapa(mapa))).toEqual({ ok: true, estado: mapa });
+    expect(desserializarMapa(serializarMapa(mapa, GRUPO_SEM_POSICAO))).toEqual({
+      ok: true,
+      estado: mapa,
+      grupo: GRUPO_SEM_POSICAO,
+    });
   });
 
   it('um mapa vazio também funciona', () => {
-    expect(desserializarMapa(serializarMapa(criarMapaVazio()))).toEqual({
+    expect(desserializarMapa(serializarMapa(criarMapaVazio(), GRUPO_SEM_POSICAO))).toEqual({
       ok: true,
       estado: criarMapaVazio(),
+      grupo: GRUPO_SEM_POSICAO,
     });
+  });
+
+  it('preserva revelação, posição do grupo e cada tipo de aparência', () => {
+    const fundos: AparenciaOculta['fundo'][] = [
+      { tipo: 'escuro', grid: true },
+      { tipo: 'neblina', variante: 'clara' },
+      { tipo: 'tile', assetId: 'hexVoid00' },
+    ];
+    for (const fundo of fundos) {
+      const aparencia: AparenciaOculta = { fundo, bordasSuaves: true };
+      let mapa = aplicarAcao(mapaExemplo(), { tipo: 'RevelarHex', coord: B });
+      mapa = aplicarAcao(mapa, { tipo: 'DefinirAparenciaOculta', aparencia });
+      const grupo = { posicao: { q: -3, r: 4 } };
+      expect(desserializarMapa(serializarMapa(mapa, grupo))).toEqual({
+        ok: true,
+        estado: mapa,
+        grupo,
+      });
+    }
+  });
+});
+
+describe('mapas na versão 2', () => {
+  const antigo = arquivo({
+    versao: 2,
+    hexes: [
+      { q: 1, r: 1, terreno: 't', decoracoes: [], nome: 'Vau', descricao: 'Rio', notas: [nota('n')] },
+    ],
+  });
+
+  it('abre preservando as informações, sem revelação e sem grupo', () => {
+    const resultado = desserializarMapa(antigo);
+    if (!resultado.ok) {
+      throw new Error(resultado.erro);
+    }
+    expect(resultado.grupo).toEqual(GRUPO_SEM_POSICAO);
+    expect(resultado.estado.aparenciaOculta).toEqual(APARENCIA_PADRAO);
+    expect(resultado.estado.hexes['1,1']).toMatchObject({
+      nome: 'Vau',
+      descricao: 'Rio',
+      notas: [{ id: 'n' }],
+      revelado: false,
+    });
+  });
+
+  it('continua exigindo os campos que a versão 2 já tinha', () => {
+    expect(erroDe(arquivo({ versao: 2, hexes: [{ q: 0, r: 0, terreno: 't', decoracoes: [] }] }))).toContain(
+      'sem nome',
+    );
   });
 });
 
@@ -67,6 +132,7 @@ describe('mapas no formato antigo (versão 1)', () => {
   it('abre preservando terreno e decorações, com as informações vazias', () => {
     expect(desserializarMapa(antigo)).toEqual({
       ok: true,
+      grupo: GRUPO_SEM_POSICAO,
       estado: {
         aparenciaOculta: APARENCIA_PADRAO,
         hexes: {
@@ -94,7 +160,7 @@ describe('mapas no formato antigo (versão 1)', () => {
     if (!resultado.ok) {
       throw new Error(resultado.erro);
     }
-    expect(JSON.parse(serializarMapa(resultado.estado)).versao).toBe(2);
+    expect(JSON.parse(serializarMapa(resultado.estado, resultado.grupo)).versao).toBe(3);
   });
 });
 
@@ -170,6 +236,36 @@ describe('arquivos inválidos', () => {
     expect(erroDe(texto)).toContain('repetida');
   });
 
+  it.each([
+    ['ausente', { q: 0, r: 0, terreno: 't', decoracoes: [], nome: '', descricao: '', notas: [] }],
+    ['que não é verdadeiro ou falso', { ...hexValido, revelado: 'sim' }],
+  ])('recusa, na versão atual, uma revelação %s', (_, hex) => {
+    expect(erroDe(comHexes(hex))).toContain('revelado');
+  });
+
+  const comTopo = (topo: object) =>
+    arquivo({ versao: 3, aparenciaOculta: APARENCIA_PADRAO, posicaoGrupo: null, hexes: [], ...topo });
+
+  it.each([
+    ['ausente', undefined],
+    ['sem bordas', { fundo: { tipo: 'escuro', grid: false } }],
+    ['sem fundo', { bordasSuaves: false }],
+    ['de tipo desconhecido', { fundo: { tipo: 'chuva' }, bordasSuaves: false }],
+    ['escura sem grid definido', { fundo: { tipo: 'escuro' }, bordasSuaves: false }],
+    ['de neblina desconhecida', { fundo: { tipo: 'neblina', variante: 'roxa' }, bordasSuaves: false }],
+    ['de tile sem imagem', { fundo: { tipo: 'tile', assetId: '' }, bordasSuaves: false }],
+  ])('recusa uma aparência %s', (_, aparenciaOculta) => {
+    expect(erroDe(comTopo({ aparenciaOculta }))).toContain('aparência');
+  });
+
+  it.each([
+    ['ausente', undefined],
+    ['fracionária', { q: 1.5, r: 0 }],
+    ['em texto', 'centro'],
+  ])('recusa uma posição do grupo %s', (_, posicaoGrupo) => {
+    expect(erroDe(comTopo({ posicaoGrupo }))).toContain('posição do grupo');
+  });
+
   it('recusa um hex repetido', () => {
     expect(erroDe(comHexes(hexValido, hexValido))).toContain('mais de uma vez');
   });
@@ -191,6 +287,14 @@ describe('assetsDesconhecidos', () => {
 
   it('lista terrenos e decorações que não existem, sem repetir', () => {
     expect(assetsDesconhecidos(mapaExemplo(), manifesto)).toEqual(['hexHills00']);
+  });
+
+  it('inclui o tile escolhido como aparência, se ele não existir', () => {
+    const mapa = aplicarAcao(mapaExemplo(), {
+      tipo: 'DefinirAparenciaOculta',
+      aparencia: { fundo: { tipo: 'tile', assetId: 'tileApagado' }, bordasSuaves: false },
+    });
+    expect(assetsDesconhecidos(mapa, manifesto)).toContain('tileApagado');
   });
 
   it('devolve lista vazia quando tudo existe', () => {
