@@ -56,6 +56,38 @@ body {
   color: #a5a79f;
 }
 
+.ferramentas {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.ferramentas button {
+  flex: 1;
+  padding: 6px 4px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #2a2e3a;
+  color: #e6e3da;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.ferramentas button:hover:not(:disabled) {
+  background: #363b4a;
+}
+
+.ferramentas button:disabled {
+  color: #6b6d68;
+  cursor: default;
+}
+
+.ferramentas button[aria-pressed='true'] {
+  border-color: #f0c870;
+  color: #f0c870;
+}
+
 .sidebar .coordenada {
   margin-bottom: 12px;
   color: #f0c870;
@@ -109,6 +141,15 @@ body {
   background: #2a2e3a;
 }
 
+.paleta .selecionado img {
+  background: #3d3a2c;
+  outline: 2px solid #f0c870;
+}
+
+.paleta .selecionado figcaption {
+  color: #f0c870;
+}
+
 .paleta figcaption {
   overflow: hidden;
   color: #a5a79f;
@@ -122,4 +163,8 @@ body {
   flex: 1;
   min-width: 0;
   overflow: hidden;
+}
+
+.map.com-ferramenta {
+  cursor: crosshair;
 }

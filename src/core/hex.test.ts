@@ -5,9 +5,38 @@ import {
   coordDaChave,
   hexesNaArea,
   hexParaMundo,
+  linhaHex,
   mundoParaHex,
   pontaInferiorHex,
 } from './hex';
+
+describe('linhaHex', () => {
+  it('um hex só devolve ele mesmo', () => {
+    expect(linhaHex({ q: 3, r: -1 }, { q: 3, r: -1 })).toEqual([{ q: 3, r: -1 }]);
+  });
+
+  it('percorre uma linha reta', () => {
+    expect(linhaHex({ q: 0, r: 0 }, { q: 3, r: 0 })).toEqual([
+      { q: 0, r: 0 },
+      { q: 1, r: 0 },
+      { q: 2, r: 0 },
+      { q: 3, r: 0 },
+    ]);
+  });
+
+  it('começa e termina nos hexes pedidos, sempre passando por vizinhos', () => {
+    const inicio = { q: -4, r: 7 };
+    const fim = { q: 5, r: -3 };
+    const linha = linhaHex(inicio, fim);
+    expect(linha[0]).toEqual(inicio);
+    expect(linha[linha.length - 1]).toEqual(fim);
+    for (let i = 1; i < linha.length; i++) {
+      const dq = linha[i].q - linha[i - 1].q;
+      const dr = linha[i].r - linha[i - 1].r;
+      expect(Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr))).toBe(1);
+    }
+  });
+});
 
 describe('contornoHex', () => {
   it('tem os seis cantos com ponta para cima', () => {

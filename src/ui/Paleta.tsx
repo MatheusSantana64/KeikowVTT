@@ -3,6 +3,8 @@ import { urlDoAsset } from '../render/assets';
 
 interface PaletaProps {
   readonly manifesto: Manifesto;
+  readonly tileSelecionado: string | null;
+  readonly aoSelecionarTile: (assetId: string) => void;
   readonly aoIniciarArraste: (assetId: string) => void;
   readonly aoTerminarArraste: () => void;
 }
@@ -15,7 +17,13 @@ function nomeAmigavel(id: string): string {
     .replace(/([a-z])([A-Z])/g, '$1 $2');
 }
 
-export function Paleta({ manifesto, aoIniciarArraste, aoTerminarArraste }: PaletaProps) {
+export function Paleta({
+  manifesto,
+  tileSelecionado,
+  aoSelecionarTile,
+  aoIniciarArraste,
+  aoTerminarArraste,
+}: PaletaProps) {
   const tiles = manifesto.assets.filter((asset) => asset.tipo === 'tile');
 
   const tilesDaCategoria = (categoriaId: string): Asset[] =>
@@ -30,12 +38,17 @@ export function Paleta({ manifesto, aoIniciarArraste, aoTerminarArraste }: Palet
             <summary>{categoria.nome}</summary>
             <div className="paleta-grade">
               {tilesDaCategoria(categoria.id).map((tile) => (
-                <figure key={tile.id} title={nomeAmigavel(tile.id)}>
+                <figure
+                  key={tile.id}
+                  title={nomeAmigavel(tile.id)}
+                  className={tile.id === tileSelecionado ? 'selecionado' : undefined}
+                >
                   <img
                     src={urlDoAsset(tile)}
                     alt={nomeAmigavel(tile.id)}
                     data-asset-id={tile.id}
                     draggable
+                    onClick={() => aoSelecionarTile(tile.id)}
                     onDragStart={(evento) => {
                       evento.dataTransfer.setData('text/plain', tile.id);
                       evento.dataTransfer.effectAllowed = 'copy';

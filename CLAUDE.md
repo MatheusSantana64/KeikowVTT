@@ -10,6 +10,7 @@ Não é um videogame completo, mas deve parecer um aos olhos do jogador.
 - Explique decisões em português, de forma simples, sem jargão desnecessário.
 - Sempre apresente um plano antes de implementar algo grande, e trabalhe em passos pequenos e testáveis.
 - Ao terminar algo que funciona, diga como testar no navegador e sugira um commit no Git.
+- Depois de cada commit, recomende na resposta, em uma linha, o nível de effort para o próximo passo e o motivo. Não grave a recomendação em arquivos.
 
 ## Visão do produto
 - **Hexcrawl** como mapa-mundi: grid hexagonal, revelado aos poucos (fog of war).
@@ -69,4 +70,19 @@ Cada fase deve funcionar sozinha antes de avançar.
 9. **Extras** — integração mais profunda com Discord (bot de rolagens, Discord Activity), mais gamificação.
 
 ## Status atual
-- Fase 0: projeto ainda não iniciado; apenas os assets de exemplo em `Hex Samples/`.
+- **Fase 1 em andamento** (editor de mapa local), dividida em 8 passos:
+  1. ✅ Estrutura do projeto.
+  2. ✅ Regras do mapa em `core/`.
+  3. ✅ Assets e manifesto.
+  4. ✅ Grid, zoom e câmera.
+  5. ✅ Paleta e arrastar e soltar com snap.
+  6. ✅ Pintar arrastando, apagar, desfazer e refazer.
+  7. Decorações e rios na paleta e no mapa (próximo).
+  8. Salvar e carregar JSON, com salvamento automático no navegador.
+- Comandos: `npm run dev` (editor), `npm test`, `npm run build`, `npm run assets` (regera `public/assets/` a partir de `Hex Samples/`).
+
+## Decisões já tomadas
+- **Tipo do asset vem do nome do arquivo** (`scripts/classificar-asset.mjs`): `hexRiver…` sobreposição (2:3), `hexUnder…` base (4:3), `hex…` tile (2:3), outro nome decoração. Imagens de hex de outros tamanhos são ajustadas para o hex; decorações são desenhadas no tamanho original. `hexPortCentre00` é exceção: decoração.
+- Rios só têm o rio desenhado: vão por cima de um terreno, encaixados no centro do hex, sem conexão automática.
+- Mapa sem limite de tamanho. Decorações têm posição livre, presas a um hex: apagar o hex apaga as decorações; trocar o terreno as mantém.
+- O botão esquerdo fica para editar o mapa; a câmera arrasta com o direito ou o do meio.

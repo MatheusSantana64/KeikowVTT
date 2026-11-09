@@ -79,6 +79,23 @@ export function hexesNaArea({ minX, minY, maxX, maxY }: AreaMundo): CoordHex[] {
   return hexes;
 }
 
+/** Hexes vizinhos em sequência de `a` até `b`, incluindo os dois. */
+export function linhaHex(a: CoordHex, b: CoordHex): CoordHex[] {
+  const dq = b.q - a.q;
+  const dr = b.r - a.r;
+  const passos = Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr));
+  if (passos === 0) {
+    return [a];
+  }
+  const linha: CoordHex[] = [];
+  for (let i = 0; i <= passos; i++) {
+    const t = i / passos;
+    // O pequeno desvio evita empates quando a linha passa exatamente na borda entre hexes.
+    linha.push(arredondarHex(a.q + dq * t + 1e-6, a.r + dr * t + 2e-6));
+  }
+  return linha;
+}
+
 /** Hex que contém um ponto do mundo. */
 export function mundoParaHex({ x, y }: PontoMundo): CoordHex {
   const r = y / ALTURA_LINHA;
