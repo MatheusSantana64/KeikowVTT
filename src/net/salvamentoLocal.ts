@@ -1,4 +1,5 @@
 import type { LojaCampanha } from '../core/campanha';
+import type { LojaRegras } from '../core/regrasDaCampanha';
 import type { LojaGrupo } from '../core/grupo';
 import type { LojaMapa } from '../core/loja';
 import {
@@ -335,6 +336,8 @@ export function manterCampanhaLocal(
   aoFalhar: () => void,
   principal: ArmazenamentoLocal,
   rapido: ArmazenamentoRapido,
+  /** As regras da campanha vão no mesmo documento. */
+  lojaRegras?: LojaRegras,
 ): () => void {
   return manterDocumento(
     DOCUMENTO_CAMPANHA,
@@ -342,8 +345,9 @@ export function manterCampanhaLocal(
       serializarCampanha({
         campanha: lojaCampanha.obterEstado(),
         registro: lojaRegistro.obterEntradas(),
+        regras: lojaRegras?.obterEstado(),
       }),
-    [lojaCampanha.assinar, lojaRegistro.assinar],
+    [lojaCampanha.assinar, lojaRegistro.assinar, ...(lojaRegras ? [lojaRegras.assinar] : [])],
     aoFalhar,
     { principal, rapido },
   );

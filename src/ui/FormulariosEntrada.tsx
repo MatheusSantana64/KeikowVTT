@@ -17,7 +17,8 @@ import {
 } from '../core/entradas';
 import { normalizarNome } from '../core/formulas';
 import { idSalvaguarda, NOME_NIVEL_DA_CLASSE, NOME_NIVEL_DO_ESPACO, problemaNaFormula } from '../core/regras';
-import { REGRAS_PADRAO } from '../core/regrasPadrao';
+import type { Regras } from '../core/regras';
+import { useRegras } from './contextoRegras';
 import {
   CampoFormula,
   CampoLinhas,
@@ -108,23 +109,22 @@ function EditorBlocos({
   );
 }
 
-// Por enquanto as fórmulas são conferidas com as regras que acompanham o programa.
-// Quando a campanha tiver as próprias regras (passo 12), elas entram aqui.
+// As fórmulas são conferidas com as regras da campanha aberta.
 
 /** Dano, dados de vida e afins: podem rolar dados e citar a ficha, como `1d8 + mod(FOR)`. Vazio é aceito. */
-function conferirDados(texto: string): string | null {
-  return texto.trim() === '' ? null : problemaNaFormula(REGRAS_PADRAO, texto, { colunas: null, dados: 'permitidos' });
+function conferirDados(regras: Regras, texto: string): string | null {
+  return texto.trim() === '' ? null : problemaNaFormula(regras, texto, { colunas: null, dados: 'permitidos' });
 }
 
 /**
  * Usos de uma habilidade: um número calculado, sem dados. Pode citar o nível e a tabela da classe;
  * a coluna só é conferida quando a habilidade é usada, porque ela pode estar em mais de uma classe.
  */
-function conferirUsos(texto: string): string | null {
+function conferirUsos(regras: Regras, texto: string): string | null {
   if (texto.trim() === '') {
     return 'Escreva quantos usos, como 1 ou mod(CAR).';
   }
-  return problemaNaFormula(REGRAS_PADRAO, texto, {
+  return problemaNaFormula(regras, texto, {
     extras: [NOME_NIVEL_DA_CLASSE],
     colunas: 'qualquer',
     dados: 'proibidos',
@@ -132,6 +132,7 @@ function conferirUsos(texto: string): string | null {
 }
 
 function FormularioArma({ arma, mudar }: { arma: DadosArma; mudar: (arma: DadosArma) => void }) {
+  const regras = useRegras();
   return (
     <>
       <CampoOpcoes rotulo="Domínio" valor={arma.dominio} rotulos={ROTULO_DOMINIO} aoMudar={(v) => v && mudar({ ...arma, dominio: v })} />
@@ -141,12 +142,12 @@ function FormularioArma({ arma, mudar }: { arma: DadosArma; mudar: (arma: DadosA
         rotulos={ROTULO_ALCANCE_TIPO}
         aoMudar={(v) => v && mudar({ ...arma, alcanceTipo: v })}
       />
-      <CampoFormula rotulo="Dano" dica="1d8" valor={arma.dano} conferir={conferirDados} aoMudar={(dano) => mudar({ ...arma, dano })} />
+      <CampoFormula rotulo="Dano" dica="1d8" valor={arma.dano} conferir={(texto) => conferirDados(regras, texto)} aoMudar={(dano) => mudar({ ...arma, dano })} />
       <CampoTexto rotulo="Tipo de dano" valor={arma.tipoDano} aoMudar={(tipoDano) => mudar({ ...arma, tipoDano })} />
       <CampoFormula
         rotulo="Dano versátil (opcional)"
         valor={arma.danoVersatil ?? ''}
-        conferir={conferirDados}
+        conferir={(texto) => conferirDados(regras, texto)}
         aoMudar={(v) => mudar({ ...arma, danoVersatil: v.trim() === '' ? null : v })}
       />
       <CampoMarcar
@@ -312,6 +313,7 @@ export function FormularioMagia({ dados, mudar, todas }: PropsFormulario<'magia'
 }
 
 export function FormularioHabilidade({ dados, mudar }: PropsFormulario<'habilidade'>) {
+  const regras = useRegras();
   return (
     <>
       <CampoTexto rotulo="Requisito" dica="Guerreiro 2, Anão…" valor={dados.requisito} aoMudar={(v) => mudar({ requisito: v }, 'requisito')} />
@@ -326,7 +328,7 @@ export function FormularioHabilidade({ dados, mudar }: PropsFormulario<'habilida
             rotulo="Usos (fórmula)"
             dica="1, mod(CAR) ou tabela(furias)"
             valor={dados.usos.maximo}
-            conferir={conferirUsos}
+            conferir={(texto) => conferirUsos(regras, texto)}
             aoMudar={(v) => dados.usos && v.trim() !== '' && mudar({ usos: { ...dados.usos, maximo: v } }, 'usos')}
           />
           <CampoOpcoes
@@ -464,6 +466,7 @@ function EditorTabela({
   readonly tabela: readonly ColunaTabela[];
   readonly mudar: (tabela: ColunaTabela[], campo: string) => void;
 }) {
+  const regras = useRegras();
   const ids = new Set(tabela.map((c) => c.id));
   const trocarColuna = (indice: number, nova: ColunaTabela, campo: string) =>
     mudar(
@@ -480,7 +483,7 @@ function EditorTabela({
   const conferirCelula = (texto: string) =>
     texto.trim() === ''
       ? null
-      : problemaNaFormula(REGRAS_PADRAO, texto, { extras: [NOME_NIVEL_DA_CLASSE], colunas: ids, dados: 'permitidos' });
+      : problemaNaFormula(regras, texto, { extras: [NOME_NIVEL_DA_CLASSE], colunas: ids, dados: 'permitidos' });
 
   return (
     <fieldset className="campo-largo editor-tabela">
@@ -610,6 +613,7 @@ export function FormularioTalento({ dados, mudar }: PropsFormulario<'talento'>) 
 }
 
 export function FormularioMonstro({ dados, mudar }: PropsFormulario<'monstro'>) {
+  const regras = useRegras();
   const pericias = Object.entries(dados.pericias).map(([nome, valor]) => ({ nome, valor }));
   return (
     <>
@@ -623,7 +627,7 @@ export function FormularioMonstro({ dados, mudar }: PropsFormulario<'monstro'>) 
         rotulo="Dados de vida"
         dica="2d8+2"
         valor={dados.dadosVida}
-        conferir={conferirDados}
+        conferir={(texto) => conferirDados(regras, texto)}
         aoMudar={(v) => mudar({ dadosVida: v }, 'dadosVida')}
       />
       <CampoTexto rotulo="Deslocamento" valor={dados.deslocamento} aoMudar={(v) => mudar({ deslocamento: v }, 'deslocamento')} />
@@ -707,8 +711,7 @@ const ROTULO_QUANDO: Readonly<Record<Efeito['quando'], string>> = {
 };
 
 /** Os valores da ficha que um efeito pode mudar, em grupos, com o nome legível. */
-function alvosDosEfeitos(): { grupo: string; opcoes: { id: string; nome: string }[] }[] {
-  const r = REGRAS_PADRAO;
+function alvosDosEfeitos(r: Regras): { grupo: string; opcoes: { id: string; nome: string }[] }[] {
   return [
     { grupo: 'Atributos', opcoes: ATRIBUTOS.map((a) => ({ id: a, nome: r.atributos[a] })) },
     { grupo: 'Valores', opcoes: r.valores.map((v) => ({ id: v.id, nome: v.nome })) },
@@ -728,12 +731,13 @@ export function EditorEfeitos({
   readonly entrada: Entrada;
   readonly mudar: (efeitos: Efeito[], campo: string) => void;
 }) {
+  const regras = useRegras();
   const ehItem = entrada.tipo === 'item';
-  const grupos = alvosDosEfeitos();
+  const grupos = alvosDosEfeitos(regras);
   const conhecidos = new Set(grupos.flatMap((g) => g.opcoes.map((o) => o.id)));
   // Habilidades de classe podem ler o nível e a tabela da classe; a coluna é conferida ao usar.
   const conferir = (texto: string) =>
-    problemaNaFormula(REGRAS_PADRAO, texto, {
+    problemaNaFormula(regras, texto, {
       extras: entrada.tipo === 'habilidade' ? [NOME_NIVEL_DA_CLASSE] : [],
       colunas: entrada.tipo === 'habilidade' ? 'qualquer' : null,
       dados: 'proibidos',
@@ -845,6 +849,7 @@ export function EditorAcoes({
   readonly entrada: Entrada;
   readonly mudar: (acoes: AcaoDeEntrada[], campo: string) => void;
 }) {
+  const regras = useRegras();
   const extras = [
     ...(entrada.tipo === 'habilidade' ? [NOME_NIVEL_DA_CLASSE] : []),
     ...(entrada.tipo === 'magia' ? [NOME_NIVEL_DO_ESPACO] : []),
@@ -852,7 +857,7 @@ export function EditorAcoes({
   const conferir = (texto: string) =>
     texto.trim() === ''
       ? 'Escreva a fórmula, como 1d8 + mod(FOR).'
-      : problemaNaFormula(REGRAS_PADRAO, texto, {
+      : problemaNaFormula(regras, texto, {
           extras,
           colunas: entrada.tipo === 'habilidade' ? 'qualquer' : null,
           dados: 'permitidos',

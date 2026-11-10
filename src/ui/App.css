@@ -1895,3 +1895,104 @@ fieldset.formulario {
   margin: 0 0 10px;
   line-height: 1.4;
 }
+
+/* ---------- Tela de regras ---------- */
+
+.regras-corpo > * {
+  max-width: 900px;
+}
+
+.regras-campos {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.regras-teste {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.regras-teste .campo {
+  min-width: 220px;
+}
+
+.regras-teste .tela-dica {
+  margin: 0 0 6px;
+}
+
+.regras-com-resultado {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.regras-com-resultado > :first-child {
+  flex: 1;
+}
+
+.regras-resultado {
+  font-size: 15px;
+  border-color: #333846;
+}
+
+.regras-id {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #a5a79f;
+  font-size: 12px;
+}
+
+.regras-id code {
+  color: #7fd4ff;
+}
+
+.regras-acoes {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.regras-apagar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  max-width: 320px;
+  color: #f0c27a;
+  font-size: 12px;
+}
+
+.regras-lista {
+  margin-top: 12px;
+}
+
+.regras-lista button {
+  padding: 4px 10px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #2a2e3a;
+  color: #e6e3da;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.regras-lista button:disabled {
+  color: #6b6d68;
+  cursor: default;
+}
+
+.regras-novo {
+  align-self: flex-start;
+  width: min(100%, 420px);
+}
+
+.regras-novo button {
+  white-space: nowrap;
+}

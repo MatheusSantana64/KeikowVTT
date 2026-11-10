@@ -44,7 +44,7 @@ import {
 } from '../core/fichas';
 import { numeroNaTela } from './numeros';
 import { idSalvaguarda } from '../core/regras';
-import { REGRAS_PADRAO } from '../core/regrasPadrao';
+import { useRegras } from './contextoRegras';
 import { CampoNumero, CampoTexto } from './camposFormulario';
 import { comSinal, ExplicacaoValor, type Explicando } from './ExplicacaoValor';
 import { OrganizacaoFicha } from './OrganizacaoFicha';
@@ -62,8 +62,6 @@ function formatarNivelDesafio(nd: number): string {
   return { 0.125: '1/8', 0.25: '1/4', 0.5: '1/2' }[nd] ?? numeroNaTela(nd);
 }
 
-/** Por enquanto, as regras que acompanham o programa. A campanha terá as próprias no passo 12. */
-const REGRAS = REGRAS_PADRAO;
 
 interface TelaFichasProps {
   readonly lojaFichas: LojaFichas;
@@ -249,7 +247,9 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, lojaRolagens
   const [menu, setMenu] = useState<MenuAberto | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [presenteando, setPresenteando] = useState<string | null>(null);
-  const calculo = useMemo(() => calcularFicha(ficha, REGRAS), [ficha]);
+  // As regras da campanha: mudá-las recalcula a ficha na hora.
+  const REGRAS = useRegras();
+  const calculo = useMemo(() => calcularFicha(ficha, REGRAS), [ficha, REGRAS]);
   const fecharExplicacao = useCallback(() => setExplicando(null), []);
   const fecharMenu = useCallback(() => setMenu(null), []);
 
@@ -729,6 +729,7 @@ function Valor({
 }
 
 function BlocoAtributos({ ficha, calculo, editar, explicar, mesa }: PropsBloco) {
+  const REGRAS = useRegras();
   return (
     <section className="ficha-secao">
       <h3>Atributos</h3>
@@ -768,7 +769,9 @@ function BlocoCombate({ ficha, calculo, editar, explicar, mesa }: PropsBloco) {
   const pvMaximos = calculo.valor('pv_maximos');
   const maximo = pvMaximos.ok ? pvMaximos.valor : null;
   const avisos = avisosDaFicha(ficha, calculo);
-  const valores = ['ca', 'iniciativa', 'deslocamento', 'prof', 'percepcao_passiva', 'cd_magia', 'ataque_magico'] as const;
+  // Todos os valores das regras, na ordem delas. PV máximos e capacidade de carga têm lugar próprio.
+  const REGRAS = useRegras();
+  const valores = REGRAS.valores.map((v) => v.id).filter((id) => id !== 'pv_maximos' && id !== 'capacidade_carga');
   const comSinalNoValor = new Set(['iniciativa', 'prof', 'ataque_magico']);
   return (
     <section className="ficha-secao">
@@ -839,6 +842,7 @@ const NOME_MULTIPLICADOR: Readonly<Record<string, string>> = {
 };
 
 function BlocoTestes({ ficha, calculo, editar, explicar, mesa }: PropsBloco) {
+  const REGRAS = useRegras();
   const automaticas = proficienciasAutomaticas(ficha, REGRAS);
   const todas = proficienciasDaFicha(ficha, REGRAS);
   // Monstros já trazem os bônus prontos: os marcadores não mudariam nada.

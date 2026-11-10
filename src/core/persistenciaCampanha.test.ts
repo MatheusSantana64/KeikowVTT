@@ -11,6 +11,7 @@ import {
   type ConteudoCampanha,
 } from './persistenciaCampanha';
 import { criarLojaRegistro } from './registro';
+import { REGRAS_PADRAO } from './regrasPadrao';
 
 function exemplo(): ConteudoCampanha {
   const registro = criarLojaRegistro([], () => 500);
@@ -21,7 +22,7 @@ function exemplo(): ConteudoCampanha {
     id: 'j1',
     nome: 'Ana',
   });
-  return { campanha, registro: registro.obterEntradas() };
+  return { campanha, registro: registro.obterEntradas(), regras: REGRAS_PADRAO };
 }
 
 const valido = () => JSON.parse(serializarCampanha(exemplo()));

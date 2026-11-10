@@ -13,6 +13,7 @@ import { ehMestre } from '../core/permissoes';
 import { criarLojaCompendio, type LojaCompendio } from '../core/compendio';
 import { criarLojaFichas, type LojaFichas } from '../core/fichas';
 import { criarLojaRolagens, type LojaRolagens } from '../core/rolagens';
+import { criarLojaRegras, type LojaRegras } from '../core/regrasDaCampanha';
 import { criarLojaRegistro, type LojaRegistro } from '../core/registro';
 import { criarLojaGrupo, type LojaGrupo } from '../core/grupo';
 import { criarLojaMapa, type LojaMapa } from '../core/loja';
@@ -44,6 +45,8 @@ import { TelaCampanha } from './TelaCampanha';
 import { TelaCompendio } from './TelaCompendio';
 import { TelaCreditos } from './TelaCreditos';
 import { TelaFichas } from './TelaFichas';
+import { TelaRegras } from './TelaRegras';
+import { ContextoRegras } from './contextoRegras';
 import { SeletorAgindoComo } from './SeletorVisibilidade';
 
 const BORRACHA: Ferramenta = { tipo: 'apagar' };
@@ -77,6 +80,7 @@ interface EditorCarregado {
   readonly lojaCompendio: LojaCompendio;
   readonly lojaFichas: LojaFichas;
   readonly lojaRolagens: LojaRolagens;
+  readonly lojaRegras: LojaRegras;
   readonly sessao: Sessao;
   readonly aviso: Mensagem | null;
 }
@@ -91,7 +95,7 @@ interface Sessao {
 }
 
 /** As telas que cobrem o mapa inteiro. */
-type Tela = 'campanha' | 'compendio' | 'fichas' | 'creditos';
+type Tela = 'campanha' | 'compendio' | 'fichas' | 'regras' | 'creditos';
 
 const ARMAZENAMENTO = criarArmazenamentoNavegador();
 
@@ -131,6 +135,8 @@ async function iniciarEditor(): Promise<EditorCarregado> {
     lojaFichas: criarLojaFichas(salvasFichas?.ok ? salvasFichas.estado : undefined, opcoesRegistro),
     // Um registro de rolagens ilegível não impede de abrir: começa vazio.
     lojaRolagens: criarLojaRolagens(salvasRolagens?.ok ? salvasRolagens.rolagens : []),
+    // As regras vêm com a campanha; sem campanha guardada, valem as padrão.
+    lojaRegras: criarLojaRegras(campanha?.regras, opcoesRegistro),
     sessao,
     aviso: falha
       ? { tipo: 'erro', texto: `O salvamento automático não pôde ser lido: ${falha}` }
@@ -182,6 +188,7 @@ function Editor({
   lojaCompendio,
   lojaFichas,
   lojaRolagens,
+  lojaRegras,
   sessao,
   aviso,
 }: EditorCarregado) {
@@ -200,6 +207,7 @@ function Editor({
   const [telaAberta, setTelaAberta] = useState<Tela | null>(null);
   const grupo = useSyncExternalStore(lojaGrupo.assinar, lojaGrupo.obterEstado);
   const campanha = useSyncExternalStore(lojaCampanha.assinar, lojaCampanha.obterEstado);
+  const regras = useSyncExternalStore(lojaRegras.assinar, lojaRegras.obterEstado);
   const agindoComo = campanha.participantes.find((p) => p.id === agindoComoId);
   /** Agindo como um jogador, o mapa mostra só o que ele vê e nada pode ser editado. */
   const modoJogador = !ehMestre(agindoComoId);
@@ -302,8 +310,9 @@ function Editor({
           }),
         ARMAZENAMENTO,
         localStorage,
+        lojaRegras,
       ),
-    [lojaCampanha, lojaRegistro],
+    [lojaCampanha, lojaRegistro, lojaRegras],
   );
 
   useEffect(
@@ -416,6 +425,10 @@ function Editor({
           lojaFichas.desfazer();
         } else if (telaAberta === 'fichas' && refazer) {
           lojaFichas.refazer();
+        } else if (telaAberta === 'regras' && desfazer) {
+          lojaRegras.desfazer();
+        } else if (telaAberta === 'regras' && refazer) {
+          lojaRegras.refazer();
         }
         return;
       }
@@ -452,6 +465,7 @@ function Editor({
     loja,
     lojaCompendio,
     lojaFichas,
+    lojaRegras,
     selecionarFerramenta,
     ferramenta,
     modoJogador,
@@ -518,6 +532,7 @@ function Editor({
   );
 
   return (
+    <ContextoRegras.Provider value={regras}>
     <div className="app">
       <aside className="sidebar">
         <h1>KeikowVTT</h1>
@@ -534,6 +549,9 @@ function Editor({
               </button>
               <button type="button" onClick={() => setTelaAberta('compendio')}>
                 Compêndio
+              </button>
+              <button type="button" onClick={() => setTelaAberta('regras')}>
+                Regras
               </button>
               <button type="button" onClick={() => setTelaAberta('creditos')}>
                 Créditos
@@ -574,6 +592,9 @@ function Editor({
           <button type="button" onClick={() => setTelaAberta('compendio')}>
             Compêndio
           </button>
+          <button type="button" onClick={() => setTelaAberta('regras')}>
+            Regras
+          </button>
           <button type="button" onClick={() => setTelaAberta('creditos')}>
             Créditos
           </button>
@@ -585,6 +606,7 @@ function Editor({
           lojaRegistro={lojaRegistro}
           lojaCompendio={lojaCompendio}
           lojaFichas={lojaFichas}
+          lojaRegras={lojaRegras}
           aoAbrirMapa={(estado) => {
             setHexSelecionado(null);
             cenaRef.current?.centralizarNoMapa();
@@ -724,7 +746,18 @@ function Editor({
           aoFechar={() => setTelaAberta(null)}
         />
       )}
+      {telaAberta === 'regras' && (
+        <TelaRegras
+          lojaRegras={lojaRegras}
+          lojaFichas={lojaFichas}
+          lojaCompendio={lojaCompendio}
+          agindoComoId={agindoComoId}
+          seletorAgindoComo={seletorAgindoComo}
+          aoFechar={() => setTelaAberta(null)}
+        />
+      )}
       {telaAberta === 'creditos' && <TelaCreditos aoFechar={() => setTelaAberta(null)} />}
     </div>
+    </ContextoRegras.Provider>
   );
 }

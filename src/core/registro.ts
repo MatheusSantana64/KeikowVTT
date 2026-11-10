@@ -4,6 +4,7 @@ import type { AcaoFichas } from './fichas';
 import type { AcaoGrupo } from './grupo';
 import type { CoordHex } from './hex';
 import type { AcaoMapa } from './mapa';
+import type { AcaoRegras } from './regrasDaCampanha';
 import { SO_MESTRE, type Visibilidade } from './visibilidade';
 
 /** Mesmo valor de `ID_MESTRE`. Repetido aqui para evitar que os dois arquivos dependam um do outro. */
@@ -15,12 +16,15 @@ export type TipoEvento =
   | AcaoCampanha['tipo']
   | AcaoCompendio['tipo']
   | AcaoFichas['tipo']
+  | AcaoRegras['tipo']
   | 'Desfazer'
   | 'Refazer'
   | 'DesfazerCompendio'
   | 'RefazerCompendio'
   | 'DesfazerFichas'
-  | 'RefazerFichas';
+  | 'RefazerFichas'
+  | 'DesfazerRegras'
+  | 'RefazerRegras';
 
 /** Algo que acabou de acontecer. Nunca carrega textos escritos, para não vazar segredos. */
 export interface EventoExecutado {

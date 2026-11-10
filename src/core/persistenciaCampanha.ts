@@ -16,12 +16,17 @@ import type { EstadoCompendio } from './compendio';
 import { compendioParaObjeto } from './persistenciaCompendio';
 import type { EstadoFichas } from './fichas';
 import { fichasParaObjeto } from './persistenciaFichas';
+import { lerRegras, type Regras } from './regras';
+import { REGRAS_PADRAO } from './regrasPadrao';
 
-const VERSAO_CAMPANHA = 1;
+/** Versão 2: as regras da campanha vão junto. As campanhas antigas ganham as regras padrão. */
+const VERSAO_CAMPANHA = 2;
 
 export interface ConteudoCampanha {
   readonly campanha: EstadoCampanha;
   readonly registro: readonly EntradaRegistro[];
+  /** Ao ler, sempre vem: sem regras guardadas, valem as padrão. Ao gravar, faltando, gravam-se as padrão. */
+  readonly regras?: Regras;
 }
 
 function lerParticipante(dado: unknown, posicao: number): Participante {
@@ -67,7 +72,7 @@ function lerEntrada(dado: unknown, posicao: number): EntradaRegistro {
 
 function lerConteudo(dado: unknown): ConteudoCampanha {
   exigir(ehObjeto(dado), 'Os dados da campanha não são válidos.');
-  const { nome, participantes, registro } = dado;
+  const { nome, participantes, registro, regras } = dado;
   exigir(typeof nome === 'string', 'A campanha está sem nome.');
   exigir(Array.isArray(participantes), 'A campanha está sem a lista de participantes.');
   exigir(Array.isArray(registro), 'A campanha está sem o registro.');
@@ -81,11 +86,16 @@ function lerConteudo(dado: unknown): ConteudoCampanha {
     'A campanha precisa ter exatamente um mestre.',
   );
 
-  return { campanha: { nome, participantes: lista }, registro: registro.map(lerEntrada) };
+  return {
+    campanha: { nome, participantes: lista },
+    registro: registro.map(lerEntrada),
+    // Regras com problema são recusadas: uma fórmula quebrada não pode entrar escondida.
+    regras: regras === undefined ? REGRAS_PADRAO : lerRegras(regras),
+  };
 }
 
-function campanhaParaObjeto({ campanha, registro }: ConteudoCampanha) {
-  return { nome: campanha.nome, participantes: campanha.participantes, registro };
+function campanhaParaObjeto({ campanha, registro, regras }: ConteudoCampanha) {
+  return { nome: campanha.nome, participantes: campanha.participantes, registro, regras: regras ?? REGRAS_PADRAO };
 }
 
 function comoResultado<T>(ler: () => T): ResultadoDe<T> {
@@ -116,7 +126,7 @@ export function desserializarCampanha(texto: string): ResultadoDe<ConteudoCampan
   return comoResultado(() => {
     const dados = lerJson(texto);
     exigir(
-      ehObjeto(dados) && dados.versao === VERSAO_CAMPANHA,
+      ehObjeto(dados) && (dados.versao === 1 || dados.versao === VERSAO_CAMPANHA),
       'Os dados da campanha usam um formato desconhecido.',
     );
     return lerConteudo(dados);

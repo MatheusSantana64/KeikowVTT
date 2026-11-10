@@ -10,6 +10,7 @@ import type { LojaCompendio } from '../core/compendio';
 import { lerCompendioDoArquivo } from '../core/persistenciaCompendio';
 import type { LojaFichas } from '../core/fichas';
 import { lerFichasDoArquivo } from '../core/persistenciaFichas';
+import type { LojaRegras } from '../core/regrasDaCampanha';
 
 export interface Mensagem {
   readonly tipo: 'info' | 'aviso' | 'erro';
@@ -23,6 +24,7 @@ interface BarraArquivoProps {
   readonly lojaRegistro: LojaRegistro;
   readonly lojaCompendio: LojaCompendio;
   readonly lojaFichas: LojaFichas;
+  readonly lojaRegras: LojaRegras;
   readonly aoAbrirMapa: (estado: EstadoMapa) => void;
   readonly aoMensagem: (mensagem: Mensagem) => void;
 }
@@ -51,6 +53,7 @@ export function BarraArquivo({
   lojaRegistro,
   lojaCompendio,
   lojaFichas,
+  lojaRegras,
   aoAbrirMapa,
   aoMensagem,
 }: BarraArquivoProps) {
@@ -68,7 +71,7 @@ export function BarraArquivo({
       serializarArquivoCompleto(
         loja.obterEstado(),
         lojaGrupo.obterEstado(),
-        { campanha: lojaCampanha.obterEstado(), registro: lojaRegistro.obterEntradas() },
+        { campanha: lojaCampanha.obterEstado(), registro: lojaRegistro.obterEntradas(), regras: lojaRegras.obterEstado() },
         lojaCompendio.obterEstado(),
         lojaFichas.obterEstado(),
       ),
@@ -101,6 +104,9 @@ export function BarraArquivo({
     if (lidaCampanha.conteudo) {
       lojaRegistro.substituir(lidaCampanha.conteudo.registro);
       lojaCampanha.despachar({ tipo: 'CarregarCampanha', estado: lidaCampanha.conteudo.campanha });
+      if (lidaCampanha.conteudo.regras) {
+        lojaRegras.despachar({ tipo: 'CarregarRegras', regras: lidaCampanha.conteudo.regras });
+      }
     }
     if (lidoCompendio.estado) {
       lojaCompendio.despachar({ tipo: 'CarregarCompendio', estado: lidoCompendio.estado });
