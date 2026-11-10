@@ -53,6 +53,13 @@ export const ESCOLAS_MAGIA = [
 export const RECARGAS = ['descanso-curto', 'descanso-longo', 'aurora'] as const;
 export const PESOS_ARMADURA = ['leve', 'media', 'pesada', 'escudo'] as const;
 export const QUANDO_EFEITO = ['sempre', 'equipado', 'sintonizado'] as const;
+/**
+ * - somar: +1 na CA (Anel de Proteção).
+ * - minimo: o valor fica no mínimo este, se já não for maior (Manoplas de Força: Força 19).
+ * - definir: o valor vira este, ignorando qualquer bônus (Agarrado: deslocamento 0).
+ */
+export const OPERACOES_EFEITO = ['somar', 'minimo', 'definir'] as const;
+export type OperacaoEfeito = (typeof OPERACOES_EFEITO)[number];
 
 /** De onde veio a entrada: criada nesta campanha, ou trazida de um pacote como o SRD. */
 export type OrigemEntrada =
@@ -66,7 +73,7 @@ export type OrigemEntrada =
 export interface Efeito {
   readonly id: string;
   readonly alvo: string;
-  readonly operacao: 'somar' | 'definir';
+  readonly operacao: OperacaoEfeito;
   /** Fórmula, como `1` ou `mod(DES)`. */
   readonly valor: string;
   readonly quando: (typeof QUANDO_EFEITO)[number];
@@ -153,6 +160,18 @@ export interface DadosHabilidade {
   } | null;
 }
 
+/** A tabela de uma classe vai do nível 1 ao 20. */
+export const NIVEIS_DA_TABELA = 20;
+
+/** Uma coluna da tabela de nível da classe, como "Fúrias" ou "Espaços de 1º nível". */
+export interface ColunaTabela {
+  /** Nome usado nas fórmulas, como em `tabela(furias)`. */
+  readonly id: string;
+  readonly nome: string;
+  /** Uma fórmula por nível, do 1 ao 20. Vazio é como o "—" dos livros e vale zero. */
+  readonly valores: readonly string[];
+}
+
 export interface DadosClasse {
   readonly dadoVida: number;
   readonly salvaguardas: readonly Atributo[];
@@ -160,6 +179,7 @@ export interface DadosClasse {
   /** Ids das entradas de habilidade ganhas em cada nível. */
   readonly habilidades: readonly { readonly nivel: number; readonly entradaId: string }[];
   readonly atributoConjuracao: Atributo | null;
+  readonly tabela: readonly ColunaTabela[];
 }
 
 export interface DadosEspecie {
@@ -278,6 +298,7 @@ const DADOS_INICIAIS: { readonly [T in TipoEntrada]: () => DadosPorTipo[T] } = {
     proficiencias: [],
     habilidades: [],
     atributoConjuracao: null,
+    tabela: [],
   }),
   especie: () => ({
     tamanho: 'medio',

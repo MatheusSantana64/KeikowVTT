@@ -393,6 +393,96 @@ body {
   align-self: flex-start;
 }
 
+.campo-formula {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+.compendio-editor input[aria-invalid='true'] {
+  border-color: #f08a70;
+}
+
+.campo-problema {
+  color: #f08a70;
+  font-size: 12px;
+}
+
+.editor-tabela {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.editor-tabela .tela-dica {
+  margin: 0;
+}
+
+.tabela-rolagem {
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid #262a35;
+  border-radius: 4px;
+}
+
+.editor-tabela table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.editor-tabela th,
+.editor-tabela td {
+  padding: 2px;
+  border-bottom: 1px solid #262a35;
+}
+
+.editor-tabela thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  min-width: 132px;
+  padding: 4px;
+  background: #1d2029;
+  vertical-align: top;
+}
+
+.editor-tabela thead th > * {
+  display: block;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.editor-tabela tbody th {
+  position: sticky;
+  left: 0;
+  padding: 0 8px;
+  background: #191b22;
+  color: #a5a79f;
+  font-weight: normal;
+}
+
+.compendio-editor .editor-tabela input[type='text'] {
+  width: 100%;
+  min-width: 80px;
+  padding: 3px 6px;
+  font-size: 13px;
+}
+
+.compendio-editor .editor-tabela .tabela-id {
+  color: #a5a79f;
+  font-size: 12px;
+}
+
+.editor-tabela thead button {
+  padding: 2px 6px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #2a2e3a;
+  color: #a5a79f;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+
 .tela-sobreposta .mensagem-info,
 .tela-sobreposta .mensagem-erro {
   margin: 0 0 12px;

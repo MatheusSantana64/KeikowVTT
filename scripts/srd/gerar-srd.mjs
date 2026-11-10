@@ -9,6 +9,7 @@ import {
   COMMIT_5E_BITS,
   CREDITOS,
   converterSrd,
+  formulasQuebradas,
   referenciasQuebradas,
 } from './converterSrd.ts';
 import { lerPacote, pacoteParaObjeto, VERSAO_PACOTE } from '../../src/core/pacotes.ts';
@@ -37,9 +38,9 @@ const fontes = Object.fromEntries(
 );
 
 const pacote = converterSrd(fontes);
-const quebradas = referenciasQuebradas(pacote);
+const quebradas = [...referenciasQuebradas(pacote), ...formulasQuebradas(pacote)];
 if (quebradas.length > 0) {
-  throw new Error(`Referências quebradas:\n${quebradas.join('\n')}`);
+  throw new Error(`Problemas no pacote:\n${quebradas.join('\n')}`);
 }
 
 const texto = JSON.stringify(pacoteParaObjeto(pacote));

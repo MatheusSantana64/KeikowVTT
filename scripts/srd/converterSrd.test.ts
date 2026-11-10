@@ -11,6 +11,8 @@ import {
   converterMonstro,
   converterSrd,
   converterSubespecie,
+  converterTabela,
+  formulasQuebradas,
   CREDITO_SRD,
   formatarNivelDesafio,
   formatarUso,
@@ -22,6 +24,7 @@ import {
 
 // Registros reais da base do 5e-bits, encurtados.
 const ref = (index: string, name: string) => ({ index, name, url: `/x/${index}` });
+const fontesVazias = () => Object.fromEntries(ARQUIVOS_FONTE.map((nome) => [nome, []])) as unknown as Fontes;
 
 const longsword: Registro = {
   index: 'longsword',
@@ -229,8 +232,70 @@ describe('características de classe', () => {
       proficiencias: ['Light Armor', 'Choose any three'],
       habilidades: [{ nivel: 4, entradaId: 'srd-5.1/caracteristica/barbarian-ability-score-improvement-4' }],
       atributoConjuracao: 'car',
+      tabela: [],
     });
     expect(classe.descricao).toBe('Cantrips. You know two.');
+  });
+});
+
+describe('tabelas de nível', () => {
+  const nivel = (level: number, class_specific: Registro, spellcasting?: Registro): Registro => ({
+    level,
+    class: ref('rogue', 'Rogue'),
+    class_specific,
+    ...(spellcasting ? { spellcasting } : {}),
+  });
+  const vinte = (fazer: (n: number) => Registro) => Array.from({ length: 20 }, (_, i) => fazer(i + 1));
+
+  it('converte colunas com nome em português, dados e "ilimitado"', () => {
+    const niveis = vinte((n) =>
+      nivel(n, {
+        sneak_attack: { dice_count: Math.ceil(n / 2), dice_value: 6 },
+        rage_count: n === 20 ? 9999 : 2,
+        wild_shape_fly: n >= 8,
+      }),
+    );
+    const tabela = converterTabela('rogue', niveis);
+    expect(tabela.map((c) => [c.id, c.nome])).toEqual([
+      ['ataque_furtivo', 'Ataque furtivo'],
+      ['furias', 'Fúrias'],
+      ['forma_selvagem_voar', 'Forma selvagem: voar'],
+    ]);
+    expect(tabela[0].valores.slice(0, 5)).toEqual(['1d6', '1d6', '2d6', '2d6', '3d6']);
+    expect(tabela[1].valores[19]).toBe('ilimitado');
+    expect(tabela[2].valores[7]).toBe('1');
+  });
+
+  it('deixa de fora colunas sempre zeradas, e linhas de subclasse', () => {
+    const niveis = [
+      ...vinte((n) => nivel(n, {}, { spell_slots_level_1: n >= 2 ? 2 : 0, spell_slots_level_6: 0 })),
+      { ...nivel(3, { rage_count: 5 }), subclass: ref('thief', 'Thief') },
+    ];
+    expect(converterTabela('rogue', niveis).map((c) => c.id)).toEqual(['espacos_1']);
+  });
+
+  it('recusa colunas desconhecidas e níveis faltando', () => {
+    expect(() => converterTabela('rogue', vinte((n) => nivel(n, { coisa_nova: 1 })))).toThrow('desconhecida');
+    expect(() => converterTabela('rogue', [nivel(1, {})])).toThrow('níveis de 1 a 20');
+  });
+
+  it('classe sem tabela fica com a tabela vazia', () => {
+    expect(converterTabela('rogue', [])).toEqual([]);
+  });
+
+  it('os usos da Fúria leem a tabela, e a conferência aponta colunas que faltam', () => {
+    const rage = converterCaracteristica([{ ...asi('barbarian', 1), index: 'rage', name: 'Rage' }]);
+    expect(rage.dados.usos).toEqual({ maximo: 'tabela(furias)', recarga: 'descanso-longo' });
+    const barbaro = converterClasse(
+      { index: 'barbarian', name: 'Barbarian', hit_die: 12, saving_throws: [] },
+      [{ ...asi('barbarian', 1), index: 'rage', name: 'Rage' }],
+      new Map([['rage', rage.id]]),
+      [],
+    );
+    const pacote = { ...converterSrd(fontesVazias()), entradas: [rage, barbaro] };
+    expect(formulasQuebradas(pacote)).toEqual([
+      'srd-5.1/caracteristica/rage, usos: A tabela da classe não tem a coluna "furias".',
+    ]);
   });
 });
 
@@ -326,9 +391,8 @@ describe('juntarTexto', () => {
 });
 
 describe('converterSrd', () => {
-  const vazias = Object.fromEntries(ARQUIVOS_FONTE.map((nome) => [nome, []])) as unknown as Fontes;
   const fontes: Fontes = {
-    ...vazias,
+    ...fontesVazias(),
     Equipment: [longsword, chainMail],
     Spells: [fireball],
     Monsters: [goblin],

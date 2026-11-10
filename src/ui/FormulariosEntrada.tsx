@@ -1,6 +1,9 @@
+import { useEffect, useState } from 'react';
 import {
   ATRIBUTOS,
+  NIVEIS_DA_TABELA,
   type BlocoDeTexto,
+  type ColunaTabela,
   type DadosArma,
   type DadosArmadura,
   type DadosPorTipo,
@@ -8,7 +11,11 @@ import {
   type EntradaDe,
   type TipoEntrada,
 } from '../core/entradas';
+import { normalizarNome } from '../core/formulas';
+import { NOME_NIVEL_DA_CLASSE, problemaNaFormula } from '../core/regras';
+import { REGRAS_PADRAO } from '../core/regrasPadrao';
 import {
+  CampoFormula,
   CampoLinhas,
   CampoMarcar,
   CampoNumero,
@@ -97,6 +104,29 @@ function EditorBlocos({
   );
 }
 
+// Por enquanto as fórmulas são conferidas com as regras que acompanham o programa.
+// Quando a campanha tiver as próprias regras (passo 12), elas entram aqui.
+
+/** Dano, dados de vida e afins: podem rolar dados e citar a ficha, como `1d8 + mod(FOR)`. Vazio é aceito. */
+function conferirDados(texto: string): string | null {
+  return texto.trim() === '' ? null : problemaNaFormula(REGRAS_PADRAO, texto, { colunas: null, dados: 'permitidos' });
+}
+
+/**
+ * Usos de uma habilidade: um número calculado, sem dados. Pode citar o nível e a tabela da classe;
+ * a coluna só é conferida quando a habilidade é usada, porque ela pode estar em mais de uma classe.
+ */
+function conferirUsos(texto: string): string | null {
+  if (texto.trim() === '') {
+    return 'Escreva quantos usos, como 1 ou mod(CAR).';
+  }
+  return problemaNaFormula(REGRAS_PADRAO, texto, {
+    extras: [NOME_NIVEL_DA_CLASSE],
+    colunas: 'qualquer',
+    dados: 'proibidos',
+  });
+}
+
 function FormularioArma({ arma, mudar }: { arma: DadosArma; mudar: (arma: DadosArma) => void }) {
   return (
     <>
@@ -107,11 +137,12 @@ function FormularioArma({ arma, mudar }: { arma: DadosArma; mudar: (arma: DadosA
         rotulos={ROTULO_ALCANCE_TIPO}
         aoMudar={(v) => v && mudar({ ...arma, alcanceTipo: v })}
       />
-      <CampoTexto rotulo="Dano" dica="1d8" valor={arma.dano} aoMudar={(dano) => mudar({ ...arma, dano })} />
+      <CampoFormula rotulo="Dano" dica="1d8" valor={arma.dano} conferir={conferirDados} aoMudar={(dano) => mudar({ ...arma, dano })} />
       <CampoTexto rotulo="Tipo de dano" valor={arma.tipoDano} aoMudar={(tipoDano) => mudar({ ...arma, tipoDano })} />
-      <CampoTexto
+      <CampoFormula
         rotulo="Dano versátil (opcional)"
         valor={arma.danoVersatil ?? ''}
+        conferir={conferirDados}
         aoMudar={(v) => mudar({ ...arma, danoVersatil: v.trim() === '' ? null : v })}
       />
       <CampoMarcar
@@ -287,10 +318,11 @@ export function FormularioHabilidade({ dados, mudar }: PropsFormulario<'habilida
       />
       {dados.usos && (
         <>
-          <CampoTexto
+          <CampoFormula
             rotulo="Usos (fórmula)"
-            dica="1 ou mod(CAR)"
+            dica="1, mod(CAR) ou tabela(furias)"
             valor={dados.usos.maximo}
+            conferir={conferirUsos}
             aoMudar={(v) => dados.usos && v.trim() !== '' && mudar({ usos: { ...dados.usos, maximo: v } }, 'usos')}
           />
           <CampoOpcoes
@@ -378,7 +410,150 @@ export function FormularioClasse({ dados, mudar, todas }: PropsFormulario<'class
           </>
         )}
       />
+      <EditorTabela tabela={dados.tabela} mudar={(tabela, campo) => mudar({ tabela }, campo)} />
     </>
+  );
+}
+
+/** O id de uma coluna, usado nas fórmulas: só muda quando o novo nome é válido e não repete outro. */
+function CampoIdColuna({
+  valor,
+  outros,
+  aoMudar,
+}: {
+  readonly valor: string;
+  readonly outros: ReadonlySet<string>;
+  readonly aoMudar: (id: string) => void;
+}) {
+  const [rascunho, setRascunho] = useState(valor);
+  useEffect(() => setRascunho(valor), [valor]);
+  const problema = !/^[a-z_][a-z0-9_]*$/.test(rascunho)
+    ? 'Use letras minúsculas sem acento, números e "_".'
+    : outros.has(rascunho)
+      ? 'Outra coluna já tem este nome.'
+      : null;
+  return (
+    <input
+      type="text"
+      className="tabela-id campo-formula"
+      aria-label="Nome da coluna nas fórmulas"
+      title={problema ?? `Nas fórmulas: tabela(${rascunho})`}
+      aria-invalid={problema !== null}
+      spellCheck={false}
+      value={rascunho}
+      onChange={(e) => {
+        const novo = normalizarNome(e.target.value).replace(/[^a-z0-9_]/g, '_');
+        setRascunho(novo);
+        if (/^[a-z_][a-z0-9_]*$/.test(novo) && !outros.has(novo)) {
+          aoMudar(novo);
+        }
+      }}
+    />
+  );
+}
+
+/** A tabela de nível da classe: uma coluna por recurso, uma linha por nível, cada célula uma fórmula. */
+function EditorTabela({
+  tabela,
+  mudar,
+}: {
+  readonly tabela: readonly ColunaTabela[];
+  readonly mudar: (tabela: ColunaTabela[], campo: string) => void;
+}) {
+  const ids = new Set(tabela.map((c) => c.id));
+  const trocarColuna = (indice: number, nova: ColunaTabela, campo: string) =>
+    mudar(
+      tabela.map((c, i) => (i === indice ? nova : c)),
+      campo,
+    );
+  const adicionar = () => {
+    let id = 'nova_coluna';
+    for (let n = 2; ids.has(id); n++) {
+      id = `nova_coluna_${n}`;
+    }
+    mudar([...tabela, { id, nome: 'Nova coluna', valores: Array<string>(NIVEIS_DA_TABELA).fill('') }], 'tabela-nova');
+  };
+  const conferirCelula = (texto: string) =>
+    texto.trim() === ''
+      ? null
+      : problemaNaFormula(REGRAS_PADRAO, texto, { extras: [NOME_NIVEL_DA_CLASSE], colunas: ids, dados: 'permitidos' });
+
+  return (
+    <fieldset className="campo-largo editor-tabela">
+      <span>Tabela de nível</span>
+      <p className="tela-dica">
+        Cada coluna aparece nas fórmulas como tabela(nome), por exemplo nos usos de uma habilidade da classe. Cada
+        célula é uma fórmula; vazia vale zero.
+      </p>
+      {tabela.length > 0 && (
+        <div className="tabela-rolagem">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Nível</th>
+                {tabela.map((coluna, i) => (
+                  <th key={i} scope="col">
+                    <input
+                      type="text"
+                      aria-label="Nome da coluna"
+                      value={coluna.nome}
+                      onChange={(e) => trocarColuna(i, { ...coluna, nome: e.target.value }, `tabela-nome-${i}`)}
+                    />
+                    <CampoIdColuna
+                      valor={coluna.id}
+                      outros={new Set([...ids].filter((id) => id !== coluna.id))}
+                      aoMudar={(id) => trocarColuna(i, { ...coluna, id }, `tabela-id-${i}`)}
+                    />
+                    <button
+                      type="button"
+                      title="Apagar a coluna"
+                      onClick={() => mudar(tabela.filter((_, j) => j !== i), 'tabela-apagar')}
+                    >
+                      Apagar
+                    </button>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: NIVEIS_DA_TABELA }, (_, nivel) => (
+                <tr key={nivel}>
+                  <th scope="row">{nivel + 1}</th>
+                  {tabela.map((coluna, i) => {
+                    const valor = coluna.valores[nivel] ?? '';
+                    const problema = conferirCelula(valor);
+                    return (
+                      <td key={i}>
+                        <input
+                          type="text"
+                          className="campo-formula"
+                          aria-label={`${coluna.nome}, nível ${nivel + 1}`}
+                          aria-invalid={problema !== null}
+                          title={problema ?? undefined}
+                          placeholder="—"
+                          spellCheck={false}
+                          value={valor}
+                          onChange={(e) =>
+                            trocarColuna(
+                              i,
+                              { ...coluna, valores: coluna.valores.map((v, n) => (n === nivel ? e.target.value : v)) },
+                              `tabela-${i}-${nivel}`,
+                            )
+                          }
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <button type="button" className="editor-lista-adicionar" onClick={adicionar}>
+        + Coluna
+      </button>
+    </fieldset>
   );
 }
 
@@ -440,7 +615,13 @@ export function FormularioMonstro({ dados, mudar }: PropsFormulario<'monstro'>) 
       <CampoNumero rotulo="Classe de Armadura" inteiro valor={dados.classeArmadura} aoMudar={(v) => v !== null && mudar({ classeArmadura: v }, 'ca')} />
       <CampoTexto rotulo="Origem da CA" dica="armadura natural" valor={dados.notaArmadura} aoMudar={(v) => mudar({ notaArmadura: v }, 'notaArmadura')} />
       <CampoNumero rotulo="Pontos de vida" inteiro minimo={0} valor={dados.pontosVida} aoMudar={(v) => v !== null && mudar({ pontosVida: v }, 'pv')} />
-      <CampoTexto rotulo="Dados de vida" dica="2d8+2" valor={dados.dadosVida} aoMudar={(v) => mudar({ dadosVida: v }, 'dadosVida')} />
+      <CampoFormula
+        rotulo="Dados de vida"
+        dica="2d8+2"
+        valor={dados.dadosVida}
+        conferir={conferirDados}
+        aoMudar={(v) => mudar({ dadosVida: v }, 'dadosVida')}
+      />
       <CampoTexto rotulo="Deslocamento" valor={dados.deslocamento} aoMudar={(v) => mudar({ deslocamento: v }, 'deslocamento')} />
       <CampoNumero rotulo="Nível de desafio" minimo={0} valor={dados.nivelDesafio} aoMudar={(v) => v !== null && mudar({ nivelDesafio: v }, 'nd')} />
       <CampoNumero rotulo="Experiência" inteiro minimo={0} valor={dados.experiencia} aoMudar={(v) => v !== null && mudar({ experiencia: v }, 'xp')} />

@@ -4,6 +4,8 @@ import {
   CATEGORIAS_ITEM,
   ESCOLAS_MAGIA,
   MOEDAS,
+  NIVEIS_DA_TABELA,
+  OPERACOES_EFEITO,
   PESOS_ARMADURA,
   QUANDO_EFEITO,
   RARIDADES,
@@ -13,6 +15,7 @@ import {
   type AcaoDeEntrada,
   type Atributo,
   type BlocoDeTexto,
+  type ColunaTabela,
   type DadosArma,
   type DadosArmadura,
   type DadosPorTipo,
@@ -30,7 +33,8 @@ import {
   type ResultadoDe,
 } from './persistencia';
 
-const VERSAO_COMPENDIO = 2;
+/** Aumente ao mudar o formato das entradas, e acrescente a conversão em CONVERSOES. */
+const VERSAO_COMPENDIO = 3;
 
 type Dado = Record<string, unknown>;
 
@@ -156,7 +160,7 @@ function lerEfeito(valor: unknown, onde: string): Efeito {
   return {
     id: textoPreenchido(d, 'id', onde),
     alvo: textoPreenchido(d, 'alvo', onde),
-    operacao: opcao(d, 'operacao', ['somar', 'definir'] as const, onde),
+    operacao: opcao(d, 'operacao', OPERACOES_EFEITO, onde),
     valor: textoPreenchido(d, 'valor', onde),
     quando: opcao(d, 'quando', QUANDO_EFEITO, onde),
   };
@@ -230,7 +234,22 @@ function lerArmadura(valor: unknown, onde: string): DadosArmadura | null {
   };
 }
 
-type LeitorDeDados = { readonly [T in TipoEntrada]: (d: Dado, onde: string) => DadosPorTipo[T] };
+/** As colunas da tabela de nível de uma classe. As fórmulas são conferidas na tela, não aqui. */
+function lerTabela(d: Dado, onde: string): ColunaTabela[] {
+  const ids = new Set<string>();
+  return lista(d, 'tabela', onde, (item, aqui) => {
+    const c = objeto(item, aqui);
+    const id = textoPreenchido(c, 'id', aqui);
+    exigir(/^[a-z_][a-z0-9_]*$/.test(id), `${aqui}: o nome "${id}" só pode ter letras minúsculas sem acento, números e "_".`);
+    exigir(!ids.has(id), `${aqui}: a coluna "${id}" está repetida.`);
+    ids.add(id);
+    const valores = listaDeTextos(c, 'valores', aqui);
+    exigir(valores.length === NIVEIS_DA_TABELA, `${aqui} precisa ter um valor para cada nível, do 1 ao ${NIVEIS_DA_TABELA}.`);
+    return { id, nome: texto(c, 'nome', aqui), valores };
+  });
+}
+
+type LeitorDeDados ={ readonly [T in TipoEntrada]: (d: Dado, onde: string) => DadosPorTipo[T] };
 
 const LER_DADOS: LeitorDeDados = {
   item: (d, onde) => {
@@ -297,6 +316,7 @@ const LER_DADOS: LeitorDeDados = {
       };
     }),
     atributoConjuracao: opcaoOuNulo(d, 'atributoConjuracao', ATRIBUTOS, onde),
+    tabela: lerTabela(d, onde),
   }),
   especie: (d, onde) => ({
     tamanho: opcao(d, 'tamanho', TAMANHOS, onde),
@@ -377,30 +397,32 @@ export function compendioParaObjeto(estado: EstadoCompendio) {
   return { versao: VERSAO_COMPENDIO, entradas: Object.values(estado.entradas) };
 }
 
-/**
- * Atualiza entradas gravadas na versão 1, antes de a ficha de monstro ter
- * a nota da CA, as vulnerabilidades, as resistências e as imunidades.
- */
-function converterDaVersao1(entradas: unknown): unknown {
+/** Acrescenta campos novos aos dados das entradas de um tipo, sem mexer no que já existe. */
+function completarDados(entradas: unknown, tipo: string, novos: Record<string, unknown>): unknown {
   if (!Array.isArray(entradas)) {
     return entradas;
   }
   return entradas.map((entrada) =>
-    ehObjeto(entrada) && entrada.tipo === 'monstro' && ehObjeto(entrada.dados)
-      ? {
-          ...entrada,
-          dados: {
-            notaArmadura: '',
-            vulnerabilidades: [],
-            resistencias: [],
-            imunidades: [],
-            imunidadesCondicao: [],
-            ...entrada.dados,
-          },
-        }
+    ehObjeto(entrada) && entrada.tipo === tipo && ehObjeto(entrada.dados)
+      ? { ...entrada, dados: { ...novos, ...entrada.dados } }
       : entrada,
   );
 }
+
+/** Cada versão antiga do compêndio, e como passá-la para a seguinte. */
+const CONVERSOES: Readonly<Record<number, (entradas: unknown) => unknown>> = {
+  // Versão 2: a ficha de monstro ganhou a nota da CA, vulnerabilidades, resistências e imunidades.
+  1: (entradas) =>
+    completarDados(entradas, 'monstro', {
+      notaArmadura: '',
+      vulnerabilidades: [],
+      resistencias: [],
+      imunidades: [],
+      imunidadesCondicao: [],
+    }),
+  // Versão 3: as classes ganharam a tabela de nível.
+  2: (entradas) => completarDados(entradas, 'classe', { tabela: [] }),
+};
 
 export function lerJson(texto: string, oQue: string): unknown {
   try {
@@ -414,8 +436,14 @@ export function lerJson(texto: string, oQue: string): unknown {
 function lerEstado(dados: unknown, onde: string, versaoPadrao?: number): EstadoCompendio {
   exigir(ehObjeto(dados), `${onde} não é válido.`);
   const versao = dados.versao ?? versaoPadrao;
-  exigir(versao === 1 || versao === VERSAO_COMPENDIO, `${onde} usa um formato desconhecido.`);
-  const brutas = versao === 1 ? converterDaVersao1(dados.entradas) : dados.entradas;
+  exigir(
+    typeof versao === 'number' && Number.isInteger(versao) && versao >= 1 && versao <= VERSAO_COMPENDIO,
+    `${onde} usa um formato desconhecido.`,
+  );
+  let brutas = dados.entradas;
+  for (let v = versao; v < VERSAO_COMPENDIO; v++) {
+    brutas = CONVERSOES[v](brutas);
+  }
   const entradas = lerEntradas(brutas, onde);
   return { entradas: Object.fromEntries(entradas.map((e) => [e.id, e])) };
 }

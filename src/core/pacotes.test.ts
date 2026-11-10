@@ -7,6 +7,7 @@ import {
   lerIndicePacotes,
   lerPacote,
   pacoteParaObjeto,
+  VERSAO_PACOTE,
   type Pacote,
 } from './pacotes';
 import { VISIVEL_A_TODOS } from './visibilidade';
@@ -68,12 +69,12 @@ describe('lerIndicePacotes', () => {
   const resumo = { id: 'teste', nome: 'Teste', descricao: '', arquivo: 'teste.json', creditos: pacote.creditos };
 
   it('lê a lista de pacotes', () => {
-    expect(lerIndicePacotes(texto({ versao: 1, pacotes: [resumo] }))).toEqual({ ok: true, pacotes: [resumo] });
+    expect(lerIndicePacotes(texto({ versao: VERSAO_PACOTE, pacotes: [resumo] }))).toEqual({ ok: true, pacotes: [resumo] });
   });
 
   it('recusa arquivos fora da pasta dos pacotes', () => {
     for (const arquivo of ['../segredo.json', 'sub/pasta.json', 'https://exemplo.com/x.json', 'x.js']) {
-      expect(lerIndicePacotes(texto({ versao: 1, pacotes: [{ ...resumo, arquivo }] }))).toMatchObject({ ok: false });
+      expect(lerIndicePacotes(texto({ versao: VERSAO_PACOTE, pacotes: [{ ...resumo, arquivo }] }))).toMatchObject({ ok: false });
     }
   });
 });

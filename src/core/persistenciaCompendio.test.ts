@@ -260,7 +260,26 @@ describe('listas e arquivos de compêndio', () => {
     // Arquivos antigos guardavam o compêndio sem número de versão.
     expect(lerCompendioDoArquivo(JSON.stringify({ compendio: { entradas: [antigo] } }))).toEqual(esperado);
     // Na versão atual, os campos novos são obrigatórios.
-    expect(desserializarCompendio(JSON.stringify({ versao: 2, entradas: [antigo] }))).toMatchObject({ ok: false });
+    expect(desserializarCompendio(JSON.stringify({ versao: 3, entradas: [antigo] }))).toMatchObject({ ok: false });
+  });
+
+  it('classes das versões 1 e 2 ganham uma tabela vazia', () => {
+    const classe = criarEntrada('classe', 'guerreiro');
+    const { tabela: _tabela, ...dadosAntigos } = classe.dados;
+    const antiga = { ...classe, dados: dadosAntigos };
+    const esperado = { ok: true, estado: { entradas: { guerreiro: classe } } };
+    expect(desserializarCompendio(JSON.stringify({ versao: 1, entradas: [antiga] }))).toEqual(esperado);
+    expect(desserializarCompendio(JSON.stringify({ versao: 2, entradas: [antiga] }))).toEqual(esperado);
+  });
+
+  it('confere a tabela da classe', () => {
+    const classe = criarEntrada('classe', 'guerreiro');
+    const coluna = { id: 'surto_de_acao', nome: 'Surto de ação', valores: Array(20).fill('1') };
+    const comTabela = (tabela: unknown) => ({ ...classe, dados: { ...classe.dados, tabela } });
+    expect(lerEntrada(comTabela([coluna]), 'x')).toEqual(comTabela([coluna]));
+    expect(() => lerEntrada(comTabela([{ ...coluna, valores: ['1'] }]), 'x')).toThrow('do 1 ao 20');
+    expect(() => lerEntrada(comTabela([{ ...coluna, id: 'Surto' }]), 'x')).toThrow('letras minúsculas');
+    expect(() => lerEntrada(comTabela([coluna, coluna]), 'x')).toThrow('repetida');
   });
 
   it('recusa versão desconhecida e texto que não é JSON', () => {

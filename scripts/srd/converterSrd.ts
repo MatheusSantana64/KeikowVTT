@@ -2,18 +2,23 @@
  * Converte os dados do SRD 5.1, organizados pelo projeto 5e-bits, para entradas do compêndio.
  * Funções puras: quem baixa e grava os arquivos é o `gerar-srd.mjs`.
  */
-import type {
-  Atributo,
-  BlocoDeTexto,
-  DadosArma,
-  DadosArmadura,
-  DadosItem,
-  Entrada,
-  EntradaDe,
-  MOEDAS,
-  TipoEntrada,
+import {
+  NIVEIS_DA_TABELA,
+  type Atributo,
+  type BlocoDeTexto,
+  type ColunaTabela,
+  type DadosArma,
+  type DadosArmadura,
+  type DadosHabilidade,
+  type DadosItem,
+  type Entrada,
+  type EntradaDe,
+  type MOEDAS,
+  type TipoEntrada,
 } from '../../src/core/entradas';
 import type { Credito, Pacote } from '../../src/core/pacotes';
+import { NOME_NIVEL_DA_CLASSE, problemaNaFormula } from '../../src/core/regras';
+import { REGRAS_PADRAO } from '../../src/core/regrasPadrao';
 import { SO_MESTRE, VISIVEL_A_TODOS } from '../../src/core/visibilidade';
 
 export const ID_PACOTE = 'srd-5.1';
@@ -28,6 +33,7 @@ export const ARQUIVOS_FONTE = [
   'Features',
   'Traits',
   'Classes',
+  'Levels',
   'Races',
   'Subraces',
   'Backgrounds',
@@ -459,7 +465,7 @@ export function converterCaracteristica(grupo: readonly Registro[]): EntradaDe<'
       ...grupo.flatMap((r) => [r.class?.name ?? '', r.subclass?.name ?? '']),
       'Class Feature',
     ]),
-    dados: { requisito, usos: null },
+    dados: { requisito, usos: USOS[primeira.index] ?? null },
   };
 }
 
@@ -474,12 +480,136 @@ export function converterTraco(registro: Registro): EntradaDe<'habilidade'> {
   };
 }
 
+// ---------- Tabelas de nível ----------
+
+type Formatador = (valor: unknown) => string;
+const numero: Formatador = (valor) => (valor === 9999 ? 'ilimitado' : typeof valor === 'number' ? String(valor) : '');
+const dado: Formatador = (valor) => (typeof valor === 'number' ? `1d${valor}` : '');
+const grupoDeDados: Formatador = (valor) => {
+  const v = valor as Registro | undefined;
+  return v && typeof v.dice_count === 'number' ? `${v.dice_count}d${v.dice_value}` : '';
+};
+const simNao: Formatador = (valor) => (valor === true ? '1' : valor === false ? '0' : '');
+
+/** Cada coluna da base: id usado nas fórmulas, nome em português e como escrever o valor. */
+const COLUNAS: Readonly<Record<string, { readonly id: string; readonly nome: string; readonly formatar: Formatador } | null>> = {
+  rage_count: { id: 'furias', nome: 'Fúrias', formatar: numero },
+  rage_damage_bonus: { id: 'dano_furia', nome: 'Dano da fúria', formatar: numero },
+  brutal_critical_dice: { id: 'critico_brutal', nome: 'Crítico brutal (dados)', formatar: numero },
+  bardic_inspiration_die: { id: 'inspiracao_bardica', nome: 'Inspiração de bardo', formatar: dado },
+  song_of_rest_die: { id: 'cancao_descanso', nome: 'Canção de descanso', formatar: dado },
+  magical_secrets_max_5: { id: 'segredos_magicos_5', nome: 'Segredos mágicos (até 5º)', formatar: numero },
+  magical_secrets_max_7: { id: 'segredos_magicos_7', nome: 'Segredos mágicos (até 7º)', formatar: numero },
+  magical_secrets_max_9: { id: 'segredos_magicos_9', nome: 'Segredos mágicos (até 9º)', formatar: numero },
+  channel_divinity_charges: { id: 'canalizar_divindade', nome: 'Canalizar divindade', formatar: numero },
+  destroy_undead_cr: { id: 'destruir_mortos_vivos', nome: 'Destruir mortos-vivos (ND)', formatar: numero },
+  wild_shape_max_cr: { id: 'forma_selvagem_nd', nome: 'Forma selvagem (ND máximo)', formatar: numero },
+  wild_shape_swim: { id: 'forma_selvagem_nadar', nome: 'Forma selvagem: nadar', formatar: simNao },
+  wild_shape_fly: { id: 'forma_selvagem_voar', nome: 'Forma selvagem: voar', formatar: simNao },
+  action_surges: { id: 'surto_de_acao', nome: 'Surto de ação', formatar: numero },
+  indomitable_uses: { id: 'indomavel', nome: 'Indomável', formatar: numero },
+  extra_attacks: { id: 'ataques_extras', nome: 'Ataques extras', formatar: numero },
+  martial_arts: { id: 'artes_marciais', nome: 'Artes marciais', formatar: grupoDeDados },
+  ki_points: { id: 'pontos_ki', nome: 'Pontos de ki', formatar: numero },
+  unarmored_movement: { id: 'movimento_sem_armadura', nome: 'Movimento sem armadura (pés)', formatar: numero },
+  aura_range: { id: 'alcance_aura', nome: 'Alcance da aura (pés)', formatar: numero },
+  favored_enemies: { id: 'inimigos_favoritos', nome: 'Inimigos favoritos', formatar: numero },
+  favored_terrain: { id: 'terrenos_favoritos', nome: 'Terrenos favoritos', formatar: numero },
+  sneak_attack: { id: 'ataque_furtivo', nome: 'Ataque furtivo', formatar: grupoDeDados },
+  sorcery_points: { id: 'pontos_feiticaria', nome: 'Pontos de feitiçaria', formatar: numero },
+  metamagic_known: { id: 'metamagias', nome: 'Metamagias conhecidas', formatar: numero },
+  // Uma tabela fixa de custos, igual em todos os níveis: fica no texto da habilidade.
+  creating_spell_slots: null,
+  invocations_known: { id: 'invocacoes', nome: 'Invocações conhecidas', formatar: numero },
+  mystic_arcanum_level_6: { id: 'arcano_mistico_6', nome: 'Arcano místico (6º)', formatar: numero },
+  mystic_arcanum_level_7: { id: 'arcano_mistico_7', nome: 'Arcano místico (7º)', formatar: numero },
+  mystic_arcanum_level_8: { id: 'arcano_mistico_8', nome: 'Arcano místico (8º)', formatar: numero },
+  mystic_arcanum_level_9: { id: 'arcano_mistico_9', nome: 'Arcano místico (9º)', formatar: numero },
+  arcane_recovery_levels: { id: 'recuperacao_arcana', nome: 'Recuperação arcana (níveis)', formatar: numero },
+  cantrips_known: { id: 'truques', nome: 'Truques conhecidos', formatar: numero },
+  spells_known: { id: 'magias_conhecidas', nome: 'Magias conhecidas', formatar: numero },
+  ...Object.fromEntries(
+    [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => [
+      `spell_slots_level_${n}`,
+      { id: `espacos_${n}`, nome: `Espaços de ${n}º nível`, formatar: numero },
+    ]),
+  ),
+};
+
+/**
+ * A tabela de nível de uma classe, a partir das linhas da base (uma por nível).
+ * Colunas sempre vazias ou zeradas ficam de fora, como os espaços de 6º nível do paladino.
+ */
+export function converterTabela(classe: string, niveis: readonly Registro[]): ColunaTabela[] {
+  const linhas = niveis
+    .filter((n) => n.class?.index === classe && !n.subclass)
+    .sort((a, b) => a.level - b.level);
+  if (linhas.length === 0) {
+    return [];
+  }
+  if (linhas.length !== NIVEIS_DA_TABELA || linhas.some((l, i) => l.level !== i + 1)) {
+    throw new ErroDeConversao(`A tabela de ${classe} não tem os níveis de 1 a ${NIVEIS_DA_TABELA}.`);
+  }
+  const chaves: string[] = [];
+  for (const linha of linhas) {
+    for (const chave of [...Object.keys(linha.class_specific ?? {}), ...Object.keys(linha.spellcasting ?? {})]) {
+      if (!chaves.includes(chave)) {
+        chaves.push(chave);
+      }
+    }
+  }
+  const colunas: ColunaTabela[] = [];
+  for (const chave of chaves) {
+    if (!(chave in COLUNAS)) {
+      throw new ErroDeConversao(`Coluna desconhecida na tabela de ${classe}: ${chave}`);
+    }
+    const coluna = COLUNAS[chave];
+    if (!coluna) {
+      continue;
+    }
+    const valores = linhas.map((l) => coluna.formatar((l.class_specific ?? {})[chave] ?? (l.spellcasting ?? {})[chave]));
+    if (valores.some((v) => v !== '' && v !== '0')) {
+      colunas.push({ id: coluna.id, nome: coluna.nome, valores });
+    }
+  }
+  return colunas;
+}
+
+/** Usos de habilidades que o SRD descreve só no texto. Os que dependem do nível leem a tabela da classe. */
+const USOS: Readonly<Record<string, DadosHabilidade['usos']>> = {
+  rage: { maximo: 'tabela(furias)', recarga: 'descanso-longo' },
+  'bardic-inspiration-d6': { maximo: 'max(1, mod(CAR))', recarga: 'descanso-longo' },
+  // A partir do 5º nível, Fonte de Inspiração faz a Inspiração voltar no descanso curto.
+  'bardic-inspiration-d8': { maximo: 'max(1, mod(CAR))', recarga: 'descanso-curto' },
+  'bardic-inspiration-d10': { maximo: 'max(1, mod(CAR))', recarga: 'descanso-curto' },
+  'bardic-inspiration-d12': { maximo: 'max(1, mod(CAR))', recarga: 'descanso-curto' },
+  'channel-divinity-1-rest': { maximo: 'tabela(canalizar_divindade)', recarga: 'descanso-curto' },
+  'channel-divinity-2-rest': { maximo: 'tabela(canalizar_divindade)', recarga: 'descanso-curto' },
+  'channel-divinity-3-rest': { maximo: 'tabela(canalizar_divindade)', recarga: 'descanso-curto' },
+  'channel-divinity': { maximo: '1', recarga: 'descanso-curto' },
+  'action-surge-1-use': { maximo: 'tabela(surto_de_acao)', recarga: 'descanso-curto' },
+  'action-surge-2-uses': { maximo: 'tabela(surto_de_acao)', recarga: 'descanso-curto' },
+  'indomitable-1-use': { maximo: 'tabela(indomavel)', recarga: 'descanso-longo' },
+  'indomitable-2-uses': { maximo: 'tabela(indomavel)', recarga: 'descanso-longo' },
+  'indomitable-3-uses': { maximo: 'tabela(indomavel)', recarga: 'descanso-longo' },
+  'second-wind': { maximo: '1', recarga: 'descanso-curto' },
+  'wild-shape-cr-1-4-or-below-no-flying-or-swim-speed': { maximo: '2', recarga: 'descanso-curto' },
+  'wild-shape-cr-1-2-or-below-no-flying-speed': { maximo: '2', recarga: 'descanso-curto' },
+  'wild-shape-cr-1-or-below': { maximo: '2', recarga: 'descanso-curto' },
+  ki: { maximo: 'tabela(pontos_ki)', recarga: 'descanso-curto' },
+  'font-of-magic': { maximo: 'tabela(pontos_feiticaria)', recarga: 'descanso-longo' },
+  'arcane-recovery': { maximo: '1', recarga: 'descanso-longo' },
+  'divine-sense': { maximo: '1 + mod(CAR)', recarga: 'descanso-longo' },
+  'lay-on-hands': { maximo: 'nivel_classe * 5', recarga: 'descanso-longo' },
+};
+
 // ---------- Classes ----------
 
 export function converterClasse(
   registro: Registro,
   caracteristicas: readonly Registro[],
   idFinal: ReadonlyMap<string, string>,
+  niveis: readonly Registro[] = [],
 ): EntradaDe<'classe'> {
   const proprias = caracteristicas
     .filter((c) => c.class?.index === registro.index && !c.subclass && !c.parent)
@@ -527,6 +657,7 @@ export function converterClasse(
         entradaId: exigirValor(idFinal.get(c.index), `característica ${c.index}`),
       })),
       atributoConjuracao: conjuracao ? traduzir(ATRIBUTO, conjuracao, `conjuração de ${registro.index}`) : null,
+      tabela: converterTabela(registro.index, niveis),
     },
   };
 }
@@ -800,7 +931,7 @@ export function converterSrd(fontes: Fontes): Pacote {
     entradas.push(converterCaracteristica(grupo));
   }
   converter('Traits', converterTraco);
-  converter('Classes', (r) => converterClasse(r, fontes.Features, idFinal));
+  converter('Classes', (r) => converterClasse(r, fontes.Features, idFinal, fontes.Levels));
   converter('Races', converterEspecie);
   converter('Subraces', (r) => converterSubespecie(r, fontes.Races));
   converter('Backgrounds', converterAntecedente);
@@ -816,6 +947,51 @@ export function converterSrd(fontes: Fontes): Pacote {
     creditos: CREDITOS,
     entradas,
   };
+}
+
+/**
+ * Confere as fórmulas do pacote com as regras padrão: as células das tabelas e os usos
+ * das habilidades, que só podem citar colunas da tabela da própria classe.
+ */
+export function formulasQuebradas(pacote: Pacote): string[] {
+  const problemas: string[] = [];
+  const classesDaHabilidade = new Map<string, EntradaDe<'classe'>[]>();
+  for (const entrada of pacote.entradas) {
+    if (entrada.tipo !== 'classe') {
+      continue;
+    }
+    const colunas = new Set(entrada.dados.tabela.map((c) => c.id));
+    for (const coluna of entrada.dados.tabela) {
+      coluna.valores.forEach((valor, i) => {
+        const problema =
+          valor === ''
+            ? null
+            : problemaNaFormula(REGRAS_PADRAO, valor, { extras: [NOME_NIVEL_DA_CLASSE], colunas, dados: 'permitidos' });
+        if (problema) {
+          problemas.push(`${entrada.id}, ${coluna.id}, nível ${i + 1}: ${problema}`);
+        }
+      });
+    }
+    for (const { entradaId } of entrada.dados.habilidades) {
+      classesDaHabilidade.set(entradaId, [...(classesDaHabilidade.get(entradaId) ?? []), entrada]);
+    }
+  }
+  for (const entrada of pacote.entradas) {
+    if (entrada.tipo !== 'habilidade' || !entrada.dados.usos) {
+      continue;
+    }
+    const classes = classesDaHabilidade.get(entrada.id) ?? [];
+    const opcoes = (colunas: ReadonlySet<string> | null) =>
+      ({ extras: classes.length > 0 ? [NOME_NIVEL_DA_CLASSE] : [], colunas, dados: 'proibidos' }) as const;
+    const conferencias = classes.length > 0 ? classes.map((c) => new Set(c.dados.tabela.map((col) => col.id))) : [null];
+    for (const colunas of conferencias) {
+      const problema = problemaNaFormula(REGRAS_PADRAO, entrada.dados.usos.maximo, opcoes(colunas));
+      if (problema) {
+        problemas.push(`${entrada.id}, usos: ${problema}`);
+      }
+    }
+  }
+  return problemas;
 }
 
 /** Confere que toda referência entre entradas aponta para uma entrada do pacote. */

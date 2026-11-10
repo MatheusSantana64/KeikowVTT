@@ -92,6 +92,60 @@ export function CampoNumero({
   );
 }
 
+/**
+ * Uma fórmula, conferida enquanto se digita. O texto é guardado mesmo com erro,
+ * para não atrapalhar quem está no meio da digitação; o aviso fica embaixo do campo.
+ */
+export function CampoFormula({
+  rotulo,
+  valor,
+  aoMudar,
+  conferir,
+  dica,
+  largo,
+}: CampoProps & {
+  readonly valor: string;
+  readonly aoMudar: (valor: string) => void;
+  /** Devolve o problema da fórmula, ou `null`. */
+  readonly conferir: (texto: string) => string | null;
+  readonly dica?: string;
+}) {
+  const [rascunho, setRascunho] = useState(valor);
+  const idAviso = useId();
+
+  useEffect(() => {
+    if (rascunho !== valor) {
+      setRascunho(valor);
+    }
+    // Só deve reagir a mudanças do valor, não do rascunho.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valor]);
+
+  const problema = conferir(rascunho);
+  return (
+    <Moldura rotulo={rotulo} largo={largo}>
+      <input
+        type="text"
+        className="campo-formula"
+        value={rascunho}
+        placeholder={dica}
+        spellCheck={false}
+        aria-invalid={problema !== null}
+        aria-describedby={problema ? idAviso : undefined}
+        onChange={(e) => {
+          setRascunho(e.target.value);
+          aoMudar(e.target.value);
+        }}
+      />
+      {problema && (
+        <small id={idAviso} className="campo-problema">
+          {problema}
+        </small>
+      )}
+    </Moldura>
+  );
+}
+
 export function CampoOpcoes<T extends string>({
   rotulo,
   valor,

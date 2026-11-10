@@ -1,0 +1,305 @@
+/**
+ * As regras do sistema, guardadas como dados: cada valor da ficha é uma fórmula com nome.
+ * O programa traz regras parecidas com 5e (`regrasPadrao.ts`); cada campanha poderá
+ * ter a própria cópia, editável.
+ */
+import { ATRIBUTOS, type Atributo } from './entradas';
+import { lerFormula, normalizarNome, usoDaFormula, type FormulaLida } from './formulas';
+import { ehObjeto, ErroDeFormato, exigir } from './persistencia';
+
+export interface DefinicaoValor {
+  /** Nome usado nas fórmulas e nos efeitos, como `ca`. */
+  readonly id: string;
+  /** Nome mostrado na ficha, como "Classe de Armadura". */
+  readonly nome: string;
+  readonly formula: string;
+  readonly descricao: string;
+}
+
+export interface DefinicaoPericia {
+  readonly id: string;
+  readonly nome: string;
+  readonly atributo: Atributo;
+}
+
+export interface Regras {
+  readonly nome: string;
+  /** Nome de cada atributo, como "Destreza". */
+  readonly atributos: Readonly<Record<Atributo, string>>;
+  /** O modificador de um atributo. `valor` é o valor do atributo. */
+  readonly modificador: string;
+  /** O bônus de uma perícia. `atributo` é o valor do atributo dela; `proficiencia`, o multiplicador (0, ½, 1 ou 2). */
+  readonly formulaPericia: string;
+  /** O bônus de uma salvaguarda, com os mesmos nomes da perícia. */
+  readonly formulaSalvaguarda: string;
+  readonly pericias: readonly DefinicaoPericia[];
+  /** Os demais valores da ficha, na ordem em que aparecem. */
+  readonly valores: readonly DefinicaoValor[];
+}
+
+/** Valores que vêm da própria ficha, e não de uma fórmula. */
+export const ENTRADAS_DA_FICHA: Readonly<Record<string, string>> = {
+  nivel: 'Nível',
+  pv_dos_dados: 'PV dos dados de vida',
+  deslocamento_base: 'Deslocamento da espécie',
+  conjuracao: 'Atributo de conjuração',
+};
+
+/** Nomes que só existem dentro de certas fórmulas. */
+export const NOME_DO_VALOR_NO_MODIFICADOR = 'valor';
+export const NOMES_LOCAIS_DA_PERICIA = ['atributo', 'proficiencia'] as const;
+/** Nas fórmulas de habilidades de uma classe: o nível naquela classe. */
+export const NOME_NIVEL_DA_CLASSE = 'nivel_classe';
+
+const RESERVADOS: ReadonlySet<string> = new Set([
+  'e',
+  'ou',
+  'ilimitado',
+  NOME_DO_VALOR_NO_MODIFICADOR,
+  ...NOMES_LOCAIS_DA_PERICIA,
+  NOME_NIVEL_DA_CLASSE,
+]);
+
+export function idSalvaguarda(atributo: Atributo): string {
+  return `salvaguarda_${atributo}`;
+}
+
+/** Todos os nomes que qualquer fórmula da ficha pode citar. */
+export function nomesDasRegras(regras: Regras): ReadonlySet<string> {
+  return new Set([
+    ...ATRIBUTOS,
+    ...Object.keys(ENTRADAS_DA_FICHA),
+    ...ATRIBUTOS.map(idSalvaguarda),
+    ...regras.pericias.map((p) => p.id),
+    ...regras.valores.map((v) => v.id),
+  ]);
+}
+
+/** O nome legível de um nome usado nas fórmulas: `des` → "Destreza". */
+export function rotuloDoNome(regras: Regras, nome: string): string {
+  if ((ATRIBUTOS as readonly string[]).includes(nome)) {
+    return regras.atributos[nome as Atributo];
+  }
+  const salvaguarda = ATRIBUTOS.find((a) => idSalvaguarda(a) === nome);
+  if (salvaguarda) {
+    return `Salvaguarda de ${regras.atributos[salvaguarda]}`;
+  }
+  return (
+    ENTRADAS_DA_FICHA[nome] ??
+    regras.pericias.find((p) => p.id === nome)?.nome ??
+    regras.valores.find((v) => v.id === nome)?.nome ??
+    (nome === NOME_NIVEL_DA_CLASSE ? 'Nível na classe' : nome)
+  );
+}
+
+export interface OpcoesDeConferencia {
+  /** Nomes a mais que esta fórmula pode citar, como `nivel_classe`. */
+  readonly extras?: Iterable<string>;
+  /** Colunas que `tabela(...)` pode citar: `null` proíbe `tabela`, `'qualquer'` não confere. */
+  readonly colunas: ReadonlySet<string> | null | 'qualquer';
+  readonly dados: 'permitidos' | 'proibidos';
+}
+
+/**
+ * Confere uma fórmula de entrada do compêndio antes de usá-la, como os usos de uma habilidade
+ * ou uma célula da tabela. Devolve o primeiro problema, ou `null` se estiver tudo certo.
+ */
+export function problemaNaFormula(regras: Regras, texto: string, opcoes: OpcoesDeConferencia): string | null {
+  const lido = lerFormula(texto);
+  if (!lido.ok) {
+    return lido.erro;
+  }
+  const uso = usoDaFormula(lido.formula);
+  const permitidos = new Set([...nomesDasRegras(regras), ...(opcoes.extras ?? [])]);
+  const desconhecido = [...uso.nomes].find((nome) => !permitidos.has(nome));
+  if (desconhecido) {
+    return `Nome desconhecido: "${desconhecido}".`;
+  }
+  const funcao = [...uso.funcoes].find((f) => f !== 'mod');
+  if (funcao) {
+    return `Função desconhecida: "${funcao}".`;
+  }
+  if (uso.colunas.size > 0) {
+    if (opcoes.colunas === null) {
+      return '"tabela(...)" só funciona em fórmulas de uma classe.';
+    }
+    if (opcoes.colunas !== 'qualquer') {
+      const permitidas = opcoes.colunas;
+      const coluna = [...uso.colunas].find((c) => !permitidas.has(c));
+      if (coluna) {
+        return `A tabela da classe não tem a coluna "${coluna}".`;
+      }
+    }
+  }
+  if (uso.temDados && opcoes.dados === 'proibidos') {
+    return 'Esta fórmula não pode rolar dados.';
+  }
+  return null;
+}
+
+export interface ProblemaNasRegras {
+  /** Onde está o problema, como "Classe de Armadura". */
+  readonly onde: string;
+  readonly erro: string;
+}
+
+/**
+ * Confere as regras antes de usá-las: fórmulas válidas, nomes conhecidos,
+ * nada de dados e nenhum valor que dependa de si mesmo.
+ */
+export function conferirRegras(regras: Regras): ProblemaNasRegras[] {
+  const problemas: ProblemaNasRegras[] = [];
+  const globais = nomesDasRegras(regras);
+
+  // Ids: válidos, sem repetir e sem tomar nomes reservados.
+  const vistos = new Set<string>([...ATRIBUTOS, ...Object.keys(ENTRADAS_DA_FICHA), ...ATRIBUTOS.map(idSalvaguarda)]);
+  for (const { id, nome } of [...regras.pericias, ...regras.valores]) {
+    if (!/^[a-z_][a-z0-9_]*$/.test(id)) {
+      problemas.push({ onde: nome, erro: `O nome "${id}" só pode ter letras minúsculas sem acento, números e "_".` });
+    } else if (vistos.has(id) || RESERVADOS.has(id)) {
+      problemas.push({ onde: nome, erro: `O nome "${id}" já é usado por outra coisa.` });
+    }
+    vistos.add(id);
+  }
+
+  const lidas = new Map<string, FormulaLida>();
+  const conferir = (
+    onde: string,
+    chave: string,
+    texto: string,
+    permitidos: ReadonlySet<string>,
+    podeUsarMod: boolean,
+  ) => {
+    const lido = lerFormula(texto);
+    if (!lido.ok) {
+      problemas.push({ onde, erro: lido.erro });
+      return;
+    }
+    lidas.set(chave, lido.formula);
+    const uso = usoDaFormula(lido.formula);
+    for (const nome of uso.nomes) {
+      if (!permitidos.has(nome)) {
+        problemas.push({ onde, erro: `Nome desconhecido: "${nome}".` });
+      }
+    }
+    for (const funcao of uso.funcoes) {
+      if (!(podeUsarMod && funcao === 'mod')) {
+        problemas.push({ onde, erro: `Função desconhecida: "${funcao}".` });
+      }
+    }
+    if (uso.colunas.size > 0) {
+      problemas.push({ onde, erro: '"tabela(...)" só funciona em habilidades de uma classe, não nas regras gerais.' });
+    }
+    if (uso.temDados) {
+      problemas.push({ onde, erro: 'As regras da ficha não podem rolar dados.' });
+    }
+  };
+
+  conferir('Modificador', '#modificador', regras.modificador, new Set([NOME_DO_VALOR_NO_MODIFICADOR]), false);
+  const comLocais = new Set([...globais, ...NOMES_LOCAIS_DA_PERICIA]);
+  conferir('Fórmula das perícias', '#pericia', regras.formulaPericia, comLocais, true);
+  conferir('Fórmula das salvaguardas', '#salvaguarda', regras.formulaSalvaguarda, comLocais, true);
+  for (const valor of regras.valores) {
+    conferir(valor.nome, valor.id, valor.formula, globais, true);
+  }
+
+  // Dependências entre valores calculados, para achar círculos como "ca depende de ca".
+  const calculados = new Set([...regras.pericias.map((p) => p.id), ...ATRIBUTOS.map(idSalvaguarda), ...regras.valores.map((v) => v.id)]);
+  const usosDe = (chave: string) => {
+    const lida = lidas.get(chave);
+    return lida ? [...usoDaFormula(lida).nomes].filter((n) => calculados.has(n)) : [];
+  };
+  const dependencias = new Map<string, string[]>();
+  for (const pericia of regras.pericias) {
+    dependencias.set(pericia.id, usosDe('#pericia'));
+  }
+  for (const atributo of ATRIBUTOS) {
+    dependencias.set(idSalvaguarda(atributo), usosDe('#salvaguarda'));
+  }
+  for (const valor of regras.valores) {
+    dependencias.set(valor.id, usosDe(valor.id));
+  }
+  const estado = new Map<string, 'visitando' | 'pronto'>();
+  const caminho: string[] = [];
+  const circulos = new Set<string>();
+  const visitar = (id: string) => {
+    if (estado.get(id) === 'pronto') {
+      return;
+    }
+    if (estado.get(id) === 'visitando') {
+      const ciclo = [...caminho.slice(caminho.indexOf(id)), id];
+      const chave = [...new Set(ciclo)].sort().join(',');
+      if (!circulos.has(chave)) {
+        circulos.add(chave);
+        problemas.push({
+          onde: rotuloDoNome(regras, id),
+          erro: `Depende de si mesmo: ${ciclo.join(' → ')}.`,
+        });
+      }
+      return;
+    }
+    estado.set(id, 'visitando');
+    caminho.push(id);
+    for (const proximo of dependencias.get(id) ?? []) {
+      visitar(proximo);
+    }
+    caminho.pop();
+    estado.set(id, 'pronto');
+  };
+  for (const id of dependencias.keys()) {
+    visitar(id);
+  }
+  return problemas;
+}
+
+// ---------- Leitura de regras guardadas ----------
+
+function texto(d: Record<string, unknown>, campo: string, onde: string): string {
+  const valor = d[campo];
+  exigir(typeof valor === 'string', `${onde}: "${campo}" precisa ser um texto.`);
+  return valor;
+}
+
+/** Lê regras guardadas num arquivo ou na campanha, e confere as fórmulas. */
+export function lerRegras(valor: unknown): Regras {
+  exigir(ehObjeto(valor), 'As regras não são válidas.');
+  const atributos = valor.atributos;
+  exigir(ehObjeto(atributos), 'As regras estão sem os nomes dos atributos.');
+  const nomesAtributos = Object.fromEntries(
+    ATRIBUTOS.map((a) => [a, texto(atributos, a, 'Os nomes dos atributos')]),
+  ) as Record<Atributo, string>;
+  exigir(Array.isArray(valor.pericias), 'As regras estão sem a lista de perícias.');
+  exigir(Array.isArray(valor.valores), 'As regras estão sem a lista de valores.');
+  const regras: Regras = {
+    nome: texto(valor, 'nome', 'As regras'),
+    atributos: nomesAtributos,
+    modificador: texto(valor, 'modificador', 'As regras'),
+    formulaPericia: texto(valor, 'formulaPericia', 'As regras'),
+    formulaSalvaguarda: texto(valor, 'formulaSalvaguarda', 'As regras'),
+    pericias: valor.pericias.map((p, i) => {
+      const onde = `A perícia nº ${i + 1}`;
+      exigir(ehObjeto(p), `${onde} não é válida.`);
+      const atributo = p.atributo;
+      exigir(
+        typeof atributo === 'string' && (ATRIBUTOS as readonly string[]).includes(atributo),
+        `${onde}: o atributo é desconhecido.`,
+      );
+      return { id: normalizarNome(texto(p, 'id', onde)), nome: texto(p, 'nome', onde), atributo: atributo as Atributo };
+    }),
+    valores: valor.valores.map((v, i) => {
+      const onde = `O valor nº ${i + 1}`;
+      exigir(ehObjeto(v), `${onde} não é válido.`);
+      return {
+        id: normalizarNome(texto(v, 'id', onde)),
+        nome: texto(v, 'nome', onde),
+        formula: texto(v, 'formula', onde),
+        descricao: typeof v.descricao === 'string' ? v.descricao : '',
+      };
+    }),
+  };
+  const problemas = conferirRegras(regras);
+  if (problemas.length > 0) {
+    throw new ErroDeFormato(`Regras com problema em "${problemas[0].onde}": ${problemas[0].erro}`);
+  }
+  return regras;
+}
