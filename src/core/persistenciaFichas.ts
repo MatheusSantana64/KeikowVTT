@@ -1,16 +1,41 @@
-import { ATRIBUTOS, type Atributo } from './entradas';
+import { ATRIBUTOS, MOEDAS, type Atributo } from './entradas';
 import {
+  MOEDAS_ZERADAS,
   MULTIPLICADORES_PROFICIENCIA,
   NIVEL_MAXIMO,
+  SECOES_PADRAO,
+  TIPOS_EXTRAS,
   TIPOS_FICHA,
   type EstadoFichas,
   type Ficha,
+  type Moeda,
+  type NotaDaFicha,
+  type PilhaDeItem,
+  type SecaoDaFicha,
   type TipoFicha,
 } from './fichas';
 import { ehObjeto, exigir, type ResultadoDe } from './persistencia';
 import { atualizarEntradas, comoResultado, lerEntradas, lerJson, VERSAO_COMPENDIO } from './persistenciaCompendio';
 
-const VERSAO_FICHAS = 1;
+/** Aumente ao mudar o formato das fichas, e acrescente a conversão em `converterFicha`. */
+const VERSAO_FICHAS = 2;
+
+/** Passa uma ficha gravada numa versão antiga para a atual, ainda sem conferir. */
+function converterFicha(ficha: unknown, versao: number): unknown {
+  if (!ehObjeto(ficha) || versao >= 2) {
+    return ficha;
+  }
+  // Versão 2: inventário, cartas extras, moedas e seções. A nota única virou uma carta de nota.
+  const notaAntiga = typeof ficha.notas === 'string' ? ficha.notas : '';
+  return {
+    ...ficha,
+    itens: [],
+    extras: [],
+    notas: notaAntiga.trim() === '' ? [] : [{ id: 'nota-antiga', titulo: 'Notas', texto: notaAntiga }],
+    moedas: { ...MOEDAS_ZERADAS },
+    secoes: SECOES_PADRAO,
+  };
+}
 
 type Dado = Record<string, unknown>;
 
@@ -89,8 +114,70 @@ function lerFicha(valor: unknown, onde: string, versaoEntradas: number): Ficha {
     pvPorNivel,
     pvAtuais: valor.pvAtuais === null ? null : inteiro(valor.pvAtuais, `${onde}: os PV atuais`, -1000),
     pvTemporarios: inteiro(valor.pvTemporarios, `${onde}: os PV temporários`, 0),
-    notas: texto(valor, 'notas', onde),
+    ...lerOrganizacao(valor, onde, entradas),
   };
+}
+
+function listaDe<T>(valor: unknown, onde: string, ler: (item: Dado, aqui: string) => T): T[] {
+  exigir(Array.isArray(valor), `${onde} não é uma lista.`);
+  return valor.map((item, i) => {
+    const aqui = `${onde} nº ${i + 1}`;
+    exigir(ehObjeto(item), `${aqui} não é válido.`);
+    return ler(item, aqui);
+  });
+}
+
+function semRepetir(ids: readonly string[], onde: string): void {
+  exigir(new Set(ids).size === ids.length, `${onde}: há ids repetidos.`);
+}
+
+/** Inventário, extras, notas, moedas e seções, conferindo que cada um cita uma cópia do tipo certo. */
+function lerOrganizacao(valor: Dado, onde: string, entradas: Record<string, { tipo: string }>) {
+  const itens: PilhaDeItem[] = listaDe(valor.itens, `${onde}: o item`, (p, aqui) => {
+    const entradaId = texto(p, 'entradaId', aqui);
+    exigir(entradas[entradaId]?.tipo === 'item', `${aqui} não está entre as cópias da ficha.`);
+    exigir(typeof p.equipado === 'boolean' && typeof p.sintonizado === 'boolean', `${aqui} tem marcas inválidas.`);
+    return {
+      id: texto(p, 'id', aqui),
+      entradaId,
+      quantidade: inteiro(p.quantidade, aqui, 1),
+      equipado: p.equipado as boolean,
+      sintonizado: p.sintonizado as boolean,
+    };
+  });
+  semRepetir(itens.map((p) => p.id), `${onde}: os itens`);
+
+  exigir(Array.isArray(valor.extras), `${onde} está sem a lista de extras.`);
+  const extras = valor.extras.map((id, i) => {
+    exigir(
+      typeof id === 'string' && (TIPOS_EXTRAS as readonly string[]).includes(entradas[id]?.tipo ?? ''),
+      `${onde}: o extra nº ${i + 1} não está entre as cópias da ficha.`,
+    );
+    return id;
+  });
+  semRepetir(extras, `${onde}: os extras`);
+
+  const notas: NotaDaFicha[] = listaDe(valor.notas, `${onde}: a nota`, (n, aqui) => ({
+    id: texto(n, 'id', aqui),
+    titulo: texto(n, 'titulo', aqui),
+    texto: texto(n, 'texto', aqui),
+  }));
+  semRepetir(notas.map((n) => n.id), `${onde}: as notas`);
+
+  const moedas = valor.moedas;
+  exigir(ehObjeto(moedas), `${onde} está sem as moedas.`);
+  const lidasMoedas = Object.fromEntries(
+    MOEDAS.map((m) => [m, inteiro(moedas[m], `${onde}: as moedas`, 0)]),
+  ) as Record<Moeda, number>;
+
+  const secoes: SecaoDaFicha[] = listaDe(valor.secoes, `${onde}: a seção`, (s, aqui) => {
+    exigir(Array.isArray(s.cartas) && s.cartas.every((c) => typeof c === 'string'), `${aqui} tem cartas inválidas.`);
+    return { id: texto(s, 'id', aqui), nome: texto(s, 'nome', aqui), cartas: s.cartas as string[] };
+  });
+  exigir(secoes.length > 0, `${onde} precisa ter ao menos uma seção.`);
+  semRepetir(secoes.map((s) => s.id), `${onde}: as seções`);
+
+  return { itens, extras, notas, moedas: lidasMoedas, secoes };
 }
 
 export function fichasParaObjeto(estado: EstadoFichas) {
@@ -103,7 +190,11 @@ export function fichasParaObjeto(estado: EstadoFichas) {
 }
 
 function lerEstado(dados: unknown, onde: string): EstadoFichas {
-  exigir(ehObjeto(dados) && dados.versao === VERSAO_FICHAS, `${onde} usam um formato desconhecido.`);
+  exigir(
+    ehObjeto(dados) && typeof dados.versao === 'number' && Number.isInteger(dados.versao) && dados.versao >= 1 && dados.versao <= VERSAO_FICHAS,
+    `${onde} usam um formato desconhecido.`,
+  );
+  const versao = dados.versao as number;
   const versaoEntradas = dados.versaoEntradas;
   exigir(
     typeof versaoEntradas === 'number' && Number.isInteger(versaoEntradas) && versaoEntradas >= 1 && versaoEntradas <= VERSAO_COMPENDIO,
@@ -112,7 +203,7 @@ function lerEstado(dados: unknown, onde: string): EstadoFichas {
   exigir(Array.isArray(dados.fichas), `${onde} estão sem a lista de fichas.`);
   const fichas: Record<string, Ficha> = {};
   dados.fichas.forEach((item, i) => {
-    const ficha = lerFicha(item, `A ficha nº ${i + 1}`, versaoEntradas);
+    const ficha = lerFicha(converterFicha(item, versao), `A ficha nº ${i + 1}`, versaoEntradas);
     exigir(!(ficha.id in fichas), `A ficha "${ficha.id}" está repetida.`);
     fichas[ficha.id] = ficha;
   });

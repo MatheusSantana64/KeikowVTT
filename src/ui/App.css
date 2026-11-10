@@ -710,6 +710,260 @@ body {
   white-space: pre-wrap;
 }
 
+/* Inventário e organização */
+
+.organizacao-topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.organizacao-peso {
+  margin: 0;
+  font-size: 13px;
+}
+
+.organizacao-moedas {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 120px));
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+.organizacao-adicionar {
+  margin-bottom: 12px;
+}
+
+.organizacao-adicionar input[type='search'] {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #1d2029;
+  color: #e6e3da;
+  font: inherit;
+  font-size: 14px;
+}
+
+.organizacao-resultados {
+  margin: 6px 0 0;
+  padding: 4px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #191b22;
+  list-style: none;
+}
+
+.organizacao-resultados button {
+  width: 100%;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: #e6e3da;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}
+
+.organizacao-resultados button:hover:not(:disabled) {
+  background: #262a35;
+}
+
+.organizacao-resultados button:disabled {
+  color: #6b6d68;
+  cursor: default;
+}
+
+.organizacao-resultados small {
+  color: #a5a79f;
+}
+
+.organizacao-secoes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.organizacao-secao {
+  border: 1px solid #333846;
+  border-radius: 6px;
+  background: #191b22;
+}
+
+.organizacao-secao > header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #262a35;
+}
+
+.organizacao-secao > header input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  color: #e6e3da;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.organizacao-secao > header input:hover,
+.organizacao-secao > header input:focus {
+  border-color: #333846;
+  background: #1d2029;
+  outline: none;
+}
+
+.organizacao-secao > header small {
+  color: #6b6d68;
+}
+
+.organizacao-secao button,
+.carta button,
+.carta select {
+  padding: 2px 8px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #2a2e3a;
+  color: #e6e3da;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.organizacao-secao button:disabled {
+  color: #6b6d68;
+  cursor: default;
+}
+
+.organizacao-secao ul {
+  min-height: 34px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+}
+
+.organizacao-vazia {
+  padding: 6px;
+}
+
+.organizacao-carta {
+  border-top: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+  cursor: grab;
+}
+
+.organizacao-carta.alvo-antes {
+  border-top-color: #7fd4ff;
+}
+
+.organizacao-carta.alvo-depois {
+  border-bottom-color: #7fd4ff;
+}
+
+.carta {
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.carta:hover {
+  background: #1f232c;
+}
+
+.carta-linha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.carta-linha > small {
+  color: #a5a79f;
+}
+
+.carta .carta-nome {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #e6e3da;
+  font-size: 14px;
+  text-align: left;
+}
+
+.carta .carta-nome:hover {
+  text-decoration: underline;
+}
+
+.carta-lugar {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.carta-quantidade {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.carta .campo-marcar {
+  padding: 0;
+  font-size: 12px;
+}
+
+.carta-titulo {
+  flex: 1;
+  min-width: 120px;
+  padding: 3px 6px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #1d2029;
+  color: #e6e3da;
+  font: inherit;
+  font-weight: 600;
+}
+
+.carta-nota textarea {
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #1d2029;
+  color: #e6e3da;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.carta-detalhes {
+  margin: 6px 0 4px;
+  padding: 8px;
+  border-left: 2px solid #333846;
+}
+
+.carta-detalhes > p {
+  margin: 0 0 8px;
+  color: #c9c6bd;
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+.carta-detalhes .formulario {
+  margin-bottom: 8px;
+}
+
 .explicacao {
   position: fixed;
   z-index: 20;

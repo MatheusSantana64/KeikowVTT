@@ -228,6 +228,11 @@ function base<T extends TipoEntrada>(
   };
 }
 
+/** O programa usa quilos; o SRD, libras. 1 libra = 0,5 kg, como na edição brasileira do 5e. */
+export function libraEmQuilo(libras: number): number {
+  return libras / 2;
+}
+
 function custo(registro: Registro): DadosItem['custo'] {
   const c = registro.cost;
   if (!c || typeof c.quantity !== 'number') {
@@ -306,7 +311,7 @@ export function converterEquipamento(registro: Registro): EntradaDe<'item'> {
     ...base('item', id('equipamento', registro.index), registro.name, descricaoDoEquipamento(registro), nomes(registro.equipment_categories)),
     dados: {
       categoria,
-      peso: registro.weight ?? 0,
+      peso: libraEmQuilo(registro.weight ?? 0),
       custo: custo(registro),
       raridade: null,
       requerSintonia: false,

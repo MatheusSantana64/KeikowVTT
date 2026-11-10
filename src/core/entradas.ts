@@ -122,7 +122,7 @@ export interface DadosArmadura {
 
 export interface DadosItem {
   readonly categoria: (typeof CATEGORIAS_ITEM)[number];
-  /** Em libras, como no SRD. */
+  /** Em quilos. O SRD usa libras; a conversão é 1 libra = 0,5 kg, como na edição brasileira do 5e. */
   readonly peso: number;
   readonly custo: { readonly quantidade: number; readonly moeda: (typeof MOEDAS)[number] } | null;
   readonly raridade: (typeof RARIDADES)[number] | null;

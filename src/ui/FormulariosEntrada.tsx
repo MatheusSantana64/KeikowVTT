@@ -224,7 +224,7 @@ export function FormularioItem({ dados, mudar }: PropsFormulario<'item'>) {
   return (
     <>
       <CampoOpcoes rotulo="Categoria" valor={dados.categoria} rotulos={ROTULO_CATEGORIA} aoMudar={(v) => v && mudar({ categoria: v }, 'categoria')} />
-      <CampoNumero rotulo="Peso (libras)" minimo={0} valor={dados.peso} aoMudar={(v) => v !== null && mudar({ peso: v }, 'peso')} />
+      <CampoNumero rotulo="Peso (kg)" minimo={0} valor={dados.peso} aoMudar={(v) => v !== null && mudar({ peso: v }, 'peso')} />
       <CampoOpcoes
         rotulo="Raridade"
         nenhum="Nenhuma"

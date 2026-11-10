@@ -272,6 +272,14 @@ describe('listas e arquivos de compêndio', () => {
     expect(desserializarCompendio(JSON.stringify({ versao: 2, entradas: [antiga] }))).toEqual(esperado);
   });
 
+  it('itens das versões 1 a 3 passam de libras para quilos', () => {
+    const lanterna = { ...criarEntrada('item', 'lanterna'), dados: { ...criarEntrada('item', 'x').dados, peso: 2 } };
+    const lido = desserializarCompendio(JSON.stringify({ versao: 3, entradas: [lanterna] }));
+    expect(lido.ok && lido.estado.entradas.lanterna.dados).toMatchObject({ peso: 1 });
+    const atual = desserializarCompendio(JSON.stringify({ versao: 4, entradas: [lanterna] }));
+    expect(atual.ok && atual.estado.entradas.lanterna.dados).toMatchObject({ peso: 2 });
+  });
+
   it('confere a tabela da classe', () => {
     const classe = criarEntrada('classe', 'guerreiro');
     const coluna = { id: 'surto_de_acao', nome: 'Surto de ação', valores: Array(20).fill('1') };

@@ -1,12 +1,6 @@
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent } from 'react';
 import type { Calculado, Calculo } from '../core/calculadora';
-import {
-  calcularFicha,
-  habilidadesDaFicha,
-  proficienciasAutomaticas,
-  proficienciasDaFicha,
-  usosDaHabilidade,
-} from '../core/calculoDaFicha';
+import { calcularFicha, proficienciasAutomaticas, proficienciasDaFicha } from '../core/calculoDaFicha';
 import type { LojaCampanha } from '../core/campanha';
 import { buscarEntradas, type EstadoCompendio, type LojaCompendio } from '../core/compendio';
 import { ATRIBUTOS, type Atributo, type EntradaDe } from '../core/entradas';
@@ -30,7 +24,8 @@ import { idSalvaguarda } from '../core/regras';
 import { REGRAS_PADRAO } from '../core/regrasPadrao';
 import { CampoNumero, CampoTexto } from './camposFormulario';
 import { comSinal, ExplicacaoValor, type Explicando } from './ExplicacaoValor';
-import { ROTULO_RECARGA, ROTULO_TAMANHO } from './rotulosCompendio';
+import { OrganizacaoFicha } from './OrganizacaoFicha';
+import { ROTULO_TAMANHO } from './rotulosCompendio';
 
 const ROTULO_TIPO_FICHA: Readonly<Record<TipoFicha, string>> = {
   personagem: 'Personagem',
@@ -311,12 +306,8 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, aoApagar }: 
       <BlocoAtributos ficha={ficha} calculo={calculo} editar={editar} explicar={explicar} />
       <BlocoCombate ficha={ficha} calculo={calculo} editar={editar} explicar={explicar} />
       <BlocoTestes ficha={ficha} calculo={calculo} editar={editar} explicar={explicar} />
-      <BlocoHabilidades ficha={ficha} calculo={calculo} />
       {ficha.tipo !== 'monstro' && <BlocoDadosDeVida ficha={ficha} editar={editar} />}
-
-      <div className="formulario ficha-secao">
-        <CampoTexto rotulo="Notas" multilinha valor={ficha.notas} aoMudar={(notas) => editar({ ...ficha, notas }, 'notas')} />
-      </div>
+      <OrganizacaoFicha ficha={ficha} compendio={compendio} calculo={calculo} regras={REGRAS} editar={editar} />
 
       {explicando && <ExplicacaoValor explicando={explicando} aoFechar={fecharExplicacao} />}
     </div>
@@ -528,40 +519,6 @@ function BlocoTestes({ ficha, calculo, editar, explicar }: PropsBloco) {
           {REGRAS.pericias.map((p) => linha(p.id, p.nome, p.atributo.toUpperCase()))}
         </ul>
       </div>
-    </section>
-  );
-}
-
-function BlocoHabilidades({ ficha, calculo }: { readonly ficha: Ficha; readonly calculo: Calculo }) {
-  const habilidades = habilidadesDaFicha(ficha);
-  if (habilidades.length === 0) {
-    return null;
-  }
-  return (
-    <section className="ficha-secao">
-      <h3>Habilidades</h3>
-      <ul className="ficha-habilidades">
-        {habilidades.map((h) => {
-          const usos = usosDaHabilidade(calculo, h);
-          const recarga = h.entrada.dados.usos ? ROTULO_RECARGA[h.entrada.dados.usos.recarga].toLowerCase() : '';
-          return (
-            <li key={h.entrada.id}>
-              <details>
-                <summary>
-                  <span>{h.entrada.nome}</span>
-                  <small>{h.origem}</small>
-                  {usos && (
-                    <span className="ficha-usos" title={usos.ok ? `Fórmula: ${h.entrada.dados.usos?.maximo}` : usos.erro}>
-                      {usos.ok ? `${formatarNumero(usos.valor)} por ${recarga}` : 'usos: —'}
-                    </span>
-                  )}
-                </summary>
-                <p>{h.entrada.descricao || 'Sem descrição.'}</p>
-              </details>
-            </li>
-          );
-        })}
-      </ul>
     </section>
   );
 }

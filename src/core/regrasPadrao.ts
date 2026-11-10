@@ -17,6 +17,8 @@ export const REGRAS_PADRAO: Regras = {
   modificador: 'piso((valor - 10) / 2)',
   formulaPericia: 'mod(atributo) + piso(prof * proficiencia)',
   formulaSalvaguarda: 'mod(atributo) + piso(prof * proficiencia)',
+  // 50 moedas pesam 0,5 kg, como no 5e.
+  pesoPorMoeda: 0.01,
   pericias: [
     // Os apelidos em inglês permitem ler monstros e antecedentes do SRD.
     { id: 'acrobacia', nome: 'Acrobacia', atributo: 'des', apelidos: ['Acrobatics'] },
@@ -72,6 +74,6 @@ export const REGRAS_PADRAO: Regras = {
       formula: 'prof + mod(conjuracao)',
       descricao: 'Só para quem conjura magias.',
     },
-    { id: 'capacidade_carga', nome: 'Capacidade de carga', formula: 'FOR * 15', descricao: 'Em libras.' },
+    { id: 'capacidade_carga', nome: 'Capacidade de carga', formula: 'FOR * 7.5', descricao: 'Em quilos.' },
   ],
 };

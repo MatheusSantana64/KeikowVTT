@@ -34,7 +34,7 @@ import {
 } from './persistencia';
 
 /** Aumente ao mudar o formato das entradas, e acrescente a conversão em CONVERSOES. */
-export const VERSAO_COMPENDIO = 3;
+export const VERSAO_COMPENDIO = 4;
 
 type Dado = Record<string, unknown>;
 
@@ -422,6 +422,15 @@ const CONVERSOES: Readonly<Record<number, (entradas: unknown) => unknown>> = {
     }),
   // Versão 3: as classes ganharam a tabela de nível.
   2: (entradas) => completarDados(entradas, 'classe', { tabela: [] }),
+  // Versão 4: o peso dos itens passou de libras para quilos (1 libra = 0,5 kg).
+  3: (entradas) =>
+    Array.isArray(entradas)
+      ? entradas.map((entrada) =>
+          ehObjeto(entrada) && entrada.tipo === 'item' && ehObjeto(entrada.dados) && typeof entrada.dados.peso === 'number'
+            ? { ...entrada, dados: { ...entrada.dados, peso: entrada.dados.peso / 2 } }
+            : entrada,
+        )
+      : entradas,
 };
 
 /**

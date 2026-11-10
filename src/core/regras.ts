@@ -49,6 +49,8 @@ export interface Regras {
   /** O bônus de uma salvaguarda, com os mesmos nomes da perícia. */
   readonly formulaSalvaguarda: string;
   readonly pericias: readonly DefinicaoPericia[];
+  /** Peso de cada moeda, em quilos. Zero faz as moedas não pesarem. */
+  readonly pesoPorMoeda: number;
   /** Os demais valores da ficha, na ordem em que aparecem. */
   readonly valores: readonly DefinicaoValor[];
 }
@@ -292,6 +294,11 @@ export function lerRegras(valor: unknown): Regras {
     modificador: texto(valor, 'modificador', 'As regras'),
     formulaPericia: texto(valor, 'formulaPericia', 'As regras'),
     formulaSalvaguarda: texto(valor, 'formulaSalvaguarda', 'As regras'),
+    pesoPorMoeda: (() => {
+      const peso = valor.pesoPorMoeda;
+      exigir(typeof peso === 'number' && Number.isFinite(peso) && peso >= 0, 'As regras: o peso das moedas é inválido.');
+      return peso;
+    })(),
     pericias: valor.pericias.map((p, i) => {
       const onde = `A perícia nº ${i + 1}`;
       exigir(ehObjeto(p), `${onde} não é válida.`);

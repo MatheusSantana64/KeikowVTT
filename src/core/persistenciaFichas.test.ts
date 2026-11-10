@@ -2,7 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { criarCampanhaInicial } from './campanha';
 import { aplicarAcaoCompendio, criarCompendioVazio } from './compendio';
 import { criarEntrada, type EntradaDe } from './entradas';
-import { comClasse, comNivel, criarFicha, fichaDeMonstro, type EstadoFichas, type Ficha } from './fichas';
+import {
+  comClasse,
+  comItemAvulso,
+  comMoeda,
+  comNivel,
+  comNota,
+  comSecao,
+  criarFicha,
+  fichaDeMonstro,
+  SECOES_PADRAO,
+  type EstadoFichas,
+  type Ficha,
+} from './fichas';
+import { comCartaMovida } from './organizacaoDaFicha';
 import { GRUPO_SEM_POSICAO } from './grupo';
 import { criarMapaVazio } from './mapa';
 import { serializarArquivoCompleto } from './persistenciaCampanha';
@@ -18,10 +31,17 @@ function exemplo(): EstadoFichas {
     pvPorNivel: [null, 8],
     pvAtuais: 12,
     pvTemporarios: 3,
-    notas: 'Tem medo de aranhas.',
   };
+  const comInventario = comSecao(
+    comNota(
+      comMoeda(comItemAvulso(heroi, 'corda', 'p1', 'Corda'), 'po', 15),
+      { id: 'n1', titulo: 'Medos', texto: 'Tem medo de aranhas.' },
+    ),
+    'cinto',
+    'Cinto',
+  );
   const goblin = fichaDeMonstro({ ...criarEntrada('monstro', 'goblin'), nome: 'Goblin' }, 'm1');
-  return { fichas: { h1: heroi, m1: goblin } };
+  return { fichas: { h1: comCartaMovida(comInventario, 'item:p1', 'cinto', 0), m1: goblin } };
 }
 
 const comoTexto = (valor: unknown) => JSON.stringify(valor);
@@ -56,7 +76,24 @@ describe('salvar e ler fichas', () => {
     expect(lido.ok && lido.estado.fichas.h1.entradas.guerreiro).toEqual(classe);
   });
 
+  it('fichas da versão 1 ganham inventário e seções, e a nota antiga vira uma carta', () => {
+    const objeto = fichasParaObjeto(exemplo());
+    const { itens: _i, extras: _e, moedas: _m, secoes: _s, ...antiga } = objeto.fichas[0];
+    const v1 = { ...objeto, versao: 1, fichas: [{ ...antiga, notas: 'Tem medo de aranhas.' }] };
+    const lido = desserializarFichas(comoTexto(v1));
+    expect(lido.ok && lido.estado.fichas.h1).toMatchObject({
+      itens: [],
+      extras: [],
+      notas: [{ titulo: 'Notas', texto: 'Tem medo de aranhas.' }],
+      moedas: { pc: 0, pp: 0, pe: 0, po: 0, pl: 0 },
+      secoes: SECOES_PADRAO,
+    });
+  });
+
   it.each([
+    ['item que não está entre as cópias', (f: Record<string, unknown>) => ({ ...f, itens: [{ id: 'x', entradaId: 'nada', quantidade: 1, equipado: false, sintonizado: false }] }), 'não está entre as cópias'],
+    ['ficha sem seções', (f: Record<string, unknown>) => ({ ...f, secoes: [] }), 'ao menos uma seção'],
+    ['moedas negativas', (f: Record<string, unknown>) => ({ ...f, moedas: { pc: -1, pp: 0, pe: 0, po: 0, pl: 0 } }), 'moedas'],
     ['classe que não está entre as cópias', (f: Record<string, unknown>) => ({ ...f, classes: [{ entradaId: 'mago', nivel: 1 }] }), 'não está entre as cópias'],
     ['nível acima de 20', (f: Record<string, unknown>) => ({ ...f, classes: [{ entradaId: 'guerreiro', nivel: 21 }] }), 'número inválido'],
     ['atributo fora do limite', (f: Record<string, unknown>) => ({ ...f, atributos: { ...(f.atributos as object), for: 31 } }), 'FOR'],

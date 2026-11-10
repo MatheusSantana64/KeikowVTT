@@ -58,7 +58,7 @@ describe('regras padrão', () => {
     expect(valor(c.valor('percepcao_passiva'))).toBe(14);
     expect(valor(c.valor('salvaguarda_for'))).toBe(6);
     expect(valor(c.valor('salvaguarda_des'))).toBe(2);
-    expect(valor(c.valor('capacidade_carga'))).toBe(240);
+    expect(valor(c.valor('capacidade_carga'))).toBe(120);
   });
 
   it('o bônus de proficiência sobe a cada 4 níveis', () => {
@@ -141,7 +141,7 @@ describe('efeitos', () => {
     const c = calcular({ ...guerreira, efeitos: [efeito('Manoplas de Força', 'for', 'minimo', '19')] });
     expect(valor(c.valor('for'))).toBe(19);
     expect(valor(c.valor('atletismo'))).toBe(4 + 3);
-    expect(valor(c.valor('capacidade_carga'))).toBe(285);
+    expect(valor(c.valor('capacidade_carga'))).toBe(142.5);
   });
 
   it('só o maior "no mínimo" conta', () => {

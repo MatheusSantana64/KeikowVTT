@@ -134,7 +134,7 @@ describe('itens', () => {
       etiquetas: ['Weapon', 'Martial Weapons'],
       dados: {
         categoria: 'arma',
-        peso: 3,
+        peso: 1.5,
         custo: { quantidade: 15, moeda: 'po' },
         arma: { dominio: 'marcial', alcanceTipo: 'corpo-a-corpo', dano: '1d8', danoVersatil: '1d10', alcance: null },
         armadura: null,

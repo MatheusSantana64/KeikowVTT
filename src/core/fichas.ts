@@ -6,7 +6,8 @@
  */
 import { ID_MESTRE } from './campanha';
 import type { EstadoCompendio } from './compendio';
-import { ATRIBUTOS, NIVEIS_DA_TABELA, type Atributo, type Entrada, type EntradaDe } from './entradas';
+import { ATRIBUTOS, criarEntrada, MOEDAS, NIVEIS_DA_TABELA, type Atributo, type Entrada, type EntradaDe } from './entradas';
+import { VISIVEL_A_TODOS } from './visibilidade';
 import { criarLojaComHistorico, type LojaComHistorico } from './lojaHistorico';
 import type { OpcoesRegistro } from './registro';
 
@@ -47,8 +48,60 @@ export interface Ficha {
   /** `null` quando a ficha está com os PV cheios. */
   readonly pvAtuais: number | null;
   readonly pvTemporarios: number;
-  readonly notas: string;
+  /** Itens carregados, em pilhas. A mesma entrada pode ter várias pilhas (uma equipada, outra na mochila). */
+  readonly itens: readonly PilhaDeItem[];
+  /** Habilidades, magias e talentos acrescentados à mão, além dos que vêm da classe, espécie e antecedente. */
+  readonly extras: readonly string[];
+  readonly notas: readonly NotaDaFicha[];
+  readonly moedas: Readonly<Record<Moeda, number>>;
+  /** Como o jogador arrumou as cartas. Cartas que não estão em nenhuma seção vão para a seção padrão do tipo delas. */
+  readonly secoes: readonly SecaoDaFicha[];
 }
+
+export type Moeda = (typeof MOEDAS)[number];
+
+export interface PilhaDeItem {
+  readonly id: string;
+  /** Id da cópia do item, em `entradas`. */
+  readonly entradaId: string;
+  readonly quantidade: number;
+  /** Guardado desde já; os efeitos de equipar e sintonizar entram no passo seguinte. */
+  readonly equipado: boolean;
+  readonly sintonizado: boolean;
+}
+
+export interface NotaDaFicha {
+  readonly id: string;
+  readonly titulo: string;
+  readonly texto: string;
+}
+
+/** Um grupo de cartas, como "Mochila" ou "Magias preparadas", na ordem escolhida. */
+export interface SecaoDaFicha {
+  readonly id: string;
+  readonly nome: string;
+  /** Chaves das cartas: `item:<pilha>`, `entrada:<habilidade ou magia>` ou `nota:<nota>`. */
+  readonly cartas: readonly string[];
+}
+
+/** Tipos que podem ser acrescentados à mão como cartas: habilidades, magias e talentos. */
+export const TIPOS_EXTRAS = ['habilidade', 'magia', 'talento'] as const;
+export type TipoExtra = (typeof TIPOS_EXTRAS)[number];
+
+/** As seções com que toda ficha começa. Os ids servem de seção padrão para cada tipo de carta. */
+export const SECOES_PADRAO: readonly SecaoDaFicha[] = [
+  { id: 'equipado', nome: 'Equipado', cartas: [] },
+  { id: 'mochila', nome: 'Mochila', cartas: [] },
+  { id: 'habilidades', nome: 'Habilidades', cartas: [] },
+  { id: 'magias', nome: 'Magias', cartas: [] },
+  { id: 'notas', nome: 'Notas', cartas: [] },
+];
+
+export const MOEDAS_ZERADAS: Readonly<Record<Moeda, number>> = { pc: 0, pp: 0, pe: 0, po: 0, pl: 0 };
+
+export const chaveDoItem = (pilhaId: string) => `item:${pilhaId}`;
+export const chaveDaEntrada = (entradaId: string) => `entrada:${entradaId}`;
+export const chaveDaNota = (notaId: string) => `nota:${notaId}`;
 
 export interface EstadoFichas {
   readonly fichas: Readonly<Record<string, Ficha>>;
@@ -90,7 +143,11 @@ export function criarFicha(tipo: Exclude<TipoFicha, 'monstro'>, id: string, dono
     pvPorNivel: [],
     pvAtuais: null,
     pvTemporarios: 0,
-    notas: '',
+    itens: [],
+    extras: [],
+    notas: [],
+    moedas: { ...MOEDAS_ZERADAS },
+    secoes: SECOES_PADRAO,
   };
 }
 
@@ -146,8 +203,8 @@ function copiasDe(compendio: EstadoCompendio, entrada: Entrada): Record<string, 
 }
 
 /**
- * Tira as cópias que nenhuma parte da ficha usa mais, como as habilidades de uma classe removida.
- * Só mexe nos tipos que chegam pela classe, espécie, antecedente ou monstro.
+ * Tira as cópias que nenhuma parte da ficha usa mais, como as habilidades de uma classe removida,
+ * e as cartas das seções que deixaram de existir.
  */
 function semCopiasSoltas(ficha: Ficha): Ficha {
   const raizes = [
@@ -155,6 +212,8 @@ function semCopiasSoltas(ficha: Ficha): Ficha {
     ficha.especieId,
     ficha.antecedenteId,
     ficha.monstroId,
+    ...ficha.itens.map((p) => p.entradaId),
+    ...ficha.extras,
   ].filter((id): id is string => id !== null);
   const usadas = new Set(raizes);
   for (const id of raizes) {
@@ -163,11 +222,133 @@ function semCopiasSoltas(ficha: Ficha): Ficha {
       referenciasDe(entrada).forEach((r) => usadas.add(r));
     }
   }
-  const tiposControlados = new Set(['classe', 'especie', 'antecedente', 'habilidade', 'monstro']);
-  const entradas = Object.fromEntries(
-    Object.entries(ficha.entradas).filter(([id, e]) => usadas.has(id) || !tiposControlados.has(e.tipo)),
+  const entradas = Object.fromEntries(Object.entries(ficha.entradas).filter(([id]) => usadas.has(id)));
+  const existentes = new Set([
+    ...ficha.itens.map((p) => chaveDoItem(p.id)),
+    ...Object.keys(entradas).map(chaveDaEntrada),
+    ...ficha.notas.map((n) => chaveDaNota(n.id)),
+  ]);
+  const secoes = ficha.secoes.map((s) =>
+    s.cartas.every((c) => existentes.has(c)) ? s : { ...s, cartas: s.cartas.filter((c) => existentes.has(c)) },
   );
-  return { ...ficha, entradas };
+  return { ...ficha, entradas, secoes };
+}
+
+// ---------- Inventário, cartas extras, notas e moedas ----------
+
+/** Acrescenta uma pilha de um item do compêndio. Se a ficha já tem uma cópia dele, usa a cópia (que pode ter sido editada). */
+export function comItem(ficha: Ficha, compendio: EstadoCompendio, entradaId: string, pilhaId: string, quantidade = 1): Ficha {
+  const item = ficha.entradas[entradaId] ?? compendio.entradas[entradaId];
+  if (!item || item.tipo !== 'item' || ficha.itens.some((p) => p.id === pilhaId)) {
+    return ficha;
+  }
+  return {
+    ...ficha,
+    entradas: { ...ficha.entradas, [entradaId]: item },
+    itens: [...ficha.itens, { id: pilhaId, entradaId, quantidade: Math.max(1, Math.round(quantidade)), equipado: false, sintonizado: false }],
+  };
+}
+
+/** Um item criado na hora, só desta ficha: não passa pelo compêndio. */
+export function comItemAvulso(ficha: Ficha, entradaId: string, pilhaId: string, nome: string): Ficha {
+  if (ficha.entradas[entradaId] || ficha.itens.some((p) => p.id === pilhaId)) {
+    return ficha;
+  }
+  const item: Entrada = { ...criarEntrada('item', entradaId), nome, visibilidade: VISIVEL_A_TODOS };
+  return {
+    ...ficha,
+    entradas: { ...ficha.entradas, [entradaId]: item },
+    itens: [...ficha.itens, { id: pilhaId, entradaId, quantidade: 1, equipado: false, sintonizado: false }],
+  };
+}
+
+/** Muda quantidade ou marcas de uma pilha. A quantidade fica entre 1 e 99999. */
+export function comPilha(ficha: Ficha, pilhaId: string, mudancas: Partial<Omit<PilhaDeItem, 'id' | 'entradaId'>>): Ficha {
+  return {
+    ...ficha,
+    itens: ficha.itens.map((p) => {
+      if (p.id !== pilhaId) {
+        return p;
+      }
+      const quantidade = mudancas.quantidade === undefined ? p.quantidade : Math.min(99999, Math.max(1, Math.round(mudancas.quantidade)));
+      return { ...p, ...mudancas, quantidade };
+    }),
+  };
+}
+
+/** Descarta uma pilha. A cópia do item some quando nenhuma outra pilha a usa. */
+export function semPilha(ficha: Ficha, pilhaId: string): Ficha {
+  return semCopiasSoltas({ ...ficha, itens: ficha.itens.filter((p) => p.id !== pilhaId) });
+}
+
+/** Acrescenta uma habilidade, magia ou talento do compêndio como carta. */
+export function comExtra(ficha: Ficha, compendio: EstadoCompendio, entradaId: string): Ficha {
+  const entrada = ficha.entradas[entradaId] ?? compendio.entradas[entradaId];
+  if (!entrada || !(TIPOS_EXTRAS as readonly string[]).includes(entrada.tipo) || ficha.extras.includes(entradaId)) {
+    return ficha;
+  }
+  return { ...ficha, entradas: { ...ficha.entradas, [entradaId]: entrada }, extras: [...ficha.extras, entradaId] };
+}
+
+export function semExtra(ficha: Ficha, entradaId: string): Ficha {
+  return semCopiasSoltas({ ...ficha, extras: ficha.extras.filter((id) => id !== entradaId) });
+}
+
+/** Troca a cópia de uma entrada da ficha pela versão editada, mantendo id, tipo e origem. */
+export function comCopiaEditada(ficha: Ficha, nova: Entrada): Ficha {
+  const atual = ficha.entradas[nova.id];
+  if (!atual || atual.tipo !== nova.tipo) {
+    return ficha;
+  }
+  return { ...ficha, entradas: { ...ficha.entradas, [nova.id]: { ...nova, origem: atual.origem } as Entrada } };
+}
+
+export function comNota(ficha: Ficha, nota: NotaDaFicha): Ficha {
+  const existe = ficha.notas.some((n) => n.id === nota.id);
+  return { ...ficha, notas: existe ? ficha.notas.map((n) => (n.id === nota.id ? nota : n)) : [...ficha.notas, nota] };
+}
+
+export function semNota(ficha: Ficha, notaId: string): Ficha {
+  return semCopiasSoltas({ ...ficha, notas: ficha.notas.filter((n) => n.id !== notaId) });
+}
+
+export function comMoeda(ficha: Ficha, moeda: Moeda, quantidade: number): Ficha {
+  return { ...ficha, moedas: { ...ficha.moedas, [moeda]: Math.max(0, Math.round(quantidade)) } };
+}
+
+// ---------- Seções ----------
+
+export function comSecao(ficha: Ficha, secaoId: string, nome: string): Ficha {
+  if (ficha.secoes.some((s) => s.id === secaoId)) {
+    return ficha;
+  }
+  return { ...ficha, secoes: [...ficha.secoes, { id: secaoId, nome, cartas: [] }] };
+}
+
+export function comSecaoRenomeada(ficha: Ficha, secaoId: string, nome: string): Ficha {
+  return { ...ficha, secoes: ficha.secoes.map((s) => (s.id === secaoId ? { ...s, nome } : s)) };
+}
+
+/** Muda a posição de uma seção na lista. */
+export function comSecaoMovida(ficha: Ficha, secaoId: string, posicao: number): Ficha {
+  const secao = ficha.secoes.find((s) => s.id === secaoId);
+  if (!secao) {
+    return ficha;
+  }
+  const resto = ficha.secoes.filter((s) => s.id !== secaoId);
+  const destino = Math.max(0, Math.min(posicao, resto.length));
+  return { ...ficha, secoes: [...resto.slice(0, destino), secao, ...resto.slice(destino)] };
+}
+
+/** Apaga uma seção. As cartas dela vão para o fim da primeira seção que sobrar; a última seção não pode ser apagada. */
+export function semSecao(ficha: Ficha, secaoId: string): Ficha {
+  const secao = ficha.secoes.find((s) => s.id === secaoId);
+  if (!secao || ficha.secoes.length <= 1) {
+    return ficha;
+  }
+  const resto = ficha.secoes.filter((s) => s.id !== secaoId);
+  const [primeira, ...outras] = resto;
+  return { ...ficha, secoes: [{ ...primeira, cartas: [...primeira.cartas, ...secao.cartas] }, ...outras] };
 }
 
 /** Acrescenta uma classe do compêndio no nível 1, se ainda houver nível livre. */
