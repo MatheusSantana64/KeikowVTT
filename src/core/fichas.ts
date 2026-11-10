@@ -7,7 +7,8 @@
 import { ID_MESTRE } from './campanha';
 import type { EstadoCompendio } from './compendio';
 import { ATRIBUTOS, criarEntrada, MOEDAS, NIVEIS_DA_TABELA, type Atributo, type Entrada, type EntradaDe } from './entradas';
-import { VISIVEL_A_TODOS } from './visibilidade';
+import { SO_MESTRE, VISIVEL_A_TODOS, type Visibilidade } from './visibilidade';
+import { conferirFichas } from './permissoes';
 import { criarLojaComHistorico, type LojaComHistorico } from './lojaHistorico';
 import type { OpcoesRegistro } from './registro';
 
@@ -31,6 +32,10 @@ export interface Ficha {
   readonly nome: string;
   /** Participante da campanha que controla a ficha: o mestre ou um jogador. */
   readonly donoId: string;
+  /** Quem vê a ficha além do dono e do mestre. "Só o mestre" quer dizer que ninguém mais vê. */
+  readonly visibilidade: Visibilidade;
+  /** Com a edição liberada pelo mestre, o dono muda tudo na ficha, inclusive atributos e classes. */
+  readonly edicaoLiberada: boolean;
   /** Os valores escolhidos para a ficha, antes dos aumentos da espécie e de outros efeitos. */
   readonly atributos: Readonly<Record<Atributo, number>>;
   /** Cópias das entradas do compêndio que a ficha usa, pelo id. */
@@ -141,6 +146,8 @@ export function criarFicha(tipo: Exclude<TipoFicha, 'monstro'>, id: string, dono
     tipo,
     nome: '',
     donoId,
+    visibilidade: SO_MESTRE,
+    edicaoLiberada: false,
     atributos: { ...ATRIBUTOS_INICIAIS },
     entradas: {},
     classes: [],
@@ -482,7 +489,7 @@ export type LojaFichas = LojaComHistorico<EstadoFichas, AcaoFichas>;
 
 export function criarLojaFichas(inicial: EstadoFichas = criarFichasVazias(), opcoes: OpcoesRegistro = {}): LojaFichas {
   return criarLojaComHistorico(
-    { inicial, aplicar: aplicarAcaoFichas, eventoDesfazer: 'DesfazerFichas', eventoRefazer: 'RefazerFichas' },
+    { inicial, aplicar: aplicarAcaoFichas, eventoDesfazer: 'DesfazerFichas', eventoRefazer: 'RefazerFichas', conferir: conferirFichas },
     opcoes,
   );
 }

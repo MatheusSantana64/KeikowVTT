@@ -35,11 +35,17 @@ export interface OpcoesRegistro {
   /** Quem está agindo agora. Vem da sessão, e não de quem chama a ação. */
   readonly obterAutorId?: () => string;
   readonly aoExecutar?: (evento: EventoExecutado) => void;
+  /** Uma mudança foi recusada por falta de permissão. */
+  readonly aoRecusar?: (motivo: string) => void;
 }
 
-export function criarEmissor({ obterAutorId, aoExecutar }: OpcoesRegistro) {
+export function autorDe(opcoes: OpcoesRegistro): string {
+  return opcoes.obterAutorId?.() ?? AUTOR_PADRAO;
+}
+
+export function criarEmissor(opcoes: OpcoesRegistro) {
   return (tipo: TipoEvento, coord: CoordHex | null, agrupamento: string | null) => {
-    aoExecutar?.({ tipo, coord, autorId: obterAutorId?.() ?? AUTOR_PADRAO, agrupamento });
+    opcoes.aoExecutar?.({ tipo, coord, autorId: autorDe(opcoes), agrupamento });
   };
 }
 

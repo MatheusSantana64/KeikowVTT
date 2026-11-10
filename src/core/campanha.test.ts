@@ -79,14 +79,24 @@ describe('campanha', () => {
 describe('criarLojaCampanha', () => {
   it('registra quem fez a ação', () => {
     const aoExecutar = vi.fn();
-    const loja = criarLojaCampanha(undefined, { obterAutorId: () => 'j9', aoExecutar });
+    const loja = criarLojaCampanha(undefined, { obterAutorId: () => ID_MESTRE, aoExecutar });
     loja.despachar({ tipo: 'RenomearCampanha', nome: 'Nova' }, 'g1');
     expect(aoExecutar).toHaveBeenCalledExactlyOnceWith({
       tipo: 'RenomearCampanha',
       coord: null,
-      autorId: 'j9',
+      autorId: ID_MESTRE,
       agrupamento: 'g1',
     });
+  });
+
+  it('um jogador não muda a campanha: nada muda nem é registrado', () => {
+    const aoExecutar = vi.fn();
+    const aoRecusar = vi.fn();
+    const loja = criarLojaCampanha(undefined, { obterAutorId: () => 'j9', aoExecutar, aoRecusar });
+    loja.despachar({ tipo: 'RenomearCampanha', nome: 'Nova' });
+    expect(loja.obterEstado().nome).toBe('Minha campanha');
+    expect(aoExecutar).not.toHaveBeenCalled();
+    expect(aoRecusar).toHaveBeenCalledWith('Só o mestre muda a campanha.');
   });
 
   it('uma ação sem efeito não avisa nem registra', () => {

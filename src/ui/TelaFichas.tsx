@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import {
   descansoCurto,
   descansoLongo,
@@ -11,10 +11,20 @@ import {
 } from '../core/acoesDaFicha';
 import type { Calculado, Calculo } from '../core/calculadora';
 import { avisosDaFicha, calcularFicha, proficienciasAutomaticas, proficienciasDaFicha } from '../core/calculoDaFicha';
-import { ID_MESTRE, type LojaCampanha } from '../core/campanha';
+import type { LojaCampanha, Participante } from '../core/campanha';
 import { buscarEntradas, type EstadoCompendio, type LojaCompendio } from '../core/compendio';
 import { ATRIBUTOS, type AcaoDeEntrada, type Atributo, type EntradaDe } from '../core/entradas';
 import { visibilidadeDaRolagem, type LojaRolagens } from '../core/rolagens';
+import {
+  conferirFichas,
+  ehMestre,
+  fichasVisiveis,
+  motivoSemEdicao,
+  podeAgirNaFicha,
+  podeEditarTudo,
+  podeReceberPresente,
+  podeVerFicha,
+} from '../core/permissoes';
 import { MenuDeContexto, type MenuAberto } from './MenuDeContexto';
 import type { Mesa } from './mesa';
 import { PainelRolagens } from './PainelRolagens';
@@ -25,7 +35,6 @@ import {
   criarFicha,
   entradaDaFicha,
   fichaDeMonstro,
-  fichasEmOrdem,
   nivelTotal,
   pvPorNivel,
   semClasse,
@@ -40,6 +49,7 @@ import { CampoNumero, CampoTexto } from './camposFormulario';
 import { comSinal, ExplicacaoValor, type Explicando } from './ExplicacaoValor';
 import { OrganizacaoFicha } from './OrganizacaoFicha';
 import { ROTULO_TAMANHO } from './rotulosCompendio';
+import { SeletorVisibilidade } from './SeletorVisibilidade';
 
 const ROTULO_TIPO_FICHA: Readonly<Record<TipoFicha, string>> = {
   personagem: 'Personagem',
@@ -60,8 +70,13 @@ interface TelaFichasProps {
   readonly lojaCompendio: LojaCompendio;
   readonly lojaCampanha: LojaCampanha;
   readonly lojaRolagens: LojaRolagens;
+  /** Quem está agindo: os jogadores veem só as fichas deles e as que o mestre mostrar. */
+  readonly agindoComoId: string;
+  readonly seletorAgindoComo: ReactNode;
   readonly aoFechar: () => void;
 }
+
+const ordemAlfabetica = (a: Ficha, b: Ficha) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' });
 
 function resumoDaFicha(ficha: Ficha): string {
   if (ficha.tipo === 'monstro') {
@@ -74,7 +89,15 @@ function resumoDaFicha(ficha: Ficha): string {
   return `${ROTULO_TIPO_FICHA[ficha.tipo]}${classes ? ` · ${classes}` : ''}`;
 }
 
-export function TelaFichas({ lojaFichas, lojaCompendio, lojaCampanha, lojaRolagens, aoFechar }: TelaFichasProps) {
+export function TelaFichas({
+  lojaFichas,
+  lojaCompendio,
+  lojaCampanha,
+  lojaRolagens,
+  agindoComoId,
+  seletorAgindoComo,
+  aoFechar,
+}: TelaFichasProps) {
   const [secreta, setSecreta] = useState(false);
   const estado = useSyncExternalStore(lojaFichas.assinar, lojaFichas.obterEstado);
   const compendio = useSyncExternalStore(lojaCompendio.assinar, lojaCompendio.obterEstado);
@@ -84,9 +107,17 @@ export function TelaFichas({ lojaFichas, lojaCompendio, lojaCampanha, lojaRolage
   const [selecionadaId, setSelecionadaId] = useState<string | null>(null);
   const [monstroEscolhido, setMonstroEscolhido] = useState('');
 
-  const fichas = useMemo(() => fichasEmOrdem(estado), [estado]);
+  const mestre = ehMestre(agindoComoId);
+  // O jogador recebe só as fichas que pode ver: as outras nem chegam à tela.
+  const fichas = useMemo(() => fichasVisiveis(estado, agindoComoId).sort(ordemAlfabetica), [estado, agindoComoId]);
   const monstros = useMemo(() => buscarEntradas(compendio, { tipos: ['monstro'] }) as EntradaDe<'monstro'>[], [compendio]);
-  const selecionada = selecionadaId ? estado.fichas[selecionadaId] : undefined;
+  const candidata = selecionadaId ? estado.fichas[selecionadaId] : undefined;
+  const selecionada = candidata && podeVerFicha(candidata, agindoComoId) ? candidata : undefined;
+  /** Quem pode receber presentes de quem está agindo. */
+  const destinos = useMemo(
+    () => Object.values(estado.fichas).filter((f) => podeReceberPresente(f, agindoComoId)).sort(ordemAlfabetica),
+    [estado, agindoComoId],
+  );
 
   const criar = (tipo: Exclude<TipoFicha, 'monstro'>) => {
     const ficha = { ...criarFicha(tipo, crypto.randomUUID()), nome: tipo === 'personagem' ? 'Novo personagem' : 'Novo NPC' };
@@ -115,12 +146,16 @@ export function TelaFichas({ lojaFichas, lojaCompendio, lojaCampanha, lojaRolage
             Refazer
           </button>
         </div>
+        {seletorAgindoComo}
         <button type="button" className="tela-fechar" onClick={aoFechar}>
           Voltar ao mapa
         </button>
       </header>
       <div className="compendio-corpo">
         <aside className="compendio-lista">
+          {!mestre && <p className="tela-dica">Aqui ficam as suas fichas e as que o mestre mostrar a você.</p>}
+          {mestre && (
+          <>
           <div className="compendio-novo">
             <button type="button" onClick={() => criar('personagem')}>
               + Personagem
@@ -146,6 +181,8 @@ export function TelaFichas({ lojaFichas, lojaCompendio, lojaCampanha, lojaRolage
               + Monstro
             </button>
           </div>
+          </>
+          )}
           <p className="tela-dica">{fichas.length === 1 ? '1 ficha' : `${fichas.length} fichas`}</p>
           <ul>
             {fichas.map((ficha) => (
@@ -171,18 +208,22 @@ export function TelaFichas({ lojaFichas, lojaCompendio, lojaCampanha, lojaRolage
               participantes={campanha.participantes}
               lojaFichas={lojaFichas}
               lojaRolagens={lojaRolagens}
+              autorId={agindoComoId}
               secreta={secreta}
-              outras={fichas.filter((f) => f.id !== selecionada.id)}
+              outras={destinos.filter((f) => f.id !== selecionada.id)}
               aoApagar={() => setSelecionadaId(null)}
             />
           ) : (
             <p className="tela-dica">
-              Escolha uma ficha na lista ou crie uma nova. Classes, espécies e monstros vêm do compêndio: importe o SRD
-              5.1 lá, se ainda não importou.
+              {mestre
+                ? 'Escolha uma ficha na lista ou crie uma nova. Classes, espécies e monstros vêm do compêndio: importe o SRD 5.1 lá, se ainda não importou.'
+                : fichas.length > 0
+                  ? 'Escolha uma ficha na lista.'
+                  : 'Você ainda não tem fichas. O mestre cria a ficha e a passa para você em "Controlada por".'}
             </p>
           )}
         </main>
-        <PainelRolagens lojaRolagens={lojaRolagens} secreta={secreta} aoMudarSecreta={setSecreta} />
+        <PainelRolagens lojaRolagens={lojaRolagens} agindoComoId={agindoComoId} secreta={secreta} aoMudarSecreta={setSecreta} />
       </div>
     </div>
   );
@@ -191,16 +232,17 @@ export function TelaFichas({ lojaFichas, lojaCompendio, lojaCampanha, lojaRolage
 interface EditorFichaProps {
   readonly ficha: Ficha;
   readonly compendio: EstadoCompendio;
-  readonly participantes: readonly { readonly id: string; readonly nome: string }[];
+  readonly participantes: readonly Participante[];
   readonly lojaFichas: LojaFichas;
   readonly lojaRolagens: LojaRolagens;
+  readonly autorId: string;
   readonly secreta: boolean;
   /** As outras fichas da campanha, que podem receber presentes. */
   readonly outras: readonly Ficha[];
   readonly aoApagar: () => void;
 }
 
-function EditorFicha({ ficha, compendio, participantes, lojaFichas, lojaRolagens, secreta, outras, aoApagar }: EditorFichaProps) {
+function EditorFicha({ ficha, compendio, participantes, lojaFichas, lojaRolagens, autorId, secreta, outras, aoApagar }: EditorFichaProps) {
   const sessaoDeFoco = useRef(0);
   const [explicando, setExplicando] = useState<Explicando | null>(null);
   const [classeEscolhida, setClasseEscolhida] = useState('');
@@ -219,8 +261,27 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, lojaRolagens
     return () => clearTimeout(temporizador);
   }, [aviso]);
 
-  const editar = (nova: Ficha, campo: string) =>
-    lojaFichas.despachar({ tipo: 'EditarFicha', ficha: nova }, `${ficha.id}:${campo}:${sessaoDeFoco.current}`);
+  const mestre = ehMestre(autorId);
+  const podeAgir = podeAgirNaFicha(ficha, autorId);
+  const tudo = podeEditarTudo(ficha, autorId);
+  const motivo = motivoSemEdicao(ficha, autorId);
+
+  /** Confere a permissão antes de mudar, para explicar aqui mesmo por que não deu. */
+  const permitido = (novas: readonly Ficha[]) => {
+    const antes = lojaFichas.obterEstado();
+    const depois = { fichas: { ...antes.fichas, ...Object.fromEntries(novas.map((f) => [f.id, f])) } };
+    const permissao = conferirFichas(antes, depois, autorId);
+    if (!permissao.ok) {
+      setAviso(permissao.motivo);
+    }
+    return permissao.ok;
+  };
+
+  const editar = (nova: Ficha, campo: string) => {
+    if (permitido([nova])) {
+      lojaFichas.despachar({ tipo: 'EditarFicha', ficha: nova }, `${ficha.id}:${campo}:${sessaoDeFoco.current}`);
+    }
+  };
 
   const explicar = (alvo: HTMLElement, rotulo: string, calculado: Calculado, nota?: string) => {
     const caixa = alvo.getBoundingClientRect();
@@ -230,15 +291,14 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, lojaRolagens
   const registrar = (feitas: readonly RolagemFeita[]) => {
     for (const feita of feitas) {
       lojaRolagens.registrar({
-        // Enquanto não há contas, quem age neste computador é o mestre.
-        autorId: ID_MESTRE,
+        autorId,
         fichaId: ficha.id,
         quem: ficha.nome || 'Sem nome',
         rotulo: feita.rotulo,
         formula: feita.formula,
         dados: feita.rolagem.dados,
         total: feita.rolagem.total,
-        visibilidade: visibilidadeDaRolagem(secreta),
+        visibilidade: visibilidadeDaRolagem(secreta, autorId),
       });
     }
   };
@@ -270,6 +330,9 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, lojaRolagens
     presentear: setPresenteando,
     temOutrasFichas: outras.length > 0,
     explicar,
+    podeAgir,
+    podeEditarTudo: tudo,
+    motivo,
   };
 
   const monstro = entradaDaFicha(ficha, ficha.monstroId, 'monstro');
@@ -293,6 +356,7 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, lojaRolagens
         <div className="tela-cabecalho-acoes">
           <button
             type="button"
+            disabled={!podeAgir}
             title="Voltam os usos de habilidades que recarregam no descanso curto"
             onClick={() => editar(descansoCurto(ficha), `descanso-${crypto.randomUUID()}`)}
           >
@@ -300,20 +364,23 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, lojaRolagens
           </button>
           <button
             type="button"
+            disabled={!podeAgir}
             title="Voltam todos os usos, os espaços de magia e os PV"
             onClick={() => editar(descansoLongo(ficha), `descanso-${crypto.randomUUID()}`)}
           >
             Descanso longo
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              lojaFichas.despachar({ tipo: 'RemoverFicha', fichaId: ficha.id });
-              aoApagar();
-            }}
-          >
-            Apagar
-          </button>
+          {mestre && (
+            <button
+              type="button"
+              onClick={() => {
+                lojaFichas.despachar({ tipo: 'RemoverFicha', fichaId: ficha.id });
+                aoApagar();
+              }}
+            >
+              Apagar
+            </button>
+          )}
         </div>
       </div>
       {aviso && (
@@ -321,12 +388,24 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, lojaRolagens
           {aviso}
         </p>
       )}
+      {!podeAgir && <p className="tela-dica">Esta ficha é de outro participante: você só pode olhar.</p>}
+      {podeAgir && !tudo && (
+        <p className="tela-dica">
+          Atributos, classes, proficiências e itens novos ficam com o mestre; ele pode liberar a edição desta ficha.
+        </p>
+      )}
 
       <div className="formulario">
-        <CampoTexto rotulo="Nome" valor={ficha.nome} aoMudar={(nome) => editar({ ...ficha, nome }, 'nome')} />
-        <label className="campo">
+        <CampoTexto
+          rotulo="Nome"
+          valor={ficha.nome}
+          desativado={!podeAgir}
+          motivo={motivo}
+          aoMudar={(nome) => editar({ ...ficha, nome }, 'nome')}
+        />
+        <label className="campo" title={mestre ? undefined : 'Só o mestre muda quem controla a ficha.'}>
           <span>Controlada por</span>
-          <select value={ficha.donoId} onChange={(e) => editar({ ...ficha, donoId: e.target.value }, 'dono')}>
+          <select value={ficha.donoId} disabled={!mestre} onChange={(e) => editar({ ...ficha, donoId: e.target.value }, 'dono')}>
             {!participantes.some((p) => p.id === ficha.donoId) && <option value={ficha.donoId}>(participante removido)</option>}
             {participantes.map((p) => (
               <option key={p.id} value={p.id}>
@@ -335,9 +414,32 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, lojaRolagens
             ))}
           </select>
         </label>
+        {mestre && (
+          <>
+            <SeletorVisibilidade
+              rotulo="Quem mais vê"
+              rotuloRestrito="Só o dono e o mestre"
+              valor={ficha.visibilidade}
+              participantes={participantes}
+              aoMudar={(visibilidade) => editar({ ...ficha, visibilidade }, `visibilidade-${crypto.randomUUID()}`)}
+            />
+            <label
+              className="campo-marcar"
+              title="Sem a liberação, o dono muda nome, notas, PV, usos, moedas e o que carrega, mas não atributos, classes, proficiências nem itens novos"
+            >
+              <input
+                type="checkbox"
+                checked={ficha.edicaoLiberada}
+                onChange={(e) => editar({ ...ficha, edicaoLiberada: e.target.checked }, `liberar-${crypto.randomUUID()}`)}
+              />
+              Edição liberada para o dono
+            </label>
+          </>
+        )}
 
         {ficha.tipo !== 'monstro' && (
-          <>
+          // Um fieldset desativado desativa todos os campos de dentro.
+          <fieldset className="grupo-transparente" disabled={!tudo} title={motivo ?? undefined}>
             <SeletorOrigem
               rotulo="Espécie"
               atual={entradaDaFicha(ficha, ficha.especieId, 'especie')}
@@ -398,16 +500,20 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, lojaRolagens
                 </button>
               </div>
             </fieldset>
-          </>
+          </fieldset>
         )}
         {monstro && <ResumoMonstro monstro={monstro} ficha={ficha} mesa={mesa} />}
       </div>
 
       <BlocoAtributos ficha={ficha} calculo={calculo} editar={editar} explicar={explicar} mesa={mesa} />
       <BlocoCombate ficha={ficha} calculo={calculo} editar={editar} explicar={explicar} mesa={mesa} />
-      <BlocoEspacos ficha={ficha} calculo={calculo} editar={editar} />
+      <BlocoEspacos ficha={ficha} calculo={calculo} editar={editar} podeAgir={podeAgir} />
       <BlocoTestes ficha={ficha} calculo={calculo} editar={editar} explicar={explicar} mesa={mesa} />
-      {ficha.tipo !== 'monstro' && <BlocoDadosDeVida ficha={ficha} editar={editar} />}
+      {ficha.tipo !== 'monstro' && (
+        <fieldset className="grupo-transparente" disabled={!tudo} title={motivo ?? undefined}>
+          <BlocoDadosDeVida ficha={ficha} editar={editar} />
+        </fieldset>
+      )}
       <OrganizacaoFicha ficha={ficha} compendio={compendio} calculo={calculo} regras={REGRAS} editar={editar} mesa={mesa} />
 
       {explicando && <ExplicacaoValor explicando={explicando} aoFechar={fecharExplicacao} />}
@@ -420,7 +526,7 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, lojaRolagens
           aoFechar={() => setPresenteando(null)}
           aoConfirmar={(destino, quantidade) => {
             const resultado = transferirItem(ficha, destino, presenteando, quantidade);
-            if (resultado) {
+            if (resultado && permitido(resultado)) {
               lojaFichas.despachar({ tipo: 'EditarFichas', fichas: resultado });
             }
             setPresenteando(null);
@@ -491,7 +597,7 @@ function JanelaPresentear({
 }
 
 /** Os espaços de magia, quando a ficha conjura: gastos ao conjurar, de volta no descanso longo. */
-function BlocoEspacos({ ficha, calculo, editar }: Pick<PropsBloco, 'ficha' | 'calculo' | 'editar'>) {
+function BlocoEspacos({ ficha, calculo, editar, podeAgir }: Pick<PropsBloco, 'ficha' | 'calculo' | 'editar'> & { readonly podeAgir: boolean }) {
   const espacos = espacosDeMagia(ficha, calculo).filter((e) => e.maximo > 0);
   if (espacos.length === 0) {
     return null;
@@ -513,10 +619,10 @@ function BlocoEspacos({ ficha, calculo, editar }: Pick<PropsBloco, 'ficha' | 'ca
               <span className="ficha-bolinhas" aria-label={`${restantes} de ${e.maximo}`}>
                 {Array.from({ length: e.maximo }, (_, i) => (i < restantes ? '●' : '○')).join('')}
               </span>
-              <button type="button" title="Gastar um" disabled={restantes === 0} onClick={() => ajustar(e.nivel, e.gastos + 1)}>
+              <button type="button" title="Gastar um" disabled={!podeAgir || restantes === 0} onClick={() => ajustar(e.nivel, e.gastos + 1)}>
                 −
               </button>
-              <button type="button" title="Recuperar um" disabled={e.gastos === 0} onClick={() => ajustar(e.nivel, e.gastos - 1)}>
+              <button type="button" title="Recuperar um" disabled={!podeAgir || e.gastos === 0} onClick={() => ajustar(e.nivel, e.gastos - 1)}>
                 +
               </button>
             </div>
@@ -585,8 +691,10 @@ function Valor({
 }) {
   const texto = calculado.ok ? (sinal ? comSinal(calculado.valor) : numeroNaTela(calculado.valor)) : '—';
   const mudou = calculado.ok && calculado.ajustes.some((a) => a.aplicado);
-  const classe = [mudou ? 'ficha-valor ficha-valor-alterado' : 'ficha-valor', rolar ? 'ficha-valor-rolavel' : ''].join(' ');
-  if (!rolar || !calculado.ok) {
+  // Quem só olha a ficha não rola: o clique só explica o número.
+  const rolavel = rolar !== undefined && calculado.ok && rolar.mesa.podeAgir;
+  const classe = [mudou ? 'ficha-valor ficha-valor-alterado' : 'ficha-valor', rolavel ? 'ficha-valor-rolavel' : ''].join(' ');
+  if (!rolavel) {
     return (
       <button
         type="button"
@@ -644,6 +752,8 @@ function BlocoAtributos({ ficha, calculo, editar, explicar, mesa }: PropsBloco) 
                 minimo={1}
                 maximo={30}
                 valor={ficha.atributos[atributo]}
+                desativado={!mesa.podeEditarTudo}
+                motivo={mesa.motivo}
                 aoMudar={(v) => v !== null && editar({ ...ficha, atributos: { ...ficha.atributos, [atributo]: v } }, `atributo-${atributo}`)}
               />
             </div>
@@ -698,6 +808,8 @@ function BlocoCombate({ ficha, calculo, editar, explicar, mesa }: PropsBloco) {
               inteiro
               valor={ficha.pvAtuais ?? maximo}
               vazioPermitido
+              desativado={!mesa.podeAgir}
+              motivo={mesa.motivo}
               aoMudar={(v) => editar({ ...ficha, pvAtuais: v === null || v === maximo ? null : v }, 'pvAtuais')}
             />
             <span className="ficha-pv-barra">/</span>
@@ -708,6 +820,8 @@ function BlocoCombate({ ficha, calculo, editar, explicar, mesa }: PropsBloco) {
             inteiro
             minimo={0}
             valor={ficha.pvTemporarios}
+            desativado={!mesa.podeAgir}
+            motivo={mesa.motivo}
             aoMudar={(v) => v !== null && editar({ ...ficha, pvTemporarios: v }, 'pvTemporarios')}
           />
         </div>
@@ -728,7 +842,7 @@ function BlocoTestes({ ficha, calculo, editar, explicar, mesa }: PropsBloco) {
   const automaticas = proficienciasAutomaticas(ficha, REGRAS);
   const todas = proficienciasDaFicha(ficha, REGRAS);
   // Monstros já trazem os bônus prontos: os marcadores não mudariam nada.
-  const marcavel = ficha.tipo !== 'monstro';
+  const marcavel = ficha.tipo !== 'monstro' && mesa.podeEditarTudo;
 
   /** Alterna entre sem, proficiente e especialista. Voltar ao valor automático tira a marcação. */
   const alternar = (id: string) => {
@@ -754,7 +868,7 @@ function BlocoTestes({ ficha, calculo, editar, explicar, mesa }: PropsBloco) {
           type="button"
           className="ficha-marcador"
           disabled={!marcavel}
-          title={marcavel ? `${nota}. Clique para mudar.` : nota}
+          title={marcavel ? `${nota}. Clique para mudar.` : ficha.tipo === 'monstro' || !mesa.motivo ? nota : `${nota}. ${mesa.motivo}`}
           aria-label={`${nome}: ${nota}`}
           onClick={() => alternar(id)}
         >
@@ -865,6 +979,7 @@ function ResumoMonstro({
             <button
               key={acao.id}
               type="button"
+              disabled={!mesa.podeAgir}
               title={ehAcaoDeDano(acao) ? 'Clique para rolar. Botão direito: dano crítico.' : 'Clique para rolar.'}
               onClick={() => rolarAcao(acao)}
               onContextMenu={(e) =>

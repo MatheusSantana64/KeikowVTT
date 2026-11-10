@@ -1,5 +1,6 @@
 import type { CoordHex } from './hex';
-import { criarEmissor, type OpcoesRegistro } from './registro';
+import { soOMestre } from './permissoes';
+import { autorDe, criarEmissor, type OpcoesRegistro } from './registro';
 
 export interface EstadoGrupo {
   /** Hex onde o grupo está, ou `null` enquanto o mestre não o posicionou. */
@@ -41,6 +42,11 @@ export function criarLojaGrupo(
     obterEstado: () => estado,
     despachar(acao) {
       const novo = aplicarAcaoGrupo(estado, acao);
+      const permissao = soOMestre('a posição do grupo')(estado, novo, autorDe(opcoes));
+      if (!permissao.ok) {
+        opcoes.aoRecusar?.(permissao.motivo);
+        return;
+      }
       if (novo !== estado) {
         estado = novo;
         ouvintes.forEach((ouvinte) => ouvinte(estado));

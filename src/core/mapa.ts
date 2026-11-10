@@ -118,7 +118,8 @@ export function aplicarAcao(estado: EstadoMapa, acao: AcaoMapa): EstadoMapa {
       );
     case 'DefinirVisibilidadeNota':
       return alterarNota(estado, acao.coord, acao.notaId, (nota) =>
-        nota.visibilidade.tipo === acao.visibilidade.tipo
+        // Comparando o texto, a lista de jogadores escolhidos também conta.
+        JSON.stringify(nota.visibilidade) === JSON.stringify(acao.visibilidade)
           ? nota
           : { ...nota, visibilidade: acao.visibilidade },
       );

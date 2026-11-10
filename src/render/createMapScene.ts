@@ -62,8 +62,8 @@ interface ControlesCena {
   selecionarHex(coord: CoordHex | null): void;
   /** Liga ou desliga o escurecimento dos hexes que os jogadores não veriam. */
   definirConferenciaDeVisao(ativa: boolean): void;
-  /** Passa a desenhar o mapa exatamente como os jogadores o veriam. */
-  definirModoJogador(ativo: boolean): void;
+  /** Passa a desenhar o mapa exatamente como este jogador o veria; `null` volta ao modo mestre. */
+  definirModoJogador(participanteId: string | null): void;
   cancelarAssinatura(): void;
 }
 
@@ -118,7 +118,7 @@ export function createMapScene(container: HTMLElement, opcoes: OpcoesCena): Cena
     centralizarNoMapa: () => controles?.centralizarNoMapa(),
     selecionarHex: (coord) => controles?.selecionarHex(coord),
     definirConferenciaDeVisao: (ativa) => controles?.definirConferenciaDeVisao(ativa),
-    definirModoJogador: (ativo) => controles?.definirModoJogador(ativo),
+    definirModoJogador: (participanteId) => controles?.definirModoJogador(participanteId),
     destruir() {
       disposed = true;
       controles?.cancelarAssinatura();
@@ -179,14 +179,16 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
   );
 
   let conferindoVisao = false;
-  let modoJogador = false;
+  /** O jogador cuja visão está sendo desenhada, ou `null` no modo mestre. */
+  let jogadorId: string | null = null;
 
   const atualizarCamadas = () => {
     const estadoDoMestre = opcoes.loja.obterEstado();
     const { posicao } = opcoes.lojaGrupo.obterEstado();
     // No modo jogador, todas as camadas desenham só a visão filtrada: o que está oculto não chega aqui.
+    const modoJogador = jogadorId !== null;
     const estado = modoJogador
-      ? visaoDoJogador(estadoDoMestre, posicao ? [posicao] : [])
+      ? visaoDoJogador(estadoDoMestre, posicao ? [posicao] : [], jogadorId ?? '')
       : estadoDoMestre;
     const conferir = conferindoVisao && !modoJogador;
 
@@ -343,8 +345,8 @@ function montarCena(app: Application, catalogo: Catalogo, opcoes: OpcoesCena): C
       conferindoVisao = ativa;
       atualizarCamadas();
     },
-    definirModoJogador: (ativo) => {
-      modoJogador = ativo;
+    definirModoJogador: (participanteId) => {
+      jogadorId = participanteId;
       atualizarCamadas();
     },
     cancelarAssinatura: () => {

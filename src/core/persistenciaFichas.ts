@@ -15,11 +15,12 @@ import {
   type SecaoDaFicha,
   type TipoFicha,
 } from './fichas';
-import { ehObjeto, exigir, type ResultadoDe } from './persistencia';
+import { ehObjeto, exigir, lerVisibilidade, type ResultadoDe } from './persistencia';
+import { SO_MESTRE } from './visibilidade';
 import { atualizarEntradas, comoResultado, lerEntradas, lerJson, VERSAO_COMPENDIO } from './persistenciaCompendio';
 
 /** Aumente ao mudar o formato das fichas, e acrescente a conversão em `converterFicha`. */
-const VERSAO_FICHAS = 3;
+const VERSAO_FICHAS = 4;
 
 /** Passa uma ficha gravada numa versão antiga para a atual, ainda sem conferir. */
 function converterFicha(ficha: unknown, versao: number): unknown {
@@ -43,6 +44,10 @@ function converterFicha(ficha: unknown, versao: number): unknown {
     // Versão 3: usos de habilidades e espaços de magia gastos.
     atual = { ...atual, usosGastos: {}, espacosGastos: ESPACOS_ZERADOS };
   }
+  if (versao < 4) {
+    // Versão 4: quem mais vê a ficha e a edição liberada. As antigas ficam só com o dono e o mestre.
+    atual = { ...atual, visibilidade: SO_MESTRE, edicaoLiberada: false };
+  }
   return atual;
 }
 
@@ -51,6 +56,12 @@ type Dado = Record<string, unknown>;
 function texto(d: Dado, campo: string, onde: string): string {
   const valor = d[campo];
   exigir(typeof valor === 'string', `${onde}: "${campo}" precisa ser um texto.`);
+  return valor;
+}
+
+function booleano(d: Dado, campo: string, onde: string): boolean {
+  const valor = d[campo];
+  exigir(typeof valor === 'boolean', `${onde}: "${campo}" precisa ser sim ou não.`);
   return valor;
 }
 
@@ -111,6 +122,8 @@ function lerFicha(valor: unknown, onde: string, versaoEntradas: number): Ficha {
     tipo: tipo as TipoFicha,
     nome: texto(valor, 'nome', onde),
     donoId: texto(valor, 'donoId', onde),
+    visibilidade: lerVisibilidade(valor.visibilidade, onde),
+    edicaoLiberada: booleano(valor, 'edicaoLiberada', onde),
     atributos: Object.fromEntries(
       ATRIBUTOS.map((a) => [a, inteiro(atributos[a], `${onde}: ${a.toUpperCase()}`, 1, 30)]),
     ) as Record<Atributo, number>,

@@ -18,4 +18,10 @@ export interface Mesa {
   readonly temOutrasFichas: boolean;
   /** Abre a explicação do número perto do elemento clicado. */
   explicar(alvo: HTMLElement, rotulo: string, calculado: Calculado, nota?: string): void;
+  /** Quem está agindo pode rolar, usar e arrumar esta ficha (é o dono ou o mestre). */
+  readonly podeAgir: boolean;
+  /** Pode mudar tudo: atributos, classes, itens novos, cópias (o mestre, ou o dono com a edição liberada). */
+  readonly podeEditarTudo: boolean;
+  /** Por que algo está desativado, para a dica do controle. */
+  readonly motivo: string | null;
 }

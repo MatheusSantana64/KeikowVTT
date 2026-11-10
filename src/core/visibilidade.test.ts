@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { aparenciasIguais, APARENCIA_PADRAO, type AparenciaOculta } from './aparencia';
 import { aplicarAcao, criarMapaVazio, hexEm, type AcaoMapa, type EstadoMapa, type Nota } from './mapa';
-import { nivelDeVisao, SO_MESTRE, VISIVEL_A_TODOS, visaoDoJogador } from './visibilidade';
+import { mesmaVisibilidade, nivelDeVisao, paraJogadores, podeVer, SO_MESTRE, VISIVEL_A_TODOS, visaoDoJogador } from './visibilidade';
 
 const A = { q: 0, r: 0 };
 const VIZINHO = { q: 1, r: 0 };
@@ -239,5 +239,43 @@ describe('aparenciasIguais', () => {
     expect(aparenciasIguais(neblina('clara'), neblina('clara'))).toBe(true);
     expect(aparenciasIguais(neblina('clara'), neblina('escura'))).toBe(false);
     expect(aparenciasIguais(tile('a'), tile('b'))).toBe(false);
+  });
+});
+
+describe('jogadores escolhidos', () => {
+  it('o mestre vê tudo; cada jogador, o que é de todos ou foi mostrado a ele', () => {
+    const paraAna = paraJogadores(['ana']);
+    expect(podeVer(SO_MESTRE, 'mestre')).toBe(true);
+    expect(podeVer(paraAna, 'mestre')).toBe(true);
+    expect(podeVer(SO_MESTRE, 'ana')).toBe(false);
+    expect(podeVer(paraAna, 'ana')).toBe(true);
+    expect(podeVer(paraAna, 'bia')).toBe(false);
+    expect(podeVer(VISIVEL_A_TODOS, 'bia')).toBe(true);
+  });
+
+  it('a lista não repete jogadores e a ordem não importa', () => {
+    expect(paraJogadores(['ana', 'ana', 'bia'])).toEqual({ tipo: 'jogadores', ids: ['ana', 'bia'] });
+    expect(mesmaVisibilidade(paraJogadores(['ana', 'bia']), paraJogadores(['bia', 'ana']))).toBe(true);
+    expect(mesmaVisibilidade(paraJogadores(['ana']), SO_MESTRE)).toBe(false);
+  });
+
+  it('no hex do grupo, cada jogador lê só as notas mostradas a ele', () => {
+    const estado = aplicarTodas(
+      [{ tipo: 'AdicionarNota', coord: A, nota: { id: 'ana', texto: 'Só para Ana', visibilidade: paraJogadores(['ana']) } }],
+      mapa(),
+    );
+    const textos = (id?: string) => hexEm(visaoDoJogador(estado, [A], id), A)?.notas.map((n) => n.texto);
+    expect(textos('ana')).toEqual(['Pública de Centro', 'Só para Ana']);
+    expect(textos('bia')).toEqual(['Pública de Centro']);
+    expect(textos()).toEqual(['Pública de Centro']);
+  });
+
+  it('mudar os jogadores escolhidos de uma nota muda a nota', () => {
+    const comNota = aplicarTodas(
+      [{ tipo: 'AdicionarNota', coord: A, nota: { id: 'x', texto: 'x', visibilidade: paraJogadores(['ana']) } }],
+      mapa(),
+    );
+    const mudou = aplicarAcao(comNota, { tipo: 'DefinirVisibilidadeNota', coord: A, notaId: 'x', visibilidade: paraJogadores(['bia']) });
+    expect(hexEm(mudou, A)?.notas.find((n) => n.id === 'x')?.visibilidade).toEqual(paraJogadores(['bia']));
   });
 });

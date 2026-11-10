@@ -1,4 +1,5 @@
 import type { CoordHex } from './hex';
+import { soOMestre } from './permissoes';
 import { criarLojaComHistorico, type LojaComHistorico } from './lojaHistorico';
 import { aplicarAcao, criarMapaVazio, type AcaoMapa, type EstadoMapa } from './mapa';
 import type { OpcoesRegistro } from './registro';
@@ -26,6 +27,7 @@ export function criarLojaMapa(
       coordDaAcao,
       eventoDesfazer: 'Desfazer',
       eventoRefazer: 'Refazer',
+      conferir: soOMestre('o mapa'),
     },
     opcoes,
   );

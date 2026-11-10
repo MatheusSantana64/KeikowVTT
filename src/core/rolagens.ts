@@ -5,7 +5,9 @@
 import type { DadoRolado } from './formulas';
 import { ehObjeto, exigir, lerVisibilidade, type ResultadoDe } from './persistencia';
 import { comoResultado, lerJson } from './persistenciaCompendio';
-import { SO_MESTRE, VISIVEL_A_TODOS, type Visibilidade } from './visibilidade';
+import { ehMestre, paraJogadores, podeVer, SO_MESTRE, VISIVEL_A_TODOS, type Visibilidade } from './visibilidade';
+
+const ID_DO_MESTRE = 'mestre';
 
 export const LIMITE_ROLAGENS = 200;
 const VERSAO_ROLAGENS = 1;
@@ -27,7 +29,7 @@ export interface RolagemRegistrada {
   readonly total: number;
   /** O d20 que contou mostrou 20 ou 1. */
   readonly natural: 20 | 1 | null;
-  /** Rolagem secreta: só o mestre vê. */
+  /** Rolagem secreta: só o mestre vê (e quem rolou, se foi um jogador). */
   readonly visibilidade: Visibilidade;
 }
 
@@ -83,9 +85,17 @@ export function criarLojaRolagens(
   };
 }
 
-/** Quem pode ver a rolagem: secreta é só do mestre. */
-export function visibilidadeDaRolagem(secreta: boolean): Visibilidade {
-  return secreta ? SO_MESTRE : VISIVEL_A_TODOS;
+/** Quem pode ver a rolagem: a secreta do mestre é só dele; a secreta de um jogador, dele e do mestre. */
+export function visibilidadeDaRolagem(secreta: boolean, autorId: string = ID_DO_MESTRE): Visibilidade {
+  if (!secreta) {
+    return VISIVEL_A_TODOS;
+  }
+  return ehMestre(autorId) ? SO_MESTRE : paraJogadores([autorId]);
+}
+
+/** As rolagens que um participante vê. */
+export function rolagensVisiveis(rolagens: readonly RolagemRegistrada[], participanteId: string): readonly RolagemRegistrada[] {
+  return ehMestre(participanteId) ? rolagens : rolagens.filter((r) => podeVer(r.visibilidade, participanteId));
 }
 
 export function serializarRolagens(rolagens: readonly RolagemRegistrada[]): string {

@@ -57,7 +57,7 @@ function itensDaCarta(carta: Carta, ficha: Ficha, mesa: Mesa, editar: Props['edi
     ...(ehAcaoDeDano(acao) ? [{ rotulo: `${acao.rotulo} (crítico, dados em dobro)`, aoEscolher: () => fazer(true) }] : []),
   ];
 
-  if (carta.tipo === 'nota') {
+  if (carta.tipo === 'nota' || !mesa.podeAgir) {
     return [];
   }
 
@@ -96,7 +96,7 @@ function itensDaCarta(carta: Carta, ficha: Ficha, mesa: Mesa, editar: Props['edi
   }
 
   const { entrada, extra, habilidade } = carta;
-  const tirar: ItemDoMenu[] = extra
+  const tirar: ItemDoMenu[] = extra && mesa.podeEditarTudo
     ? [{ rotulo: 'Tirar da ficha', separar: true, aoEscolher: () => editar(semExtra(ficha, entrada.id), unico('tirar')) }]
     : [];
 
@@ -199,12 +199,14 @@ export function OrganizacaoFicha({ ficha, compendio, calculo, regras, editar, me
             inteiro
             minimo={0}
             valor={ficha.moedas[moeda]}
+            desativado={!mesa.podeAgir}
+            motivo={mesa.motivo}
             aoMudar={(v) => v !== null && editar(comMoeda(ficha, moeda, v), `moeda-${moeda}`)}
           />
         ))}
       </div>
 
-      <BarraAdicionar ficha={ficha} compendio={compendio} editar={editar} />
+      {mesa.podeAgir && <BarraAdicionar ficha={ficha} compendio={compendio} editar={editar} podeEditarTudo={mesa.podeEditarTudo} />}
 
       <div className="organizacao-secoes">
         {secoes.map(({ secao, cartas }, indiceSecao) => (
@@ -231,13 +233,14 @@ export function OrganizacaoFicha({ ficha, compendio, calculo, regras, editar, me
                 type="text"
                 aria-label="Nome da seção"
                 value={secao.nome}
+                disabled={!mesa.podeAgir}
                 onChange={(e) => editar(comSecaoRenomeada(ficha, secao.id, e.target.value), `secao-nome-${secao.id}`)}
               />
               <small>{cartas.length}</small>
               <button
                 type="button"
                 title="Subir a seção"
-                disabled={indiceSecao === 0}
+                disabled={!mesa.podeAgir || indiceSecao === 0}
                 onClick={() => editar(comSecaoMovida(ficha, secao.id, indiceSecao - 1), unico('secao'))}
               >
                 ↑
@@ -245,7 +248,7 @@ export function OrganizacaoFicha({ ficha, compendio, calculo, regras, editar, me
               <button
                 type="button"
                 title="Descer a seção"
-                disabled={indiceSecao === secoes.length - 1}
+                disabled={!mesa.podeAgir || indiceSecao === secoes.length - 1}
                 onClick={() => editar(comSecaoMovida(ficha, secao.id, indiceSecao + 1), unico('secao'))}
               >
                 ↓
@@ -253,7 +256,7 @@ export function OrganizacaoFicha({ ficha, compendio, calculo, regras, editar, me
               <button
                 type="button"
                 title="Apagar a seção (as cartas vão para a primeira seção)"
-                disabled={secoes.length <= 1}
+                disabled={!mesa.podeAgir || secoes.length <= 1}
                 onClick={() => editar(semSecao(ficha, secao.id), unico('secao'))}
               >
                 Apagar
@@ -263,7 +266,7 @@ export function OrganizacaoFicha({ ficha, compendio, calculo, regras, editar, me
               {cartas.map((carta, indice) => (
                 <li
                   key={carta.chave}
-                  draggable
+                  draggable={mesa.podeAgir}
                   className={[
                     'organizacao-carta',
                     alvo?.secaoId === secao.id && alvo.posicao === indice ? 'alvo-antes' : '',
@@ -307,7 +310,12 @@ export function OrganizacaoFicha({ ficha, compendio, calculo, regras, editar, me
 }
 
 /** Procura no compêndio itens, magias, habilidades e talentos para pôr na ficha, e cria itens avulsos, notas e seções. */
-function BarraAdicionar({ ficha, compendio, editar }: Pick<Props, 'ficha' | 'compendio' | 'editar'>) {
+function BarraAdicionar({
+  ficha,
+  compendio,
+  editar,
+  podeEditarTudo,
+}: Pick<Props, 'ficha' | 'compendio' | 'editar'> & { readonly podeEditarTudo: boolean }) {
   const [busca, setBusca] = useState('');
   const encontradas = useMemo(
     () =>
@@ -328,19 +336,23 @@ function BarraAdicionar({ ficha, compendio, editar }: Pick<Props, 'ficha' | 'com
   return (
     <div className="organizacao-adicionar">
       <div className="compendio-novo">
-        <input
-          type="search"
-          aria-label="Procurar no compêndio"
-          placeholder="Procurar item, magia ou habilidade no compêndio"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-        />
-        <button
-          type="button"
-          onClick={() => editar(comItemAvulso(ficha, crypto.randomUUID(), crypto.randomUUID(), 'Item novo'), unico('avulso'))}
-        >
-          + Item avulso
-        </button>
+        {podeEditarTudo && (
+          <>
+            <input
+              type="search"
+              aria-label="Procurar no compêndio"
+              placeholder="Procurar item, magia ou habilidade no compêndio"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => editar(comItemAvulso(ficha, crypto.randomUUID(), crypto.randomUUID(), 'Item novo'), unico('avulso'))}
+            >
+              + Item avulso
+            </button>
+          </>
+        )}
         <button
           type="button"
           onClick={() => editar(comNota(ficha, { id: crypto.randomUUID(), titulo: 'Nota', texto: '' }), unico('nota'))}
@@ -351,7 +363,7 @@ function BarraAdicionar({ ficha, compendio, editar }: Pick<Props, 'ficha' | 'com
           + Seção
         </button>
       </div>
-      {encontradas.length > 0 && (
+      {podeEditarTudo && encontradas.length > 0 && (
         <ul className="organizacao-resultados">
           {encontradas.map((entrada) => {
             const jaTem = entrada.tipo !== 'item' && ficha.extras.includes(entrada.id);
@@ -388,6 +400,8 @@ interface PropsCarta {
 
 function CartaDaFicha(props: PropsCarta) {
   const { carta, ficha, calculo, aberta, alternar, editar, secoes, secaoAtual, podeSubir, podeDescer, indice, mover, mesa } = props;
+  const { podeAgir, podeEditarTudo, motivo } = mesa;
+  const dicaSemEdicao = motivo ?? undefined;
   const nomeDaCarta = carta.tipo === 'nota' ? carta.nota.titulo : carta.entrada.nome || '(sem nome)';
   const itensDoMenu = itensDaCarta(carta, ficha, mesa, editar);
   const abrirMenu = (e: MouseEvent) => {
@@ -404,14 +418,15 @@ function CartaDaFicha(props: PropsCarta) {
 
   const controlesDeLugar = (
     <span className="carta-lugar">
-      <button type="button" title="Subir" disabled={!podeSubir} onClick={() => mover(secaoAtual, indice - 1)}>
+      <button type="button" title="Subir" disabled={!podeAgir || !podeSubir} onClick={() => mover(secaoAtual, indice - 1)}>
         ↑
       </button>
-      <button type="button" title="Descer" disabled={!podeDescer} onClick={() => mover(secaoAtual, indice + 2)}>
+      <button type="button" title="Descer" disabled={!podeAgir || !podeDescer} onClick={() => mover(secaoAtual, indice + 2)}>
         ↓
       </button>
       <select
         aria-label="Mover para a seção"
+        disabled={!podeAgir}
         value=""
         onChange={(e) => e.target.value && mover(e.target.value, Number.MAX_SAFE_INTEGER)}
       >
@@ -437,10 +452,11 @@ function CartaDaFicha(props: PropsCarta) {
             aria-label="Título da nota"
             className="carta-titulo"
             value={nota.titulo}
+            disabled={!podeAgir}
             onChange={(e) => editar(comNota(ficha, { ...nota, titulo: e.target.value }), `nota-titulo-${nota.id}`)}
           />
           {controlesDeLugar}
-          <button type="button" onClick={() => editar(semNota(ficha, nota.id), unico('apagar-nota'))}>
+          <button type="button" disabled={!podeAgir} onClick={() => editar(semNota(ficha, nota.id), unico('apagar-nota'))}>
             Apagar
           </button>
         </div>
@@ -448,6 +464,7 @@ function CartaDaFicha(props: PropsCarta) {
           aria-label="Texto da nota"
           rows={3}
           value={nota.texto}
+          disabled={!podeAgir}
           onChange={(e) => editar(comNota(ficha, { ...nota, texto: e.target.value }), `nota-texto-${nota.id}`)}
         />
       </div>
@@ -468,7 +485,7 @@ function CartaDaFicha(props: PropsCarta) {
             <button
               type="button"
               title="Menos um"
-              disabled={pilha.quantidade <= 1}
+              disabled={!podeAgir || pilha.quantidade <= 1}
               onClick={() => editar(comPilha(ficha, pilha.id, { quantidade: pilha.quantidade - 1 }), unico('quantidade'))}
             >
               −
@@ -476,7 +493,8 @@ function CartaDaFicha(props: PropsCarta) {
             <span>{pilha.quantidade}</span>
             <button
               type="button"
-              title="Mais um"
+              title={podeEditarTudo ? 'Mais um' : dicaSemEdicao}
+              disabled={!podeEditarTudo}
               onClick={() => editar(comPilha(ficha, pilha.id, { quantidade: pilha.quantidade + 1 }), unico('quantidade'))}
             >
               +
@@ -486,6 +504,7 @@ function CartaDaFicha(props: PropsCarta) {
             <input
               type="checkbox"
               checked={pilha.equipado}
+              disabled={!podeAgir}
               onChange={(e) => editar(comPilha(ficha, pilha.id, { equipado: e.target.checked }), unico('equipar'))}
             />
             Equipado
@@ -495,17 +514,18 @@ function CartaDaFicha(props: PropsCarta) {
               <input
                 type="checkbox"
                 checked={pilha.sintonizado}
+                disabled={!podeAgir}
                 onChange={(e) => editar(comPilha(ficha, pilha.id, { sintonizado: e.target.checked }), unico('sintonizar'))}
               />
               Sintonizado
             </label>
           )}
           {controlesDeLugar}
-          <button type="button" title="Descartar (Ctrl+Z desfaz)" onClick={() => editar(semPilha(ficha, pilha.id), unico('descartar'))}>
+          <button type="button" title="Descartar (Ctrl+Z desfaz)" disabled={!podeAgir} onClick={() => editar(semPilha(ficha, pilha.id), unico('descartar'))}>
             Descartar
           </button>
         </div>
-        {aberta && <DetalhesDaCopia entrada={entrada} ficha={ficha} editar={editar} />}
+        {aberta && <DetalhesDaCopia entrada={entrada} ficha={ficha} editar={editar} podeEditar={podeEditarTudo} />}
       </div>
     );
   }
@@ -532,28 +552,40 @@ function CartaDaFicha(props: PropsCarta) {
         )}
         {controlesDeLugar}
         {extra && (
-          <button type="button" onClick={() => editar(semExtra(ficha, entrada.id), unico('tirar'))}>
+          <button type="button" disabled={!podeEditarTudo} title={podeEditarTudo ? undefined : dicaSemEdicao} onClick={() => editar(semExtra(ficha, entrada.id), unico('tirar'))}>
             Tirar
           </button>
         )}
       </div>
-      {aberta && <DetalhesDaCopia entrada={entrada} ficha={ficha} editar={editar} />}
+      {aberta && <DetalhesDaCopia entrada={entrada} ficha={ficha} editar={editar} podeEditar={podeEditarTudo} />}
     </div>
   );
 }
 
 /** A descrição da cópia, e o formulário para editá-la só nesta ficha. */
-function DetalhesDaCopia({ entrada, ficha, editar }: { readonly entrada: Entrada; readonly ficha: Ficha; readonly editar: Props['editar'] }) {
+function DetalhesDaCopia({
+  entrada,
+  ficha,
+  editar,
+  podeEditar,
+}: {
+  readonly entrada: Entrada;
+  readonly ficha: Ficha;
+  readonly editar: Props['editar'];
+  readonly podeEditar: boolean;
+}) {
   const [editando, setEditando] = useState(false);
   const mudar = (nova: Entrada, campo: string) => editar(comCopiaEditada(ficha, nova), `copia-${entrada.id}-${campo}`);
 
-  if (!editando) {
+  if (!editando || !podeEditar) {
     return (
       <div className="carta-detalhes">
         <p>{entrada.descricao || 'Sem descrição.'}</p>
-        <button type="button" onClick={() => setEditando(true)}>
-          Editar a cópia desta ficha
-        </button>
+        {podeEditar && (
+          <button type="button" onClick={() => setEditando(true)}>
+            Editar a cópia desta ficha
+          </button>
+        )}
       </div>
     );
   }

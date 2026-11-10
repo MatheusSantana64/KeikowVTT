@@ -1,18 +1,52 @@
 import { chaveHex, vizinhosHex, type ChaveHex, type CoordHex } from './hex';
 import { INFORMACAO_VAZIA, type EstadoMapa, type Hex } from './mapa';
 
-/** Quem pode ver uma informação. É um objeto para aceitar, no futuro, um jogador específico. */
-export type Visibilidade = { readonly tipo: 'todos' } | { readonly tipo: 'mestre' };
+/** Quem pode ver uma informação: todos, só o mestre, ou o mestre e os jogadores escolhidos. */
+export type Visibilidade =
+  | { readonly tipo: 'todos' }
+  | { readonly tipo: 'mestre' }
+  | { readonly tipo: 'jogadores'; readonly ids: readonly string[] };
 
 export const VISIVEL_A_TODOS: Visibilidade = { tipo: 'todos' };
 export const SO_MESTRE: Visibilidade = { tipo: 'mestre' };
 
-/** O hex onde o grupo está: tudo o que é público. */
-function hexCompleto(hex: Hex): Hex {
+/** Mesmo valor de `ID_MESTRE`. Repetido aqui para evitar que os arquivos dependam um do outro em círculo. */
+const MESTRE = 'mestre';
+
+export function ehMestre(participanteId: string): boolean {
+  return participanteId === MESTRE;
+}
+
+/** O mestre vê tudo; os jogadores, o que é de todos ou foi mostrado a eles. */
+export function podeVer(visibilidade: Visibilidade, participanteId: string): boolean {
+  switch (visibilidade.tipo) {
+    case 'todos':
+      return true;
+    case 'mestre':
+      return participanteId === MESTRE;
+    case 'jogadores':
+      return participanteId === MESTRE || visibilidade.ids.includes(participanteId);
+  }
+}
+
+export function mesmaVisibilidade(a: Visibilidade, b: Visibilidade): boolean {
+  if (a.tipo !== 'jogadores' || b.tipo !== 'jogadores') {
+    return a.tipo === b.tipo;
+  }
+  return a.ids.length === b.ids.length && a.ids.every((id) => b.ids.includes(id));
+}
+
+/** Só para os jogadores escolhidos (e o mestre). Sem nenhum jogador, é o mesmo que só o mestre. */
+export function paraJogadores(ids: readonly string[]): Visibilidade {
+  return { tipo: 'jogadores', ids: [...new Set(ids)] };
+}
+
+/** O hex onde o grupo está: tudo o que este participante pode ver. */
+function hexCompleto(hex: Hex, participanteId: string): Hex {
   return {
     ...hex,
     revelado: false,
-    notas: hex.notas.filter((nota) => nota.visibilidade.tipo === 'todos'),
+    notas: hex.notas.filter((nota) => podeVer(nota.visibilidade, participanteId)),
   };
 }
 
@@ -51,10 +85,12 @@ export function nivelDeVisao(hex: Hex, posicoes: readonly CoordHex[]): NivelDeVi
 /**
  * O mapa como um jogador pode vê-lo, a partir de onde o grupo está: o hex da posição,
  * os 6 vizinhos e os hexes revelados pelo mestre. Os demais hexes simplesmente não existem aqui.
+ * Sem `participanteId`, ficam só as notas de todos.
  */
 export function visaoDoJogador(
   estado: EstadoMapa,
   posicoes: readonly CoordHex[],
+  participanteId = '',
 ): EstadoMapa {
   const chavesPosicao = chavesDePosicao(posicoes);
   const vizinhas = chavesVizinhas(posicoes);
@@ -63,7 +99,7 @@ export function visaoDoJogador(
   for (const hex of Object.values(estado.hexes)) {
     const nivel = calcularNivel(hex, chavesPosicao, vizinhas);
     if (nivel !== 'oculto') {
-      hexes[chaveHex(hex.coord)] = nivel === 'completo' ? hexCompleto(hex) : hexAvistado(hex);
+      hexes[chaveHex(hex.coord)] = nivel === 'completo' ? hexCompleto(hex, participanteId) : hexAvistado(hex);
     }
   }
 

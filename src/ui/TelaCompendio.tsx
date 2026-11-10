@@ -1,22 +1,37 @@
-import { useDeferredValue, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useDeferredValue, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import type { Participante } from '../core/campanha';
 import { buscarEntradas, entradaEm, type LojaCompendio } from '../core/compendio';
 import { criarEntrada, TIPOS_ENTRADA, type Entrada, type TipoEntrada } from '../core/entradas';
-import { SO_MESTRE, VISIVEL_A_TODOS } from '../core/visibilidade';
+import { ehMestre, podeVer } from '../core/visibilidade';
 import { CampoLinhas, CampoTexto } from './camposFormulario';
 import { EditorAcoes, EditorEfeitos, FormularioDados } from './FormulariosEntrada';
 import { PainelImportacao } from './PainelImportacao';
 import { ROTULO_TIPO } from './rotulosCompendio';
+import { SeletorVisibilidade } from './SeletorVisibilidade';
 
 /** Mais que isso deixa a lista lenta e não ajuda a achar nada: melhor refinar a busca. */
 const LIMITE_LISTA = 300;
 
 interface TelaCompendioProps {
   readonly lojaCompendio: LojaCompendio;
+  readonly participantes: readonly Participante[];
+  /** Os jogadores veem só as entradas mostradas a eles, e não editam nada. */
+  readonly agindoComoId: string;
+  readonly seletorAgindoComo: ReactNode;
   readonly aoFechar: () => void;
 }
 
-export function TelaCompendio({ lojaCompendio, aoFechar }: TelaCompendioProps) {
-  const estado = useSyncExternalStore(lojaCompendio.assinar, lojaCompendio.obterEstado);
+export function TelaCompendio({ lojaCompendio, participantes, agindoComoId, seletorAgindoComo, aoFechar }: TelaCompendioProps) {
+  const estadoCompleto = useSyncExternalStore(lojaCompendio.assinar, lojaCompendio.obterEstado);
+  const mestre = ehMestre(agindoComoId);
+  // O jogador recebe só o que pode ver: o resto nem chega às telas.
+  const estado = useMemo(
+    () =>
+      mestre
+        ? estadoCompleto
+        : { ...estadoCompleto, entradas: Object.fromEntries(Object.entries(estadoCompleto.entradas).filter(([, e]) => podeVer(e.visibilidade, agindoComoId))) },
+    [estadoCompleto, mestre, agindoComoId],
+  );
   const podeDesfazer = useSyncExternalStore(lojaCompendio.assinar, lojaCompendio.podeDesfazer);
   const podeRefazer = useSyncExternalStore(lojaCompendio.assinar, lojaCompendio.podeRefazer);
   const [busca, setBusca] = useState('');
@@ -61,17 +76,22 @@ export function TelaCompendio({ lojaCompendio, aoFechar }: TelaCompendioProps) {
     <div className="tela-sobreposta" role="dialog" aria-label="Compêndio">
       <header className="tela-cabecalho">
         <h1>Compêndio</h1>
-        <div className="tela-cabecalho-acoes">
-          <button type="button" disabled={!podeDesfazer} onClick={lojaCompendio.desfazer} title="Ctrl+Z">
-            Desfazer
-          </button>
-          <button type="button" disabled={!podeRefazer} onClick={lojaCompendio.refazer} title="Ctrl+Y">
-            Refazer
-          </button>
-          <button type="button" aria-pressed={importando} onClick={() => setImportando(!importando)}>
-            Importar pacote
-          </button>
-        </div>
+        {mestre ? (
+          <div className="tela-cabecalho-acoes">
+            <button type="button" disabled={!podeDesfazer} onClick={lojaCompendio.desfazer} title="Ctrl+Z">
+              Desfazer
+            </button>
+            <button type="button" disabled={!podeRefazer} onClick={lojaCompendio.refazer} title="Ctrl+Y">
+              Refazer
+            </button>
+            <button type="button" aria-pressed={importando} onClick={() => setImportando(!importando)}>
+              Importar pacote
+            </button>
+          </div>
+        ) : (
+          <p className="tela-dica">Só para leitura: o compêndio é do mestre.</p>
+        )}
+        {seletorAgindoComo}
         <button type="button" className="tela-fechar" onClick={aoFechar}>
           Voltar ao mapa
         </button>
@@ -109,6 +129,7 @@ export function TelaCompendio({ lojaCompendio, aoFechar }: TelaCompendioProps) {
               ))}
             </select>
           )}
+          {mestre && (
           <div className="compendio-novo">
             <select aria-label="Tipo da nova entrada" value={tipoNovo} onChange={(e) => setTipoNovo(e.target.value as TipoEntrada)}>
               {TIPOS_ENTRADA.map((tipo) => (
@@ -121,6 +142,7 @@ export function TelaCompendio({ lojaCompendio, aoFechar }: TelaCompendioProps) {
               + Nova entrada
             </button>
           </div>
+          )}
           <p className="tela-dica">
             {encontradas.length === 1 ? '1 entrada' : `${encontradas.length} entradas`}
             {encontradas.length > LIMITE_LISTA && `; mostrando as ${LIMITE_LISTA} primeiras`}
@@ -143,7 +165,7 @@ export function TelaCompendio({ lojaCompendio, aoFechar }: TelaCompendioProps) {
 
         <main className="compendio-editor">
           {aviso && <p className="mensagem-info">{aviso}</p>}
-          {importando ? (
+          {importando && mestre ? (
             <PainelImportacao
               estado={estado}
               lojaCompendio={lojaCompendio}
@@ -162,6 +184,8 @@ export function TelaCompendio({ lojaCompendio, aoFechar }: TelaCompendioProps) {
               entrada={selecionada}
               todas={todas}
               lojaCompendio={lojaCompendio}
+              participantes={participantes}
+              somenteLeitura={!mestre}
               aoSelecionar={selecionar}
             />
           ) : (
@@ -179,11 +203,15 @@ function EditorEntrada({
   entrada,
   todas,
   lojaCompendio,
+  participantes,
+  somenteLeitura,
   aoSelecionar,
 }: {
   readonly entrada: Entrada;
   readonly todas: readonly Entrada[];
   readonly lojaCompendio: LojaCompendio;
+  readonly participantes: readonly Participante[];
+  readonly somenteLeitura: boolean;
   readonly aoSelecionar: (id: string | null) => void;
 }) {
   // Cada vez que um campo recebe o foco começa um novo passo de desfazer.
@@ -221,30 +249,28 @@ function EditorEntrada({
             {entrada.origem.tipo === 'pacote' ? `do pacote ${entrada.origem.pacote}` : 'criada nesta campanha'}
           </p>
         </div>
-        <div className="tela-cabecalho-acoes">
-          <button type="button" onClick={duplicar}>
-            Duplicar
-          </button>
-          <button type="button" onClick={apagar}>
-            Apagar
-          </button>
-        </div>
+        {!somenteLeitura && (
+          <div className="tela-cabecalho-acoes">
+            <button type="button" onClick={duplicar}>
+              Duplicar
+            </button>
+            <button type="button" onClick={apagar}>
+              Apagar
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="formulario">
+      {/* Um fieldset desativado desativa todos os campos de dentro: o jogador lê, mas não muda. */}
+      <fieldset className="formulario formulario-leitura" disabled={somenteLeitura}>
         <CampoTexto rotulo="Nome" valor={entrada.nome} aoMudar={(nome) => editar({ ...entrada, nome }, 'nome')} />
-        <label className="campo">
-          <span>Quem vê</span>
-          <select
-            value={entrada.visibilidade.tipo}
-            onChange={(e) =>
-              editar({ ...entrada, visibilidade: e.target.value === 'todos' ? VISIVEL_A_TODOS : SO_MESTRE }, 'visibilidade')
-            }
-          >
-            <option value="mestre">Só o mestre</option>
-            <option value="todos">Todos</option>
-          </select>
-        </label>
+        <SeletorVisibilidade
+          rotulo="Quem vê"
+          valor={entrada.visibilidade}
+          participantes={participantes}
+          desativado={somenteLeitura}
+          aoMudar={(visibilidade) => editar({ ...entrada, visibilidade }, `visibilidade-${crypto.randomUUID()}`)}
+        />
         <CampoTexto
           rotulo="Descrição"
           multilinha
@@ -265,7 +291,7 @@ function EditorEntrada({
         />
         <EditorEfeitos entrada={entrada} mudar={(efeitos, campo) => editar({ ...entrada, efeitos } as Entrada, campo)} />
         <EditorAcoes entrada={entrada} mudar={(acoes, campo) => editar({ ...entrada, acoes } as Entrada, campo)} />
-      </div>
+      </fieldset>
     </div>
   );
 }

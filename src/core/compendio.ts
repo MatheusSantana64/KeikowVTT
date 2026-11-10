@@ -1,4 +1,5 @@
 import type { Entrada, TipoEntrada } from './entradas';
+import { soOMestre } from './permissoes';
 import { criarLojaComHistorico, type LojaComHistorico } from './lojaHistorico';
 import type { OpcoesRegistro } from './registro';
 
@@ -178,6 +179,7 @@ export function criarLojaCompendio(
       aplicar: aplicarAcaoCompendio,
       eventoDesfazer: 'DesfazerCompendio',
       eventoRefazer: 'RefazerCompendio',
+      conferir: soOMestre('o compêndio'),
     },
     opcoes,
   );

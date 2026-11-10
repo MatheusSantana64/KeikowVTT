@@ -1491,15 +1491,6 @@ body {
   font-size: 12px;
 }
 
-.aparencia-jogador {
-  margin-top: 16px;
-}
-
-.aparencia-jogador h2 {
-  margin: 0;
-  font-size: 14px;
-}
-
 .ajuda-bloco summary {
   color: #a5a79f;
   cursor: pointer;
@@ -1808,4 +1799,99 @@ body {
 
 .map.com-ferramenta {
   cursor: crosshair;
+}
+
+/* ---------- Agindo como e quem vê ---------- */
+
+.agindo-como {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+  color: #a5a79f;
+  font-size: 13px;
+}
+
+.agindo-como select {
+  padding: 5px 8px;
+  border: 1px solid #4a5163;
+  border-radius: 4px;
+  background: #14161c;
+  color: #e6e3da;
+  font: inherit;
+  font-size: 14px;
+}
+
+.tela-cabecalho .agindo-como {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 0 auto;
+}
+
+.seletor-visibilidade > label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.seletor-visibilidade-jogadores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 14px;
+  color: #e6e3da;
+}
+
+.painel-hex .seletor-visibilidade {
+  flex: 1;
+}
+
+.painel-hex .seletor-visibilidade select {
+  padding: 3px 6px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #14161c;
+  color: #e6e3da;
+  font: inherit;
+  font-size: 12px;
+}
+
+.painel-hex .seletor-visibilidade input[type='checkbox'] {
+  display: inline;
+  width: auto;
+  margin: 0;
+}
+
+.painel-hex .seletor-visibilidade .campo-marcar {
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+/* Fieldsets que só servem para desativar um grupo de campos, sem mudar o desenho. */
+.grupo-transparente {
+  display: contents;
+}
+
+fieldset.formulario {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.compendio-editor input:disabled,
+.compendio-editor textarea:disabled,
+.compendio-editor select:disabled {
+  color: #b9bab2;
+  cursor: not-allowed;
+}
+
+.tela-cabecalho .agindo-como + .tela-fechar {
+  margin-left: 0;
+}
+
+.sidebar > .tela-dica {
+  flex-shrink: 0;
+  margin: 0 0 10px;
+  line-height: 1.4;
 }

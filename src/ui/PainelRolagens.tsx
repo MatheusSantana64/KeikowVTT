@@ -1,5 +1,6 @@
-import { useSyncExternalStore } from 'react';
-import type { LojaRolagens, RolagemRegistrada } from '../core/rolagens';
+import { useMemo, useSyncExternalStore } from 'react';
+import { rolagensVisiveis, type LojaRolagens, type RolagemRegistrada } from '../core/rolagens';
+import { ehMestre } from '../core/visibilidade';
 import { numeroNaTela } from './numeros';
 
 function hora(momento: number): string {
@@ -36,25 +37,32 @@ function DadosRolados({ rolagem }: { readonly rolagem: RolagemRegistrada }) {
 /** O registro de rolagens da mesa. Na fase online, vira o chat. */
 export function PainelRolagens({
   lojaRolagens,
+  agindoComoId,
   secreta,
   aoMudarSecreta,
 }: {
   readonly lojaRolagens: LojaRolagens;
+  /** Cada participante vê as rolagens públicas e as secretas dele; o mestre vê todas. */
+  readonly agindoComoId: string;
   readonly secreta: boolean;
   readonly aoMudarSecreta: (secreta: boolean) => void;
 }) {
-  const rolagens = useSyncExternalStore(lojaRolagens.assinar, lojaRolagens.obterRolagens);
+  const todas = useSyncExternalStore(lojaRolagens.assinar, lojaRolagens.obterRolagens);
+  const rolagens = useMemo(() => rolagensVisiveis(todas, agindoComoId), [todas, agindoComoId]);
+  const mestre = ehMestre(agindoComoId);
   return (
     <aside className="painel-rolagens" aria-label="Rolagens">
       <header>
         <h2>Rolagens</h2>
-        <button type="button" disabled={rolagens.length === 0} onClick={lojaRolagens.limpar} title="Apagar o registro de rolagens">
-          Limpar
-        </button>
+        {mestre && (
+          <button type="button" disabled={rolagens.length === 0} onClick={lojaRolagens.limpar} title="Apagar o registro de rolagens">
+            Limpar
+          </button>
+        )}
       </header>
-      <label className="campo-marcar" title="Rolagens secretas só aparecem para o mestre">
+      <label className="campo-marcar" title="Rolagens secretas só aparecem para quem rolou e para o mestre">
         <input type="checkbox" checked={secreta} onChange={(e) => aoMudarSecreta(e.target.checked)} />
-        Rolar em segredo (só o mestre vê)
+        {mestre ? 'Rolar em segredo (só o mestre vê)' : 'Rolar em segredo (só você e o mestre veem)'}
       </label>
       {rolagens.length === 0 && <p className="tela-dica">Clique num teste, perícia ou ataque para rolar.</p>}
       <ol>
@@ -63,7 +71,7 @@ export function PainelRolagens({
             <div className="rolagem-topo">
               <strong>{r.quem}</strong>
               <small>
-                {r.visibilidade.tipo === 'mestre' && 'secreta · '}
+                {r.visibilidade.tipo !== 'todos' && 'secreta · '}
                 {hora(r.momento)}
               </small>
             </div>

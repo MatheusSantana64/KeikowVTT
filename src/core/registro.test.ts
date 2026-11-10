@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { criarFicha, criarLojaFichas } from './fichas';
 import { criarLojaGrupo } from './grupo';
 import { criarLojaMapa } from './loja';
 import {
@@ -114,7 +115,18 @@ describe('registro das ações do mapa', () => {
     const { registro, loja } = mapaComRegistro(() => autor);
     loja.despachar({ tipo: 'ColocarTile', coord: A, terreno: 't' });
     autor = 'j1';
+    // Um jogador não muda o mapa: a ação é recusada e não entra no registro.
     loja.despachar({ tipo: 'ColocarTile', coord: B, terreno: 't' });
+    expect(registro.obterEntradas().map((e) => e.autorId)).toEqual(['mestre']);
+  });
+
+  it('nas fichas, registra o jogador que agiu', () => {
+    let autor = 'mestre';
+    const registro = criarLojaRegistro();
+    const fichas = criarLojaFichas(undefined, { obterAutorId: () => autor, aoExecutar: registro.registrar });
+    fichas.despachar({ tipo: 'CriarFicha', ficha: criarFicha('personagem', 'f', 'j1') });
+    autor = 'j1';
+    fichas.despachar({ tipo: 'EditarFicha', ficha: { ...fichas.obterEstado().fichas.f, nome: 'Aria' } });
     expect(registro.obterEntradas().map((e) => e.autorId)).toEqual(['mestre', 'j1']);
   });
 

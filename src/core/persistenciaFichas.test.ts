@@ -19,6 +19,7 @@ import { comCartaMovida } from './organizacaoDaFicha';
 import { GRUPO_SEM_POSICAO } from './grupo';
 import { criarMapaVazio } from './mapa';
 import { serializarArquivoCompleto } from './persistenciaCampanha';
+import { paraJogadores } from './visibilidade';
 import { desserializarFichas, fichasParaObjeto, lerFichasDoArquivo, serializarFichas } from './persistenciaFichas';
 
 const classe: EntradaDe<'classe'> = { ...criarEntrada('classe', 'guerreiro'), nome: 'Fighter' };
@@ -31,6 +32,8 @@ function exemplo(): EstadoFichas {
     pvPorNivel: [null, 8],
     pvAtuais: 12,
     pvTemporarios: 3,
+    visibilidade: paraJogadores(['jogador-2']),
+    edicaoLiberada: true,
   };
   const comInventario = comSecao(
     comNota(
@@ -90,7 +93,17 @@ describe('salvar e ler fichas', () => {
     });
   });
 
+  it('fichas da versão 3 ficam só com o dono e o mestre, sem a edição liberada', () => {
+    const objeto = fichasParaObjeto(exemplo());
+    const { visibilidade: _v, edicaoLiberada: _e, ...antiga } = objeto.fichas[0];
+    const lido = desserializarFichas(comoTexto({ ...objeto, versao: 3, fichas: [antiga] }));
+    expect(lido.ok && lido.estado.fichas.h1).toMatchObject({ visibilidade: { tipo: 'mestre' }, edicaoLiberada: false });
+  });
+
   it.each([
+    ['visibilidade desconhecida', (f: Record<string, unknown>) => ({ ...f, visibilidade: { tipo: 'amigos' } }), 'visibilidade inválida'],
+    ['lista de jogadores estranha', (f: Record<string, unknown>) => ({ ...f, visibilidade: { tipo: 'jogadores', ids: [3] } }), 'lista de jogadores'],
+    ['edição liberada que não é sim ou não', (f: Record<string, unknown>) => ({ ...f, edicaoLiberada: 'talvez' }), 'edicaoLiberada'],
     ['item que não está entre as cópias', (f: Record<string, unknown>) => ({ ...f, itens: [{ id: 'x', entradaId: 'nada', quantidade: 1, equipado: false, sintonizado: false }] }), 'não está entre as cópias'],
     ['ficha sem seções', (f: Record<string, unknown>) => ({ ...f, secoes: [] }), 'ao menos uma seção'],
     ['moedas negativas', (f: Record<string, unknown>) => ({ ...f, moedas: { pc: -1, pp: 0, pe: 0, po: 0, pl: 0 } }), 'moedas'],

@@ -1,5 +1,6 @@
 import type { CoordHex } from './hex';
-import { criarEmissor, type OpcoesRegistro, type TipoEvento } from './registro';
+import type { Permissao } from './permissoes';
+import { autorDe, criarEmissor, type OpcoesRegistro, type TipoEvento } from './registro';
 
 /** Guarda um estado e seu histórico. Toda mudança passa por uma ação. */
 export interface LojaComHistorico<Estado, Acao> {
@@ -28,14 +29,30 @@ export interface DefinicaoLoja<Estado, Acao extends { readonly tipo: TipoEvento 
   /** Como desfazer e refazer aparecem no registro. */
   readonly eventoDesfazer: TipoEvento;
   readonly eventoRefazer: TipoEvento;
+  /**
+   * Se quem está agindo pode passar de um estado ao outro. Vale também para desfazer e refazer:
+   * um jogador não desfaz o que só o mestre poderia fazer.
+   */
+  readonly conferir?: (antes: Estado, depois: Estado, autorId: string) => Permissao;
 }
 
 export function criarLojaComHistorico<Estado, Acao extends { readonly tipo: TipoEvento }>(
   definicao: DefinicaoLoja<Estado, Acao>,
   opcoes: OpcoesRegistro = {},
 ): LojaComHistorico<Estado, Acao> {
-  const { aplicar, coordDaAcao, eventoDesfazer, eventoRefazer } = definicao;
+  const { aplicar, coordDaAcao, eventoDesfazer, eventoRefazer, conferir } = definicao;
   const emitir = criarEmissor(opcoes);
+  /** Devolve se a mudança pode acontecer; se não pode, avisa o motivo. */
+  const permitido = (antes: Estado, depois: Estado, avisar: boolean) => {
+    const permissao = conferir?.(antes, depois, autorDe(opcoes));
+    if (permissao && !permissao.ok) {
+      if (avisar) {
+        opcoes.aoRecusar?.(permissao.motivo);
+      }
+      return false;
+    }
+    return true;
+  };
   let numeroDoTraco = 0;
   let estado = definicao.inicial;
   // Os estados nunca são alterados, então guardar cada um deles é barato.
@@ -76,7 +93,7 @@ export function criarLojaComHistorico<Estado, Acao extends { readonly tipo: Tipo
     obterEstado: () => estado,
     despachar(acao, grupo) {
       const novo = aplicar(estado, acao);
-      if (novo === estado) {
+      if (novo === estado || !permitido(estado, novo, true)) {
         return;
       }
       registrarNoHistorico(grupo);
@@ -99,8 +116,9 @@ export function criarLojaComHistorico<Estado, Acao extends { readonly tipo: Tipo
     terminarTraco: encerrarTraco,
     desfazer() {
       encerrarTraco();
-      const anterior = passado.pop();
-      if (anterior) {
+      const anterior = passado.at(-1);
+      if (anterior && permitido(estado, anterior, true)) {
+        passado.pop();
         futuro.push(estado);
         mudarPara(anterior);
         emitir(eventoDesfazer, null, null);
@@ -108,14 +126,16 @@ export function criarLojaComHistorico<Estado, Acao extends { readonly tipo: Tipo
     },
     refazer() {
       encerrarTraco();
-      const seguinte = futuro.pop();
-      if (seguinte) {
+      const seguinte = futuro.at(-1);
+      if (seguinte && permitido(estado, seguinte, true)) {
+        futuro.pop();
         passado.push(estado);
         mudarPara(seguinte);
         emitir(eventoRefazer, null, null);
       }
     },
-    podeDesfazer: () => passado.length > 0,
-    podeRefazer: () => futuro.length > 0,
+    // Conferem a permissão também, para os botões ficarem desativados quando não se pode.
+    podeDesfazer: () => passado.length > 0 && permitido(estado, passado[passado.length - 1], false),
+    podeRefazer: () => futuro.length > 0 && permitido(estado, futuro[futuro.length - 1], false),
   };
 }

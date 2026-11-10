@@ -3,11 +3,14 @@ import { useEffect, useId, useState, type ReactNode } from 'react';
 interface CampoProps {
   readonly rotulo: string;
   readonly largo?: boolean;
+  /** Campo só para leitura; `motivo` aparece como dica ao passar o mouse. */
+  readonly desativado?: boolean;
+  readonly motivo?: string | null;
 }
 
-function Moldura({ rotulo, largo, children }: CampoProps & { readonly children: ReactNode }) {
+function Moldura({ rotulo, largo, motivo, children }: CampoProps & { readonly children: ReactNode }) {
   return (
-    <label className={largo ? 'campo campo-largo' : 'campo'}>
+    <label className={largo ? 'campo campo-largo' : 'campo'} title={motivo ?? undefined}>
       <span>{rotulo}</span>
       {children}
     </label>
@@ -21,6 +24,8 @@ export function CampoTexto({
   multilinha = false,
   largo = multilinha,
   dica,
+  desativado = false,
+  motivo,
 }: CampoProps & {
   readonly valor: string;
   readonly aoMudar: (valor: string) => void;
@@ -28,11 +33,11 @@ export function CampoTexto({
   readonly dica?: string;
 }) {
   return (
-    <Moldura rotulo={rotulo} largo={largo}>
+    <Moldura rotulo={rotulo} largo={largo} motivo={desativado ? motivo : null}>
       {multilinha ? (
-        <textarea value={valor} placeholder={dica} rows={5} onChange={(e) => aoMudar(e.target.value)} />
+        <textarea value={valor} placeholder={dica} rows={5} disabled={desativado} onChange={(e) => aoMudar(e.target.value)} />
       ) : (
-        <input type="text" value={valor} placeholder={dica} onChange={(e) => aoMudar(e.target.value)} />
+        <input type="text" value={valor} placeholder={dica} disabled={desativado} onChange={(e) => aoMudar(e.target.value)} />
       )}
     </Moldura>
   );
@@ -50,6 +55,8 @@ export function CampoNumero({
   maximo = Infinity,
   inteiro = false,
   vazioPermitido = false,
+  desativado = false,
+  motivo,
 }: CampoProps & {
   readonly valor: number | null;
   readonly aoMudar: (valor: number | null) => void;
@@ -88,8 +95,8 @@ export function CampoNumero({
   };
 
   return (
-    <Moldura rotulo={rotulo}>
-      <input type="text" inputMode="decimal" value={rascunho} onChange={(e) => mudar(e.target.value)} />
+    <Moldura rotulo={rotulo} motivo={desativado ? motivo : null}>
+      <input type="text" inputMode="decimal" value={rascunho} disabled={desativado} onChange={(e) => mudar(e.target.value)} />
     </Moldura>
   );
 }

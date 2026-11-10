@@ -1,4 +1,5 @@
-import { criarEmissor, type OpcoesRegistro } from './registro';
+import { soOMestre } from './permissoes';
+import { autorDe, criarEmissor, type OpcoesRegistro } from './registro';
 
 /** O mestre tem identidade fixa: toda campanha tem exatamente um. */
 export const ID_MESTRE = 'mestre';
@@ -89,6 +90,11 @@ export function criarLojaCampanha(
     obterEstado: () => estado,
     despachar(acao, grupo) {
       const novo = aplicarAcaoCampanha(estado, acao);
+      const permissao = soOMestre('a campanha')(estado, novo, autorDe(opcoes));
+      if (!permissao.ok) {
+        opcoes.aoRecusar?.(permissao.motivo);
+        return;
+      }
       if (novo !== estado) {
         estado = novo;
         ouvintes.forEach((ouvinte) => ouvinte(estado));

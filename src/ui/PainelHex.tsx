@@ -3,6 +3,7 @@ import type { LojaGrupo } from '../core/grupo';
 import { chaveHex, type CoordHex } from '../core/hex';
 import type { LojaMapa } from '../core/loja';
 import { hexEm, type Nota } from '../core/mapa';
+import type { Participante } from '../core/campanha';
 import {
   nivelDeVisao,
   SO_MESTRE,
@@ -11,10 +12,13 @@ import {
   type Visibilidade,
 } from '../core/visibilidade';
 import { nomeAmigavel } from './nomeAmigavel';
+import { SeletorVisibilidade } from './SeletorVisibilidade';
 
 interface PainelHexProps {
   readonly loja: LojaMapa;
   readonly lojaGrupo: LojaGrupo;
+  /** Para escolher a quais jogadores uma nota é mostrada. */
+  readonly participantes: readonly Participante[];
   readonly coord: CoordHex;
   readonly aoFechar: () => void;
 }
@@ -25,7 +29,7 @@ const DESCRICAO_NIVEL: Readonly<Record<NivelDeVisao, string>> = {
   oculto: 'Os jogadores não veem este hex.',
 };
 
-export function PainelHex({ loja, lojaGrupo, coord, aoFechar }: PainelHexProps) {
+export function PainelHex({ loja, lojaGrupo, participantes, coord, aoFechar }: PainelHexProps) {
   const estado = useSyncExternalStore(loja.assinar, loja.obterEstado);
   const { posicao } = useSyncExternalStore(lojaGrupo.assinar, lojaGrupo.obterEstado);
   const hex = hexEm(estado, coord);
@@ -44,7 +48,6 @@ export function PainelHex({ loja, lojaGrupo, coord, aoFechar }: PainelHexProps) 
   };
 
   const renderizarNota = (nota: Nota) => {
-    const proxima = nota.visibilidade.tipo === 'todos' ? SO_MESTRE : VISIVEL_A_TODOS;
     return (
       <li key={nota.id}>
         <textarea
@@ -60,19 +63,14 @@ export function PainelHex({ loja, lojaGrupo, coord, aoFechar }: PainelHexProps) 
           }
         />
         <div className="painel-nota-acoes">
-          <button
-            type="button"
-            onClick={() =>
-              loja.despachar({
-                tipo: 'DefinirVisibilidadeNota',
-                coord,
-                notaId: nota.id,
-                visibilidade: proxima,
-              })
+          <SeletorVisibilidade
+            rotulo="Quem vê"
+            valor={nota.visibilidade}
+            participantes={participantes}
+            aoMudar={(visibilidade) =>
+              loja.despachar({ tipo: 'DefinirVisibilidadeNota', coord, notaId: nota.id, visibilidade })
             }
-          >
-            {proxima.tipo === 'todos' ? 'Tornar pública' : 'Tornar secreta'}
-          </button>
+          />
           <button
             type="button"
             onClick={() => loja.despachar({ tipo: 'RemoverNota', coord, notaId: nota.id })}
@@ -93,7 +91,9 @@ export function PainelHex({ loja, lojaGrupo, coord, aoFechar }: PainelHexProps) 
     <section className={`painel-secao ${classe}`}>
       <h3>{titulo}</h3>
       <ul>
-        {hex?.notas.filter((n) => n.visibilidade.tipo === visibilidade.tipo).map(renderizarNota)}
+        {hex?.notas
+          .filter((n) => (n.visibilidade.tipo === 'todos') === (visibilidade.tipo === 'todos'))
+          .map(renderizarNota)}
       </ul>
       <button type="button" className="painel-adicionar" onClick={() => adicionarNota(visibilidade)}>
         {rotuloAdicionar}
@@ -187,7 +187,7 @@ export function PainelHex({ loja, lojaGrupo, coord, aoFechar }: PainelHexProps) 
             '+ Adicionar nota pública',
           )}
           {renderizarSecao(
-            'Notas secretas (só o mestre)',
+            'Notas secretas (só o mestre ou alguns jogadores)',
             'painel-secretas',
             SO_MESTRE,
             '+ Adicionar nota secreta',

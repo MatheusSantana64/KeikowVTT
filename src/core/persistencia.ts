@@ -3,7 +3,7 @@ import { GRUPO_SEM_POSICAO, type EstadoGrupo } from './grupo';
 import { chaveHex, type ChaveHex } from './hex';
 import type { Manifesto } from './manifesto';
 import { INFORMACAO_VAZIA, type Decoracao, type EstadoMapa, type Hex, type Nota } from './mapa';
-import { SO_MESTRE, VISIVEL_A_TODOS, type Visibilidade } from './visibilidade';
+import { paraJogadores, SO_MESTRE, VISIVEL_A_TODOS, type Visibilidade } from './visibilidade';
 
 /** Aumente ao mudar o formato do arquivo, para poder converter mapas antigos. */
 const VERSAO_ARQUIVO = 3;
@@ -46,6 +46,14 @@ function lerDecoracao(dado: unknown, onde: string): Decoracao {
 /** Uma visibilidade desconhecida é recusada: um segredo nunca pode virar público por engano. */
 export function lerVisibilidade(dado: unknown, onde: string): Visibilidade {
   exigir(ehObjeto(dado), `${onde} está sem visibilidade.`);
+  if (dado.tipo === 'jogadores') {
+    const { ids } = dado;
+    exigir(
+      Array.isArray(ids) && ids.every((id) => typeof id === 'string' && id !== ''),
+      `${onde} tem uma lista de jogadores inválida.`,
+    );
+    return paraJogadores(ids as string[]);
+  }
   exigir(dado.tipo === 'todos' || dado.tipo === 'mestre', `${onde} tem uma visibilidade inválida.`);
   return dado.tipo === 'todos' ? VISIVEL_A_TODOS : SO_MESTRE;
 }

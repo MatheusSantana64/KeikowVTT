@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { chaveHex, type CoordHex, type PontoMundo } from '../core/hex';
 import { criarLojaCampanha, ID_MESTRE, type LojaCampanha } from '../core/campanha';
+import { ehMestre } from '../core/permissoes';
 import { criarLojaCompendio, type LojaCompendio } from '../core/compendio';
 import { criarLojaFichas, type LojaFichas } from '../core/fichas';
 import { criarLojaRolagens, type LojaRolagens } from '../core/rolagens';
@@ -43,6 +44,7 @@ import { TelaCampanha } from './TelaCampanha';
 import { TelaCompendio } from './TelaCompendio';
 import { TelaCreditos } from './TelaCreditos';
 import { TelaFichas } from './TelaFichas';
+import { SeletorAgindoComo } from './SeletorVisibilidade';
 
 const BORRACHA: Ferramenta = { tipo: 'apagar' };
 const POSICIONAR: Ferramenta = { tipo: 'posicionar' };
@@ -75,7 +77,17 @@ interface EditorCarregado {
   readonly lojaCompendio: LojaCompendio;
   readonly lojaFichas: LojaFichas;
   readonly lojaRolagens: LojaRolagens;
+  readonly sessao: Sessao;
   readonly aviso: Mensagem | null;
+}
+
+/**
+ * Quem está agindo neste computador. As lojas perguntam aqui a cada ação, para registrar o autor
+ * e conferir a permissão. Enquanto não há contas, o seletor "Agindo como" troca o participante.
+ */
+interface Sessao {
+  autorId: string;
+  aoRecusar: (motivo: string) => void;
 }
 
 /** As telas que cobrem o mapa inteiro. */
@@ -97,10 +109,12 @@ async function iniciarEditor(): Promise<EditorCarregado> {
   const compendio = salvoCompendio?.ok ? salvoCompendio : null;
 
   const lojaRegistro = criarLojaRegistro(campanha?.registro);
-  // Enquanto não existirem contas, quem age neste computador é sempre o mestre.
+  // Ao abrir, quem age é o mestre; o seletor "Agindo como" troca.
+  const sessao: Sessao = { autorId: ID_MESTRE, aoRecusar: () => undefined };
   const opcoesRegistro = {
-    obterAutorId: () => ID_MESTRE,
+    obterAutorId: () => sessao.autorId,
     aoExecutar: lojaRegistro.registrar,
+    aoRecusar: (motivo: string) => sessao.aoRecusar(motivo),
   };
 
   const falha =
@@ -117,6 +131,7 @@ async function iniciarEditor(): Promise<EditorCarregado> {
     lojaFichas: criarLojaFichas(salvasFichas?.ok ? salvasFichas.estado : undefined, opcoesRegistro),
     // Um registro de rolagens ilegível não impede de abrir: começa vazio.
     lojaRolagens: criarLojaRolagens(salvasRolagens?.ok ? salvasRolagens.rolagens : []),
+    sessao,
     aviso: falha
       ? { tipo: 'erro', texto: `O salvamento automático não pôde ser lido: ${falha}` }
       : null,
@@ -167,6 +182,7 @@ function Editor({
   lojaCompendio,
   lojaFichas,
   lojaRolagens,
+  sessao,
   aviso,
 }: EditorCarregado) {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -180,14 +196,39 @@ function Editor({
   const podeRefazer = useSyncExternalStore(loja.assinar, loja.podeRefazer);
 
   const [hexSelecionado, setHexSelecionado] = useState<CoordHex | null>(null);
-  const [modoJogador, setModoJogador] = useState(false);
+  const [agindoComoId, setAgindoComoId] = useState(sessao.autorId);
   const [telaAberta, setTelaAberta] = useState<Tela | null>(null);
   const grupo = useSyncExternalStore(lojaGrupo.assinar, lojaGrupo.obterEstado);
+  const campanha = useSyncExternalStore(lojaCampanha.assinar, lojaCampanha.obterEstado);
+  const agindoComo = campanha.participantes.find((p) => p.id === agindoComoId);
+  /** Agindo como um jogador, o mapa mostra só o que ele vê e nada pode ser editado. */
+  const modoJogador = !ehMestre(agindoComoId);
 
-  const sairDoModoJogador = useCallback(() => {
-    setModoJogador(false);
-    setHexSelecionado(null);
-  }, []);
+  const agirComo = useCallback(
+    (participanteId: string) => {
+      // A sessão muda já, e não só depois de a tela redesenhar.
+      sessao.autorId = participanteId;
+      setAgindoComoId(participanteId);
+      setHexSelecionado(null);
+    },
+    [sessao],
+  );
+
+  const sairDoModoJogador = useCallback(() => agirComo(ID_MESTRE), [agirComo]);
+
+  // Um jogador removido da campanha não pode continuar agindo.
+  useEffect(() => {
+    if (!agindoComo) {
+      agirComo(ID_MESTRE);
+    }
+  }, [agindoComo, agirComo]);
+
+  useEffect(() => {
+    sessao.aoRecusar = (motivo) => setMensagem({ tipo: 'aviso', texto: motivo });
+    return () => {
+      sessao.aoRecusar = () => undefined;
+    };
+  }, [sessao]);
 
   const controlador = useMemo(
     () =>
@@ -212,8 +253,12 @@ function Editor({
 
   useEffect(() => {
     controlador?.definirSomenteLeitura(modoJogador);
-    cenaRef.current?.definirModoJogador(modoJogador);
-  }, [controlador, modoJogador]);
+    if (modoJogador) {
+      controlador?.definirFerramenta(SEM_FERRAMENTA);
+      setFerramenta(SEM_FERRAMENTA);
+    }
+    cenaRef.current?.definirModoJogador(modoJogador ? agindoComoId : null);
+  }, [controlador, modoJogador, agindoComoId]);
 
   const selecionarFerramenta = useCallback(
     (nova: Ferramenta) => {
@@ -462,31 +507,39 @@ function Editor({
 
   const assetSelecionado = ferramenta.tipo === 'colocar' ? ferramenta.assetId : null;
 
-  const verComoJogador = () => {
-    selecionarFerramenta(SEM_FERRAMENTA);
-    setHexSelecionado(null);
-    setModoJogador(true);
-  };
-
   const aoSelecionarAsset = (assetId: string) => {
     selecionarFerramenta(
       assetId === assetSelecionado ? SEM_FERRAMENTA : { tipo: 'colocar', assetId },
     );
   };
 
+  const seletorAgindoComo = (
+    <SeletorAgindoComo participantes={campanha.participantes} valor={agindoComoId} aoMudar={agirComo} />
+  );
+
   return (
     <div className="app">
       <aside className="sidebar">
         <h1>KeikowVTT</h1>
+        {seletorAgindoComo}
         {modoJogador && (
           <>
-            <p>As ferramentas de edição ficam escondidas neste modo.</p>
-            {manifesto && (
-              <section className="aparencia-jogador">
-                <h2>Hexes não vistos</h2>
-                <SeletorAparencia loja={loja} manifesto={manifesto} />
-              </section>
-            )}
+            <p className="tela-dica">
+              Você vê o que este jogador vê. O mapa e o compêndio ficam só para leitura; nas fichas dele, vale o que
+              o mestre permite.
+            </p>
+            <div className="ferramentas">
+              <button type="button" onClick={() => setTelaAberta('fichas')}>
+                Fichas
+              </button>
+              <button type="button" onClick={() => setTelaAberta('compendio')}>
+                Compêndio
+              </button>
+              <button type="button" onClick={() => setTelaAberta('creditos')}>
+                Créditos
+              </button>
+            </div>
+            {mensagem && <p className={`mensagem-${mensagem.tipo}`}>{mensagem.texto}</p>}
           </>
         )}
         {!modoJogador && (
@@ -580,11 +633,6 @@ function Editor({
             </button>
           ))}
         </div>
-        <div className="ferramentas">
-          <button type="button" onClick={verComoJogador}>
-            Ver como jogador
-          </button>
-        </div>
         {manifesto && (
           <details className="ajuda-bloco">
             <summary>Aparência dos hexes não vistos</summary>
@@ -620,11 +668,11 @@ function Editor({
         {modoJogador && (
           <div className="faixa-jogador">
             <span>
-              Vendo como jogador
+              Agindo como {agindoComo?.nome || 'jogador'}
               {!grupo.posicao && ': o grupo ainda não foi posicionado'}
             </span>
             <button type="button" onClick={sairDoModoJogador}>
-              Voltar ao modo mestre
+              Voltar ao mestre
             </button>
           </div>
         )}
@@ -633,6 +681,7 @@ function Editor({
             key={chaveHex(hexSelecionado)}
             loja={loja}
             lojaGrupo={lojaGrupo}
+            participanteId={agindoComoId}
             coord={hexSelecionado}
             aoFechar={() => setHexSelecionado(null)}
           />
@@ -642,6 +691,7 @@ function Editor({
             key={chaveHex(hexSelecionado)}
             loja={loja}
             lojaGrupo={lojaGrupo}
+            participantes={campanha.participantes}
             coord={hexSelecionado}
             aoFechar={() => setHexSelecionado(null)}
           />
@@ -655,7 +705,13 @@ function Editor({
         />
       )}
       {telaAberta === 'compendio' && (
-        <TelaCompendio lojaCompendio={lojaCompendio} aoFechar={() => setTelaAberta(null)} />
+        <TelaCompendio
+          lojaCompendio={lojaCompendio}
+          participantes={campanha.participantes}
+          agindoComoId={agindoComoId}
+          seletorAgindoComo={seletorAgindoComo}
+          aoFechar={() => setTelaAberta(null)}
+        />
       )}
       {telaAberta === 'fichas' && (
         <TelaFichas
@@ -663,6 +719,8 @@ function Editor({
           lojaCompendio={lojaCompendio}
           lojaCampanha={lojaCampanha}
           lojaRolagens={lojaRolagens}
+          agindoComoId={agindoComoId}
+          seletorAgindoComo={seletorAgindoComo}
           aoFechar={() => setTelaAberta(null)}
         />
       )}

@@ -5,6 +5,7 @@ import {
   LIMITE_ROLAGENS,
   naturalDaRolagem,
   serializarRolagens,
+  rolagensVisiveis,
   visibilidadeDaRolagem,
   type NovaRolagem,
 } from './rolagens';
@@ -51,6 +52,9 @@ describe('registro de rolagens', () => {
   it('rolagens secretas são só do mestre', () => {
     expect(visibilidadeDaRolagem(true)).toEqual({ tipo: 'mestre' });
     expect(visibilidadeDaRolagem(false)).toEqual({ tipo: 'todos' });
+    expect(visibilidadeDaRolagem(true, 'mestre')).toEqual({ tipo: 'mestre' });
+    expect(visibilidadeDaRolagem(true, 'ana')).toEqual({ tipo: 'jogadores', ids: ['ana'] });
+    expect(visibilidadeDaRolagem(false, 'ana')).toEqual({ tipo: 'todos' });
   });
 
   it('salva e lê de volta; recusa formato desconhecido', () => {
@@ -60,5 +64,16 @@ describe('registro de rolagens', () => {
     const lido = desserializarRolagens(serializarRolagens(loja.obterRolagens()));
     expect(lido).toEqual({ ok: true, rolagens: loja.obterRolagens() });
     expect(desserializarRolagens('{"versao":9,"rolagens":[]}').ok).toBe(false);
+  });
+
+  it('cada participante vê as públicas, as secretas dele, e o mestre vê todas', () => {
+    const loja = criarLojaRolagens([], () => 0, (() => { let n = 0; return () => `r${++n}`; })());
+    loja.registrar({ ...nova(1), autorId: 'mestre', visibilidade: visibilidadeDaRolagem(true, 'mestre') });
+    loja.registrar({ ...nova(2), autorId: 'ana', visibilidade: visibilidadeDaRolagem(true, 'ana') });
+    loja.registrar({ ...nova(3), autorId: 'bia', visibilidade: visibilidadeDaRolagem(false, 'bia') });
+    const totais = (id: string) => rolagensVisiveis(loja.obterRolagens(), id).map((r) => r.total);
+    expect(totais('mestre')).toEqual([3, 2, 1]);
+    expect(totais('ana')).toEqual([3, 2]);
+    expect(totais('bia')).toEqual([3]);
   });
 });

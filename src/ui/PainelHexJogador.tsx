@@ -9,15 +9,17 @@ import { nomeAmigavel } from './nomeAmigavel';
 interface PainelHexJogadorProps {
   readonly loja: LojaMapa;
   readonly lojaGrupo: LojaGrupo;
+  /** O jogador que está olhando: as notas mostradas só a ele aparecem. */
+  readonly participanteId: string;
   readonly coord: CoordHex;
   readonly aoFechar: () => void;
 }
 
 /** O que o jogador lê sobre um hex. Só recebe dados da visão filtrada, nunca o mapa do mestre. */
-export function PainelHexJogador({ loja, lojaGrupo, coord, aoFechar }: PainelHexJogadorProps) {
+export function PainelHexJogador({ loja, lojaGrupo, participanteId, coord, aoFechar }: PainelHexJogadorProps) {
   const estado = useSyncExternalStore(loja.assinar, loja.obterEstado);
   const { posicao } = useSyncExternalStore(lojaGrupo.assinar, lojaGrupo.obterEstado);
-  const hex = hexEm(visaoDoJogador(estado, posicao ? [posicao] : []), coord);
+  const hex = hexEm(visaoDoJogador(estado, posicao ? [posicao] : [], participanteId), coord);
   if (!hex) {
     return null;
   }
