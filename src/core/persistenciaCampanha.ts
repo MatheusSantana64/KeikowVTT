@@ -14,6 +14,8 @@ import {
 import type { EntradaRegistro, TipoEvento } from './registro';
 import type { EstadoCompendio } from './compendio';
 import { compendioParaObjeto } from './persistenciaCompendio';
+import type { EstadoFichas } from './fichas';
+import { fichasParaObjeto } from './persistenciaFichas';
 
 const VERSAO_CAMPANHA = 1;
 
@@ -127,12 +129,14 @@ export function serializarArquivoCompleto(
   grupo: EstadoGrupo,
   conteudo: ConteudoCampanha,
   compendio?: EstadoCompendio,
+  fichas?: EstadoFichas,
 ): string {
   return JSON.stringify(
     {
       ...mapaParaObjeto(estado, grupo),
       campanha: campanhaParaObjeto(conteudo),
       ...(compendio ? { compendio: compendioParaObjeto(compendio) } : {}),
+      ...(fichas ? { fichas: fichasParaObjeto(fichas) } : {}),
     },
     null,
     2,

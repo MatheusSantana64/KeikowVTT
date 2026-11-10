@@ -1,5 +1,6 @@
 import type { AcaoCampanha } from './campanha';
 import type { AcaoCompendio } from './compendio';
+import type { AcaoFichas } from './fichas';
 import type { AcaoGrupo } from './grupo';
 import type { CoordHex } from './hex';
 import type { AcaoMapa } from './mapa';
@@ -13,10 +14,13 @@ export type TipoEvento =
   | AcaoGrupo['tipo']
   | AcaoCampanha['tipo']
   | AcaoCompendio['tipo']
+  | AcaoFichas['tipo']
   | 'Desfazer'
   | 'Refazer'
   | 'DesfazerCompendio'
-  | 'RefazerCompendio';
+  | 'RefazerCompendio'
+  | 'DesfazerFichas'
+  | 'RefazerFichas';
 
 /** Algo que acabou de acontecer. Nunca carrega textos escritos, para não vazar segredos. */
 export interface EventoExecutado {

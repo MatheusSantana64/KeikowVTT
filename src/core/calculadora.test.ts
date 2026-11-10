@@ -196,6 +196,19 @@ describe('efeitos', () => {
   });
 });
 
+describe('valores fixos', () => {
+  it('substituem a regra, e os efeitos continuam valendo', () => {
+    const c = calcular({
+      ...guerreira,
+      fixos: { ca: { valor: 15, origem: 'ficha do monstro' }, furtividade: { valor: 6, origem: 'ficha do monstro' } },
+      efeitos: [efeito('Escudo da Fé', 'ca', 'somar', '2')],
+    });
+    expect(c.valor('ca')).toMatchObject({ valor: 17, base: 15, partes: [{ texto: 'ficha do monstro', valor: 15 }] });
+    expect(valor(c.valor('furtividade'))).toBe(6);
+    expect(valor(c.valor('acrobacia'))).toBe(2);
+  });
+});
+
 describe('regras diferentes', () => {
   it('trocar uma fórmula muda a ficha, sem mexer no código', () => {
     const regras: Regras = {

@@ -43,6 +43,11 @@ export interface EntradaDoCalculo {
   /** Multiplicador de proficiência por perícia ou salvaguarda: 1 proficiente, 2 especialista, 0.5 metade. */
   readonly proficiencias?: Readonly<Record<string, number>>;
   readonly efeitos?: readonly EfeitoAtivo[];
+  /**
+   * Valores que já vêm prontos e substituem a regra, como a CA e os PV de um monstro.
+   * Os efeitos continuam valendo por cima deles.
+   */
+  readonly fixos?: Readonly<Record<string, { readonly valor: number; readonly origem: string }>>;
 }
 
 /** O que um efeito fez (ou não fez) com um valor. */
@@ -191,6 +196,10 @@ export function criarCalculo(regras: Regras, entrada: EntradaDoCalculo): Calculo
   }
 
   function calcularNome(nome: string): Calculado {
+    const fixo = entrada.fixos?.[nome];
+    if (fixo && !(nome in ENTRADAS_DA_FICHA)) {
+      return comEfeitos(nome, fixo.valor, [{ texto: fixo.origem, valor: fixo.valor }]);
+    }
     if (ehAtributo(nome)) {
       const base = entrada.atributos[nome];
       return comEfeitos(nome, base, [{ texto: 'valor na ficha', valor: base }]);

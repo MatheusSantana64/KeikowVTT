@@ -20,6 +20,22 @@ export interface DefinicaoPericia {
   readonly id: string;
   readonly nome: string;
   readonly atributo: Atributo;
+  /** Outros nomes da perícia, como o nome em inglês do SRD ("Stealth"). */
+  readonly apelidos?: readonly string[];
+}
+
+/**
+ * A perícia citada num texto, como "Skill: Insight", "Furtividade" ou "stealth".
+ * Devolve o id da perícia, ou `null` se o texto não for de uma perícia conhecida.
+ */
+export function encontrarPericia(regras: Regras, texto: string): string | null {
+  const limpo = normalizarNome(texto.trim())
+    .replace(/^(skill|pericia)\s*:\s*/, '')
+    .trim();
+  const pericia = regras.pericias.find(
+    (p) => p.id === limpo || normalizarNome(p.nome) === limpo || (p.apelidos ?? []).some((a) => normalizarNome(a) === limpo),
+  );
+  return pericia?.id ?? null;
 }
 
 export interface Regras {
@@ -284,7 +300,17 @@ export function lerRegras(valor: unknown): Regras {
         typeof atributo === 'string' && (ATRIBUTOS as readonly string[]).includes(atributo),
         `${onde}: o atributo é desconhecido.`,
       );
-      return { id: normalizarNome(texto(p, 'id', onde)), nome: texto(p, 'nome', onde), atributo: atributo as Atributo };
+      const apelidos = p.apelidos;
+      exigir(
+        apelidos === undefined || (Array.isArray(apelidos) && apelidos.every((a) => typeof a === 'string')),
+        `${onde}: os apelidos precisam ser uma lista de textos.`,
+      );
+      return {
+        id: normalizarNome(texto(p, 'id', onde)),
+        nome: texto(p, 'nome', onde),
+        atributo: atributo as Atributo,
+        ...(apelidos ? { apelidos: apelidos as string[] } : {}),
+      };
     }),
     valores: valor.valores.map((v, i) => {
       const onde = `O valor nº ${i + 1}`;

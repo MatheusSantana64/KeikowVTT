@@ -10,6 +10,7 @@ import {
 import { chaveHex, type CoordHex, type PontoMundo } from '../core/hex';
 import { criarLojaCampanha, ID_MESTRE, type LojaCampanha } from '../core/campanha';
 import { criarLojaCompendio, type LojaCompendio } from '../core/compendio';
+import { criarLojaFichas, type LojaFichas } from '../core/fichas';
 import { criarLojaRegistro, type LojaRegistro } from '../core/registro';
 import { criarLojaGrupo, type LojaGrupo } from '../core/grupo';
 import { criarLojaMapa, type LojaMapa } from '../core/loja';
@@ -20,9 +21,11 @@ import { criarArmazenamentoNavegador, pedirProtecaoDosDados } from '../net/armaz
 import {
   lerCampanhaLocal,
   lerCompendioLocal,
+  lerFichasLocal,
   lerSalvamentoLocal,
   manterCampanhaLocal,
   manterCompendioLocal,
+  manterFichasLocal,
   manterSalvamentoLocal,
 } from '../net/salvamentoLocal';
 import { carregarManifesto } from '../render/assets';
@@ -36,6 +39,7 @@ import { SeletorAparencia } from './SeletorAparencia';
 import { TelaCampanha } from './TelaCampanha';
 import { TelaCompendio } from './TelaCompendio';
 import { TelaCreditos } from './TelaCreditos';
+import { TelaFichas } from './TelaFichas';
 
 const BORRACHA: Ferramenta = { tipo: 'apagar' };
 const POSICIONAR: Ferramenta = { tipo: 'posicionar' };
@@ -66,20 +70,22 @@ interface EditorCarregado {
   readonly lojaCampanha: LojaCampanha;
   readonly lojaRegistro: LojaRegistro;
   readonly lojaCompendio: LojaCompendio;
+  readonly lojaFichas: LojaFichas;
   readonly aviso: Mensagem | null;
 }
 
 /** As telas que cobrem o mapa inteiro. */
-type Tela = 'campanha' | 'compendio' | 'creditos';
+type Tela = 'campanha' | 'compendio' | 'fichas' | 'creditos';
 
 const ARMAZENAMENTO = criarArmazenamentoNavegador();
 
 async function iniciarEditor(): Promise<EditorCarregado> {
   pedirProtecaoDosDados();
-  const [salvo, salvaCampanha, salvoCompendio] = await Promise.all([
+  const [salvo, salvaCampanha, salvoCompendio, salvasFichas] = await Promise.all([
     lerSalvamentoLocal(ARMAZENAMENTO, localStorage),
     lerCampanhaLocal(ARMAZENAMENTO, localStorage),
     lerCompendioLocal(ARMAZENAMENTO, localStorage),
+    lerFichasLocal(ARMAZENAMENTO, localStorage),
   ]);
   const campanha = salvaCampanha?.ok ? salvaCampanha : null;
   const mapa = salvo?.ok ? salvo : null;
@@ -95,13 +101,15 @@ async function iniciarEditor(): Promise<EditorCarregado> {
   const falha =
     (salvo && !salvo.ok && salvo.erro) ||
     (salvaCampanha && !salvaCampanha.ok && salvaCampanha.erro) ||
-    (salvoCompendio && !salvoCompendio.ok && salvoCompendio.erro);
+    (salvoCompendio && !salvoCompendio.ok && salvoCompendio.erro) ||
+    (salvasFichas && !salvasFichas.ok && salvasFichas.erro);
   return {
     loja: criarLojaMapa(mapa?.estado, opcoesRegistro),
     lojaGrupo: criarLojaGrupo(mapa?.grupo, opcoesRegistro),
     lojaCampanha: criarLojaCampanha(campanha?.campanha, opcoesRegistro),
     lojaRegistro,
     lojaCompendio: criarLojaCompendio(compendio?.estado, opcoesRegistro),
+    lojaFichas: criarLojaFichas(salvasFichas?.ok ? salvasFichas.estado : undefined, opcoesRegistro),
     aviso: falha
       ? { tipo: 'erro', texto: `O salvamento automático não pôde ser lido: ${falha}` }
       : null,
@@ -144,7 +152,7 @@ export function App() {
   return <Editor {...editor} />;
 }
 
-function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, lojaCompendio, aviso }: EditorCarregado) {
+function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, lojaCompendio, lojaFichas, aviso }: EditorCarregado) {
   const mapRef = useRef<HTMLDivElement>(null);
   const cenaRef = useRef<CenaMapa | null>(null);
   const assetArrastado = useRef<string | null>(null);
@@ -252,6 +260,21 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, lojaCompendio, av
     [lojaCompendio],
   );
 
+  useEffect(
+    () =>
+      manterFichasLocal(
+        lojaFichas,
+        () =>
+          setMensagem({
+            tipo: 'erro',
+            texto: 'O navegador recusou guardar as fichas. Use o botão Salvar.',
+          }),
+        ARMAZENAMENTO,
+        localStorage,
+      ),
+    [lojaFichas],
+  );
+
   useEffect(() => {
     if (manifesto) {
       const avisoImagens = avisoDeImagensFaltando(loja.obterEstado(), manifesto);
@@ -317,6 +340,10 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, lojaCompendio, av
           lojaCompendio.desfazer();
         } else if (telaAberta === 'compendio' && refazer) {
           lojaCompendio.refazer();
+        } else if (telaAberta === 'fichas' && desfazer) {
+          lojaFichas.desfazer();
+        } else if (telaAberta === 'fichas' && refazer) {
+          lojaFichas.refazer();
         }
         return;
       }
@@ -352,6 +379,7 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, lojaCompendio, av
   }, [
     loja,
     lojaCompendio,
+    lojaFichas,
     selecionarFerramenta,
     ferramenta,
     modoJogador,
@@ -460,6 +488,9 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, lojaCompendio, av
           <button type="button" onClick={() => setTelaAberta('campanha')}>
             Campanha
           </button>
+          <button type="button" onClick={() => setTelaAberta('fichas')}>
+            Fichas
+          </button>
           <button type="button" onClick={() => setTelaAberta('compendio')}>
             Compêndio
           </button>
@@ -473,6 +504,7 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, lojaCompendio, av
           lojaCampanha={lojaCampanha}
           lojaRegistro={lojaRegistro}
           lojaCompendio={lojaCompendio}
+          lojaFichas={lojaFichas}
           aoAbrirMapa={(estado) => {
             setHexSelecionado(null);
             cenaRef.current?.centralizarNoMapa();
@@ -597,6 +629,14 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, lojaCompendio, av
       )}
       {telaAberta === 'compendio' && (
         <TelaCompendio lojaCompendio={lojaCompendio} aoFechar={() => setTelaAberta(null)} />
+      )}
+      {telaAberta === 'fichas' && (
+        <TelaFichas
+          lojaFichas={lojaFichas}
+          lojaCompendio={lojaCompendio}
+          lojaCampanha={lojaCampanha}
+          aoFechar={() => setTelaAberta(null)}
+        />
       )}
       {telaAberta === 'creditos' && <TelaCreditos aoFechar={() => setTelaAberta(null)} />}
     </div>

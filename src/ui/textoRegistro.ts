@@ -40,6 +40,12 @@ const DESCRICOES: Readonly<Record<TipoEvento, (quantidade: number) => string>> =
   Refazer: fixo('refez uma edição do mapa'),
   DesfazerCompendio: fixo('desfez uma edição do compêndio'),
   RefazerCompendio: fixo('refez uma edição do compêndio'),
+  CriarFicha: fixo('criou uma ficha'),
+  EditarFicha: fixo('editou uma ficha'),
+  RemoverFicha: fixo('apagou uma ficha'),
+  CarregarFichas: fixo('abriu fichas de um arquivo'),
+  DesfazerFichas: fixo('desfez uma edição de ficha'),
+  RefazerFichas: fixo('refez uma edição de ficha'),
 };
 
 export function nomeDoAutor(autorId: string, participantes: readonly Participante[]): string {

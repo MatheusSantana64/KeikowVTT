@@ -15,6 +15,8 @@ import {
 import type { LojaRegistro } from '../core/registro';
 import type { EstadoCompendio, LojaCompendio } from '../core/compendio';
 import { desserializarCompendio, serializarCompendio } from '../core/persistenciaCompendio';
+import type { EstadoFichas, LojaFichas } from '../core/fichas';
+import { desserializarFichas, serializarFichas } from '../core/persistenciaFichas';
 import type { ArmazenamentoLocal } from './armazenamentoLocal';
 
 const ESPERA_MS = 500;
@@ -250,6 +252,35 @@ export function manterCompendioLocal(
     DOCUMENTO_COMPENDIO,
     () => serializarCompendio(lojaCompendio.obterEstado()),
     [lojaCompendio.assinar],
+    aoFalhar,
+    { principal, rapido },
+  );
+}
+
+const DOCUMENTO_FICHAS = {
+  chave: 'keikow.fichas',
+  chaveEmergencia: 'keikow.fichas.emergencia',
+  desserializar: desserializarFichas,
+};
+
+/** Lê as fichas guardadas neste navegador, ou `null` se ainda não houver nada. */
+export function lerFichasLocal(
+  principal: ArmazenamentoLocal,
+  rapido: ArmazenamentoRapido,
+): Promise<ResultadoDe<{ readonly estado: EstadoFichas }> | null> {
+  return lerDocumento(DOCUMENTO_FICHAS, { principal, rapido });
+}
+
+export function manterFichasLocal(
+  lojaFichas: LojaFichas,
+  aoFalhar: () => void,
+  principal: ArmazenamentoLocal,
+  rapido: ArmazenamentoRapido,
+): () => void {
+  return manterDocumento(
+    DOCUMENTO_FICHAS,
+    () => serializarFichas(lojaFichas.obterEstado()),
+    [lojaFichas.assinar],
     aoFalhar,
     { principal, rapido },
   );

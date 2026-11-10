@@ -84,8 +84,8 @@ Cada fase deve funcionar sozinha antes de avançar.
   4. ✅ Tela do compêndio: buscar, filtrar, criar, editar, duplicar, apagar, com desfazer próprio. O compêndio entra no salvamento automático e no arquivo. Efeitos e ações ainda não são editáveis na tela (passos 9 e 10).
   5. ✅ SRD 5.1 completo (1.610 entradas) como pacote importável, com tela de créditos e `CREDITOS.md`.
   6. ✅ Motor de fórmulas (`formulas.ts`), regras padrão como dados (`regras.ts`, `regrasPadrao.ts`), calculadora com efeitos e explicação (`calculadora.ts`), tabelas de nível nas classes.
-  7. Ficha de personagem, NPC e monstro, mostrando de onde vem cada número (próximo).
-  8. Inventário e organização livre de itens, habilidades e notas.
+  7. ✅ Fichas de personagem, NPC e monstro (`fichas.ts`, `calculoDaFicha.ts`, tela Fichas), com a explicação de cada número.
+  8. Inventário e organização livre de itens, habilidades e notas (próximo).
   9. Efeitos dos objetos: equipar altera a ficha.
   10. Menu do botão direito com ações vindas do item, e rolagens de dados.
   11. Permissões e "ver como" cada jogador.
@@ -131,5 +131,6 @@ Cada fase deve funcionar sozinha antes de avançar.
 - **Efeitos:** somar; "no mínimo" (fica o maior entre a regra e os mínimos); definir (vence tudo, e entre vários vale o menor). A conta é: maior entre base e mínimos, mais as somas; um definir substitui o resultado.
 - **Regras como dados:** perícias, salvaguardas e valores derivados são fórmulas com nome em `regrasPadrao.ts`, conferidas por `conferirRegras` (nomes, dados proibidos, dependências circulares). Por enquanto o compêndio confere fórmulas com as regras padrão; a campanha terá a própria cópia no passo 12. A ficha informa nível, PV dos dados de vida, deslocamento da espécie, atributo de conjuração e multiplicadores de proficiência.
 - **Tabelas de nível:** cada classe tem colunas com uma fórmula por nível (1 a 20), vindas do SRD com nomes em português (`furias`, `ataque_furtivo`, `espacos_1`…). Os usos das principais habilidades do SRD leem a tabela (Fúria = `tabela(furias)`).
+- **Fichas:** guardam cópias das entradas que usam (classe e suas habilidades, espécie, antecedente, monstro), num documento próprio (`keikow.fichas`) que também vai no arquivo. A primeira classe dá o dado de vida cheio e as salvaguardas; PV por nível usam a média, salvo valor rolado digitado. Perícias do antecedente e salvaguardas da classe são automáticas; o marcador da ficha sobrepõe (sem, proficiente, especialista). Aumentos da espécie viram efeitos "somar". Ficha de monstro usa CA, PV, perícias e salvaguardas do livro como valores fixos, e proficiência pelo ND. Os apelidos em inglês das perícias ficam nas regras. Habilidades descritas só em texto (como Defesa sem Armadura) passam a agir quando tiverem efeitos, no passo 9.
 - Fórmulas e ações de itens são dados, editáveis, interpretados sem executar texto como código. O jogador só edita a ficha inteira se o mestre liberar; notas pessoais, nome, imagem, organização e ações pré-programadas são sempre permitidas.
 - Notas de hex são uma lista, cada nota com sua própria visibilidade. Nome e descrição são visíveis a todos. Só hexes com terreno guardam informação; trocar o terreno mantém as anotações e apagar o hex as apaga.

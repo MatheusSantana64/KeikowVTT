@@ -483,6 +483,279 @@ body {
   font-size: 11px;
 }
 
+/* Fichas */
+
+.ficha {
+  max-width: 960px;
+}
+
+.ficha-secao {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid #262a35;
+}
+
+.ficha-secao h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.ficha-classe-nome {
+  align-self: center;
+  margin: 0;
+  color: #e6e3da;
+  font-size: 14px;
+}
+
+.ficha-valor {
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  color: #e6e3da;
+  cursor: pointer;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ficha-valor:hover {
+  border-color: #7fd4ff;
+  background: #1d2433;
+}
+
+.ficha-valor-alterado {
+  color: #a8d08a;
+}
+
+.ficha-atributos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.ficha-atributo,
+.ficha-caixa {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid #333846;
+  border-radius: 6px;
+  background: #191b22;
+  color: #a5a79f;
+  font-size: 12px;
+  text-align: center;
+}
+
+.ficha-atributo > .ficha-valor:first-of-type {
+  font-size: 24px;
+}
+
+.ficha-atributo .campo {
+  width: 100%;
+  font-size: 11px;
+}
+
+.compendio-editor .ficha-atributo input,
+.compendio-editor .ficha-pv input {
+  width: 100%;
+  text-align: center;
+}
+
+.ficha-combate {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.ficha-pv {
+  grid-column: span 2;
+}
+
+.ficha-pv > div {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.ficha-pv-barra {
+  padding-bottom: 8px;
+  font-size: 18px;
+}
+
+.ficha-testes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 24px;
+}
+
+.ficha-lista-testes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ficha-lista-testes li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #1f232c;
+  font-size: 14px;
+}
+
+.ficha-lista-testes li > span {
+  flex: 1;
+}
+
+.ficha-lista-testes small {
+  color: #6b6d68;
+  font-size: 11px;
+}
+
+.ficha-lista-testes .ficha-valor {
+  font-size: 15px;
+}
+
+.ficha-marcador {
+  width: 26px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #7fd4ff;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.ficha-marcador:disabled {
+  color: #6b6d68;
+  cursor: default;
+}
+
+.ficha-habilidades {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ficha-habilidades li {
+  border-bottom: 1px solid #1f232c;
+}
+
+.ficha-habilidades summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+
+.ficha-habilidades summary small {
+  color: #a5a79f;
+}
+
+.ficha-usos {
+  margin-left: auto;
+  color: #a8d08a;
+  font-size: 13px;
+}
+
+.ficha-habilidades p {
+  margin: 0 0 10px;
+  color: #c9c6bd;
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+.ficha-dados-vida {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ficha-monstro {
+  color: #c9c6bd;
+  font-size: 13px;
+}
+
+.ficha-monstro dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 0;
+}
+
+.ficha-monstro dl > div {
+  display: contents;
+}
+
+.ficha-monstro dt {
+  color: #a5a79f;
+}
+
+.ficha-monstro dd {
+  margin: 0;
+}
+
+.ficha-monstro h3 {
+  margin: 14px 0 4px;
+  font-size: 14px;
+}
+
+.ficha-monstro p {
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+}
+
+.explicacao {
+  position: fixed;
+  z-index: 20;
+  padding: 10px 12px;
+  border: 1px solid #7fd4ff;
+  border-radius: 6px;
+  background: #1d2029;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 50%);
+  font-size: 13px;
+}
+
+.explicacao header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.explicacao ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.explicacao li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.explicacao-subtotal {
+  border-top: 1px solid #333846;
+  color: #a5a79f;
+}
+
+.explicacao-ignorado {
+  color: #6b6d68;
+  text-decoration: line-through;
+}
+
+.explicacao .tela-dica {
+  margin: 6px 0 0;
+}
+
 .tela-sobreposta .mensagem-info,
 .tela-sobreposta .mensagem-erro {
   margin: 0 0 12px;

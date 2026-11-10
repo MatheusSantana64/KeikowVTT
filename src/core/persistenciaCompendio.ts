@@ -34,7 +34,7 @@ import {
 } from './persistencia';
 
 /** Aumente ao mudar o formato das entradas, e acrescente a conversão em CONVERSOES. */
-const VERSAO_COMPENDIO = 3;
+export const VERSAO_COMPENDIO = 3;
 
 type Dado = Record<string, unknown>;
 
@@ -424,6 +424,18 @@ const CONVERSOES: Readonly<Record<number, (entradas: unknown) => unknown>> = {
   2: (entradas) => completarDados(entradas, 'classe', { tabela: [] }),
 };
 
+/**
+ * Passa uma lista de entradas gravadas na versão `versao` para a atual, ainda sem conferir.
+ * Usado pelo compêndio e pelas cópias de entradas guardadas nas fichas.
+ */
+export function atualizarEntradas(brutas: unknown, versao: number): unknown {
+  let atual = brutas;
+  for (let v = versao; v < VERSAO_COMPENDIO; v++) {
+    atual = CONVERSOES[v](atual);
+  }
+  return atual;
+}
+
 export function lerJson(texto: string, oQue: string): unknown {
   try {
     return JSON.parse(texto);
@@ -440,11 +452,7 @@ function lerEstado(dados: unknown, onde: string, versaoPadrao?: number): EstadoC
     typeof versao === 'number' && Number.isInteger(versao) && versao >= 1 && versao <= VERSAO_COMPENDIO,
     `${onde} usa um formato desconhecido.`,
   );
-  let brutas = dados.entradas;
-  for (let v = versao; v < VERSAO_COMPENDIO; v++) {
-    brutas = CONVERSOES[v](brutas);
-  }
-  const entradas = lerEntradas(brutas, onde);
+  const entradas = lerEntradas(atualizarEntradas(dados.entradas, versao), onde);
   return { entradas: Object.fromEntries(entradas.map((e) => [e.id, e])) };
 }
 
