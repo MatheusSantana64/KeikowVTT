@@ -14,6 +14,7 @@ import {
   comItem,
   comNivel,
   comOrigem,
+  criarFicha,
   entradaDaFicha,
   NIVEL_MAXIMO,
   nivelTotal,
@@ -191,6 +192,7 @@ export function fichaDaCriacao(base: Ficha, escolhas: EscolhasDeCriacao, compend
     itens: [],
     extras: [],
     secoes: base.secoes.map((s) => ({ ...s, cartas: [] })),
+    rascunho: { metodo: escolhas.metodo, rolados: escolhas.rolados },
   };
   if (doTipo(compendio, escolhas.especieId, 'especie')) {
     ficha = comOrigem(ficha, compendio, 'especieId', escolhas.especieId);
@@ -208,6 +210,41 @@ export function fichaDaCriacao(base: Ficha, escolhas: EscolhasDeCriacao, compend
     ficha = comItem(ficha, compendio, item.entradaId, criarId(), item.quantidade);
   }
   return ficha;
+}
+
+/** Uma ficha nova, "em criação", do personagem de `donoId`, pronta para o assistente. */
+export function novaFichaEmCriacao(id: string, donoId: string, criacao: RegrasDeCriacao): Ficha {
+  const escolhas = escolhasIniciais(criacao);
+  return {
+    ...criarFicha('personagem', id, donoId),
+    emCriacao: true,
+    atributos: escolhas.atributos,
+    rascunho: { metodo: escolhas.metodo, rolados: null },
+  };
+}
+
+/** As escolhas guardadas numa ficha em criação, para o assistente continuar de onde parou. */
+export function escolhasDaFicha(ficha: Ficha, regras: Regras): EscolhasDeCriacao {
+  const iniciais = escolhasIniciais(regras.criacao);
+  return {
+    nome: ficha.nome,
+    especieId: ficha.especieId,
+    classeId: ficha.classes[0]?.entradaId ?? null,
+    antecedenteId: ficha.antecedenteId,
+    metodo: ficha.rascunho?.metodo ?? iniciais.metodo,
+    atributos: ficha.atributos,
+    rolados: ficha.rascunho?.rolados ?? null,
+    pericias: Object.entries(ficha.proficiencias)
+      .filter(([id, valor]) => valor === 1 && regras.pericias.some((p) => p.id === id))
+      .map(([id]) => id),
+    magias: ficha.extras.filter((id) => ficha.entradas[id]?.tipo === 'magia'),
+    itens: ficha.itens.map((p) => ({ entradaId: p.entradaId, quantidade: p.quantidade })),
+  };
+}
+
+/** Conclui a criação: a ficha trava como as outras e o rascunho some. */
+export function concluirCriacao(ficha: Ficha): Ficha {
+  return { ...ficha, emCriacao: false, rascunho: null };
 }
 
 /** O que ainda falta para concluir a criação, na ordem dos passos do assistente. Vazio quando está pronto. */

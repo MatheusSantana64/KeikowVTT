@@ -36,6 +36,7 @@ function exemplo(): EstadoFichas {
     edicaoLiberada: true,
     emCriacao: true,
     niveisLiberados: 2,
+    rascunho: { metodo: 'rolagem', rolados: [15, 14, 12, 11, 10, 9] },
   };
   const comInventario = comSecao(
     comNota(
@@ -109,7 +110,16 @@ describe('salvar e ler fichas', () => {
     expect(lido.ok && lido.estado.fichas.h1).toMatchObject({ emCriacao: false, niveisLiberados: 0 });
   });
 
+  it('fichas da versão 5 não têm rascunho da criação', () => {
+    const objeto = fichasParaObjeto(exemplo());
+    const { rascunho: _r, ...antiga } = objeto.fichas[0];
+    const lido = desserializarFichas(comoTexto({ ...objeto, versao: 5, fichas: [antiga] }));
+    expect(lido.ok && lido.estado.fichas.h1.rascunho).toBeNull();
+  });
+
   it.each([
+    ['rascunho com método desconhecido', (f: Record<string, unknown>) => ({ ...f, rascunho: { metodo: 'sorte', rolados: null } }), 'método'],
+    ['rascunho com cinco valores rolados', (f: Record<string, unknown>) => ({ ...f, rascunho: { metodo: 'rolagem', rolados: [1, 2, 3, 4, 5] } }), 'rolados'],
     ['níveis liberados negativos', (f: Record<string, unknown>) => ({ ...f, niveisLiberados: -1 }), 'níveis liberados'],
     ['visibilidade desconhecida', (f: Record<string, unknown>) => ({ ...f, visibilidade: { tipo: 'amigos' } }), 'visibilidade inválida'],
     ['lista de jogadores estranha', (f: Record<string, unknown>) => ({ ...f, visibilidade: { tipo: 'jogadores', ids: [3] } }), 'lista de jogadores'],

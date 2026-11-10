@@ -48,6 +48,8 @@ import { useRegras } from './contextoRegras';
 import { CampoNumero, CampoTexto } from './camposFormulario';
 import { comSinal, ExplicacaoValor, type Explicando } from './ExplicacaoValor';
 import { OrganizacaoFicha } from './OrganizacaoFicha';
+import { AssistenteCriacao } from './AssistenteCriacao';
+import { novaFichaEmCriacao } from '../core/criacaoDePersonagem';
 import { ROTULO_TAMANHO } from './rotulosCompendio';
 import { SeletorVisibilidade } from './SeletorVisibilidade';
 
@@ -106,6 +108,8 @@ export function TelaFichas({
   const [monstroEscolhido, setMonstroEscolhido] = useState('');
 
   const mestre = ehMestre(agindoComoId);
+  const regras = useRegras();
+  const podeCriarComAssistente = mestre || regras.criacao.jogadoresCriam;
   // O jogador recebe só as fichas que pode ver: as outras nem chegam à tela.
   const fichas = useMemo(() => fichasVisiveis(estado, agindoComoId).sort(ordemAlfabetica), [estado, agindoComoId]);
   const monstros = useMemo(() => buscarEntradas(compendio, { tipos: ['monstro'] }) as EntradaDe<'monstro'>[], [compendio]);
@@ -121,6 +125,15 @@ export function TelaFichas({
     const ficha = { ...criarFicha(tipo, crypto.randomUUID()), nome: tipo === 'personagem' ? 'Novo personagem' : 'Novo NPC' };
     lojaFichas.despachar({ tipo: 'CriarFicha', ficha });
     setSelecionadaId(ficha.id);
+  };
+
+  /** Começa um personagem pelo assistente: a ficha nasce "em criação", do participante que está agindo. */
+  const criarComAssistente = () => {
+    const ficha = novaFichaEmCriacao(crypto.randomUUID(), agindoComoId, regras.criacao);
+    lojaFichas.despachar({ tipo: 'CriarFicha', ficha });
+    if (lojaFichas.obterEstado().fichas[ficha.id]) {
+      setSelecionadaId(ficha.id);
+    }
   };
 
   const criarMonstro = () => {
@@ -151,6 +164,13 @@ export function TelaFichas({
       </header>
       <div className="compendio-corpo">
         <aside className="compendio-lista">
+          {podeCriarComAssistente && (
+            <div className="compendio-novo">
+              <button type="button" className="assistente-criar" onClick={criarComAssistente}>
+                + Criar personagem (assistente)
+              </button>
+            </div>
+          )}
           {!mestre && <p className="tela-dica">Aqui ficam as suas fichas e as que o mestre mostrar a você.</p>}
           {mestre && (
           <>
@@ -191,14 +211,50 @@ export function TelaFichas({
                   onClick={() => setSelecionadaId(ficha.id)}
                 >
                   <span>{ficha.nome || '(sem nome)'}</span>
-                  <small>{resumoDaFicha(ficha)}</small>
+                  <small>{ficha.emCriacao ? 'Em criação' : resumoDaFicha(ficha)}</small>
                 </button>
               </li>
             ))}
           </ul>
         </aside>
         <main className="compendio-editor">
-          {selecionada ? (
+          {selecionada && selecionada.emCriacao && podeEditarTudo(selecionada, agindoComoId) ? (
+            <AssistenteCriacao
+              key={selecionada.id}
+              ficha={selecionada}
+              compendio={compendio}
+              autorId={agindoComoId}
+              participantes={campanha.participantes}
+              editar={(nova, campo) => {
+                const antes = lojaFichas.obterEstado();
+                const permissao = conferirFichas(antes, { fichas: { ...antes.fichas, [nova.id]: nova } }, agindoComoId, {
+                  jogadoresCriam: regras.criacao.jogadoresCriam,
+                });
+                if (permissao.ok) {
+                  lojaFichas.despachar({ tipo: 'EditarFicha', ficha: nova }, `${nova.id}:${campo}`);
+                }
+              }}
+              registrarRolagens={(feitas) =>
+                feitas.forEach((feita) =>
+                  lojaRolagens.registrar({
+                    autorId: agindoComoId,
+                    fichaId: selecionada.id,
+                    quem: selecionada.nome || 'Novo personagem',
+                    rotulo: feita.rotulo,
+                    formula: feita.formula,
+                    dados: feita.rolagem.dados,
+                    total: feita.rolagem.total,
+                    // A rolagem de atributos é sempre pública, como numa mesa de verdade.
+                    visibilidade: visibilidadeDaRolagem(false, agindoComoId),
+                  }),
+                )
+              }
+              aoDesistir={() => {
+                lojaFichas.despachar({ tipo: 'RemoverFicha', fichaId: selecionada.id });
+                setSelecionadaId(null);
+              }}
+            />
+          ) : selecionada ? (
             <EditorFicha
               key={selecionada.id}
               ficha={selecionada}

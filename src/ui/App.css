@@ -1996,3 +1996,321 @@ fieldset.formulario {
 .regras-novo button {
   white-space: nowrap;
 }
+
+/* ---------- Assistente de criação ---------- */
+
+.assistente {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) 230px;
+  gap: 20px;
+  align-items: start;
+}
+
+.assistente h2,
+.assistente h3,
+.assistente h4 {
+  margin: 0 0 10px;
+}
+
+.assistente h4 {
+  margin-top: 14px;
+  color: #a5a79f;
+  font-size: 13px;
+}
+
+.assistente-passos ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.assistente-passos button {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  color: #e6e3da;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.assistente-passos button:hover {
+  background: #232733;
+}
+
+.assistente-passos button[aria-current='true'] {
+  border-color: #7fd4ff;
+  background: #1f2a33;
+}
+
+.assistente-feito {
+  color: #a8d08a;
+}
+
+.assistente-pendente {
+  color: #6b6d68;
+}
+
+.assistente-conteudo {
+  min-width: 0;
+}
+
+.assistente-conteudo > .campo {
+  max-width: 420px;
+  margin-bottom: 12px;
+}
+
+.assistente-cartas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+}
+
+.assistente-carta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #333846;
+  border-radius: 6px;
+  background: #1a1d25;
+  color: #e6e3da;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}
+
+.assistente-carta[aria-pressed='true'] {
+  border-color: #a8d08a;
+  background: #1f2a22;
+}
+
+.assistente-carta-escolher {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.assistente-carta-escolher:hover strong {
+  color: #7fd4ff;
+}
+
+.assistente-carta p {
+  margin: 0;
+  color: #a5a79f;
+}
+
+.assistente-carta details summary {
+  color: #7fd4ff;
+  cursor: pointer;
+}
+
+.assistente-carta details p {
+  max-height: 220px;
+  margin-top: 6px;
+  overflow-y: auto;
+  color: #e6e3da;
+}
+
+.assistente-marcas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0 14px;
+}
+
+.assistente-marcas small {
+  color: #a5a79f;
+}
+
+.assistente-metodos {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.assistente-metodos button,
+.assistente-navegar button,
+.assistente-criar,
+.assistente-itens button,
+.assistente-atributo button {
+  padding: 5px 12px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #2a2e3a;
+  color: #e6e3da;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.assistente-metodos button[aria-selected='true'] {
+  border-color: #7fd4ff;
+  background: #1f2a33;
+}
+
+.assistente button:disabled {
+  color: #6b6d68;
+  cursor: default;
+}
+
+.assistente-atributos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.assistente-atributo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #333846;
+  border-radius: 6px;
+}
+
+.assistente-atributo small {
+  color: #a5a79f;
+}
+
+.assistente-atributo .carta-quantidade {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.assistente-atributo strong {
+  font-size: 18px;
+}
+
+.assistente-busca {
+  width: min(100%, 420px);
+  margin: 8px 0;
+}
+
+.assistente-itens {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.assistente-itens li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 420px;
+  padding: 4px 0;
+  border-bottom: 1px solid #262a35;
+}
+
+.assistente-itens .carta-quantidade {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.assistente-pendencias {
+  color: #f0c27a;
+}
+
+.assistente-navegar {
+  display: flex;
+  justify-content: space-between;
+  max-width: 600px;
+  margin-top: 20px;
+}
+
+.assistente-concluir {
+  border-color: #a8d08a !important;
+  color: #a8d08a !important;
+}
+
+.assistente-previa {
+  position: sticky;
+  top: 0;
+  padding: 12px;
+  border: 1px solid #333846;
+  border-radius: 6px;
+  background: #1a1d25;
+  font-size: 13px;
+}
+
+.assistente-previa-atributos {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.assistente-previa-atributos div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px;
+  border: 1px solid #262a35;
+  border-radius: 4px;
+}
+
+.assistente-previa-atributos small {
+  color: #a5a79f;
+}
+
+.assistente-previa dl {
+  margin: 0;
+}
+
+.assistente-previa dl div {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  border-bottom: 1px solid #262a35;
+}
+
+.assistente-previa dt {
+  color: #a5a79f;
+}
+
+.assistente-previa dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* O assistente se ajusta ao espaço da área central, que fica estreita com a lista e o registro ao lado. */
+.compendio-editor {
+  container-type: inline-size;
+}
+
+@container (max-width: 900px) {
+  .assistente {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .assistente-passos h2 {
+    display: none;
+  }
+
+  .assistente-passos ol {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .assistente-passos button {
+    width: auto;
+    padding: 4px 8px;
+    font-size: 13px;
+  }
+
+  .assistente-previa {
+    position: static;
+  }
+}

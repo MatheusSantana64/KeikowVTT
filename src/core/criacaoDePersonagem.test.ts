@@ -3,13 +3,16 @@ import { calcularFicha } from './calculoDaFicha';
 import { aplicarAcaoCompendio, criarCompendioVazio } from './compendio';
 import {
   classeDaSubida,
+  concluirCriacao,
   custoDosPontos,
+  escolhasDaFicha,
   escolhasIniciais,
   fichaComNivel,
   fichaDaCriacao,
   guiaDeMagias,
   habilidadesDoNivel,
   magiasDaClasse,
+  novaFichaEmCriacao,
   pendenciasDaCriacao,
   pendenciasDaSubida,
   periciasParaEscolher,
@@ -151,6 +154,22 @@ describe('criação', () => {
     const comMago = fichaDaCriacao(comGuerreiro, escolhasDoGuerreiro({ classeId: 'mago', pericias: [] }), compendio, criarId);
     expect(Object.keys(comMago.entradas)).not.toContain('guerreiro');
     expect(Object.keys(comMago.entradas)).not.toContain('folego');
+  });
+
+  it('a ficha guarda as escolhas: o assistente reabre de onde parou, com os valores rolados', () => {
+    const nova = novaFichaEmCriacao('f', 'ana', R.criacao);
+    expect(nova).toMatchObject({ donoId: 'ana', emCriacao: true, rascunho: { metodo: 'pontos', rolados: null } });
+    expect(Object.values(nova.atributos)).toEqual([8, 8, 8, 8, 8, 8]);
+    const escolhas = escolhasDoGuerreiro({
+      classeId: 'mago',
+      pericias: [],
+      metodo: 'rolagem',
+      rolados: [15, 14, 13, 12, 10, 8],
+      magias: ['escudo'],
+    });
+    const ficha = fichaDaCriacao(nova, escolhas, compendio, criarId);
+    expect(escolhasDaFicha(ficha, R)).toEqual(escolhas);
+    expect(concluirCriacao(ficha)).toMatchObject({ emCriacao: false, rascunho: null });
   });
 
   it('diz o que falta, na ordem dos passos', () => {

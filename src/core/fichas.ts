@@ -11,6 +11,7 @@ import { SO_MESTRE, VISIVEL_A_TODOS, type Visibilidade } from './visibilidade';
 import { conferirFichas, type OpcoesDaConferencia } from './permissoes';
 import { criarLojaComHistorico, type LojaComHistorico } from './lojaHistorico';
 import type { OpcoesRegistro } from './registro';
+import type { MetodoAtributos } from './regras';
 
 export const TIPOS_FICHA = ['personagem', 'npc', 'monstro'] as const;
 export type TipoFicha = (typeof TIPOS_FICHA)[number];
@@ -40,6 +41,8 @@ export interface Ficha {
   readonly emCriacao: boolean;
   /** Níveis que o mestre liberou e o dono ainda não subiu pelo assistente. */
   readonly niveisLiberados: number;
+  /** Durante a criação: o método dos atributos e os valores rolados, que não podem ser rolados de novo. */
+  readonly rascunho: RascunhoDaCriacao | null;
   /** Os valores escolhidos para a ficha, antes dos aumentos da espécie e de outros efeitos. */
   readonly atributos: Readonly<Record<Atributo, number>>;
   /** Cópias das entradas do compêndio que a ficha usa, pelo id. */
@@ -72,6 +75,13 @@ export interface Ficha {
 }
 
 export const ESPACOS_ZERADOS: readonly number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+/** O que a criação precisa lembrar e a ficha em si não guarda. */
+export interface RascunhoDaCriacao {
+  readonly metodo: MetodoAtributos;
+  /** Os seis valores rolados, ou `null` se ainda não rolou. */
+  readonly rolados: readonly number[] | null;
+}
 
 export type Moeda = (typeof MOEDAS)[number];
 
@@ -154,6 +164,7 @@ export function criarFicha(tipo: Exclude<TipoFicha, 'monstro'>, id: string, dono
     edicaoLiberada: false,
     emCriacao: false,
     niveisLiberados: 0,
+    rascunho: null,
     atributos: { ...ATRIBUTOS_INICIAIS },
     entradas: {},
     classes: [],

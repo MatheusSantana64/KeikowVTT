@@ -12,15 +12,17 @@ import {
   type Moeda,
   type NotaDaFicha,
   type PilhaDeItem,
+  type RascunhoDaCriacao,
   type SecaoDaFicha,
   type TipoFicha,
 } from './fichas';
 import { ehObjeto, exigir, lerVisibilidade, type ResultadoDe } from './persistencia';
 import { SO_MESTRE } from './visibilidade';
+import { METODOS_ATRIBUTOS, type MetodoAtributos } from './regras';
 import { atualizarEntradas, comoResultado, lerEntradas, lerJson, VERSAO_COMPENDIO } from './persistenciaCompendio';
 
 /** Aumente ao mudar o formato das fichas, e acrescente a conversão em `converterFicha`. */
-const VERSAO_FICHAS = 5;
+const VERSAO_FICHAS = 6;
 
 /** Passa uma ficha gravada numa versão antiga para a atual, ainda sem conferir. */
 function converterFicha(ficha: unknown, versao: number): unknown {
@@ -52,6 +54,10 @@ function converterFicha(ficha: unknown, versao: number): unknown {
     // Versão 5: assistente de criação e subida de nível.
     atual = { ...atual, emCriacao: false, niveisLiberados: 0 };
   }
+  if (versao < 6) {
+    // Versão 6: o rascunho da criação (método dos atributos e valores rolados).
+    atual = { ...atual, rascunho: null };
+  }
   return atual;
 }
 
@@ -67,6 +73,24 @@ function booleano(d: Dado, campo: string, onde: string): boolean {
   const valor = d[campo];
   exigir(typeof valor === 'boolean', `${onde}: "${campo}" precisa ser sim ou não.`);
   return valor;
+}
+
+function lerRascunho(valor: unknown, onde: string): RascunhoDaCriacao | null {
+  if (valor === null) {
+    return null;
+  }
+  exigir(ehObjeto(valor), `${onde}: o rascunho da criação não é válido.`);
+  exigir(
+    typeof valor.metodo === 'string' && (METODOS_ATRIBUTOS as readonly string[]).includes(valor.metodo),
+    `${onde}: o método dos atributos é desconhecido.`,
+  );
+  const rolados = valor.rolados;
+  exigir(
+    rolados === null ||
+      (Array.isArray(rolados) && rolados.length === ATRIBUTOS.length && rolados.every((n) => Number.isInteger(n) && n >= 1 && n <= 30)),
+    `${onde}: os valores rolados não são válidos.`,
+  );
+  return { metodo: valor.metodo as MetodoAtributos, rolados: rolados as number[] | null };
 }
 
 function inteiro(valor: unknown, onde: string, minimo: number, maximo = Infinity): number {
@@ -130,6 +154,7 @@ function lerFicha(valor: unknown, onde: string, versaoEntradas: number): Ficha {
     edicaoLiberada: booleano(valor, 'edicaoLiberada', onde),
     emCriacao: booleano(valor, 'emCriacao', onde),
     niveisLiberados: inteiro(valor.niveisLiberados, `${onde}: os níveis liberados`, 0, NIVEL_MAXIMO),
+    rascunho: lerRascunho(valor.rascunho, onde),
     atributos: Object.fromEntries(
       ATRIBUTOS.map((a) => [a, inteiro(atributos[a], `${onde}: ${a.toUpperCase()}`, 1, 30)]),
     ) as Record<Atributo, number>,

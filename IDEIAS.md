@@ -47,5 +47,5 @@ Ideias aleatórias para o KeikowVTT:
 
 ## Deixado para depois nos planos já feitos
 
-- Assistente de criação: escolhas da espécie que o SRD só descreve em texto (como o +1 em dois atributos do Meio-Elfo), opções de equipamento inicial como botões, subclasses, experiência (XP), limite automático de magias conhecidas e troca de magias ao subir de nível.
+- Assistente de criação: escolhas e benefícios da espécie que o SRD só descreve em texto (como o +1 em dois atributos do Meio-Elfo, ou a perícia Percepção que o traço Keen Senses do Elfo dá), opções de equipamento inicial como botões, subclasses, experiência (XP), limite automático de magias conhecidas e troca de magias ao subir de nível.
 - Regras: exportar só as regras para usar em outra campanha (hoje elas vão junto no arquivo do Salvar).
