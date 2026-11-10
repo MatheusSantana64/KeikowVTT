@@ -301,9 +301,16 @@ describe('textoResolvido', () => {
 
   it('mantém só os parênteses necessários', () => {
     expect(texto('(1d6 + 2) * 2')).toBe('(1d6 + 2) * 2');
-    expect(texto('1d6 - (1d4 + 1)')).toBe('1d6 - (1d4 + 1)');
+    expect(texto('1d6 - (1d4 + 1)')).toBe('1d6 - 1d4 - 1');
+    expect(texto('(nivel - 3)d4 + nivel - 3')).toBe('2d4 + 2');
+    expect(texto('1d20 + mod(FOR) + prof')).toBe('1d20 + 6');
     expect(texto('1d6 + (1d4 + 1)')).toBe('1d6 + 1d4 + 1');
     expect(texto('-(1d4 + 1)')).toBe('-(1d4 + 1)');
+  });
+
+  it('um "se" com dados mostra só o lado que vale', () => {
+    expect(texto('se(nivel >= 5, 2d10, 1d10)')).toBe('2d10');
+    expect(texto('se(nivel >= 9, 3d8, 2d8) + mod(FOR)')).toBe('2d8 + 3');
   });
 
   it('sem dados, vira o número', () => {

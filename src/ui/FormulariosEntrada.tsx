@@ -6,15 +6,17 @@ import {
   type ColunaTabela,
   type DadosArma,
   type DadosArmadura,
+  type AcaoDeEntrada,
   type DadosPorTipo,
   type Efeito,
   type Entrada,
   type OperacaoEfeito,
+  type PassoDeAcao,
   type EntradaDe,
   type TipoEntrada,
 } from '../core/entradas';
 import { normalizarNome } from '../core/formulas';
-import { idSalvaguarda, NOME_NIVEL_DA_CLASSE, problemaNaFormula } from '../core/regras';
+import { idSalvaguarda, NOME_NIVEL_DA_CLASSE, NOME_NIVEL_DO_ESPACO, problemaNaFormula } from '../core/regras';
 import { REGRAS_PADRAO } from '../core/regrasPadrao';
 import {
   CampoFormula,
@@ -808,6 +810,128 @@ export function EditorEfeitos({
         }
       >
         + Efeito
+      </button>
+    </fieldset>
+  );
+}
+
+const ROTULO_PASSO: Readonly<Record<PassoDeAcao['tipo'], string>> = {
+  rolar: 'Rolar e mostrar',
+  curar: 'Curar quem usa',
+  consumir: 'Gastar unidades do item',
+  gastarUso: 'Gastar usos da habilidade',
+};
+
+function passoNovo(tipo: PassoDeAcao['tipo']): PassoDeAcao {
+  switch (tipo) {
+    case 'rolar':
+      return { tipo, formula: '1d20', rotulo: '' };
+    case 'curar':
+      return { tipo, formula: '1d8' };
+    case 'consumir':
+    case 'gastarUso':
+      return { tipo, quantidade: 1 };
+  }
+}
+
+/**
+ * As ações de uma entrada: as opções do menu do botão direito, como "Beber" numa poção.
+ * Cada ação é uma lista de passos feitos em ordem.
+ */
+export function EditorAcoes({
+  entrada,
+  mudar,
+}: {
+  readonly entrada: Entrada;
+  readonly mudar: (acoes: AcaoDeEntrada[], campo: string) => void;
+}) {
+  const extras = [
+    ...(entrada.tipo === 'habilidade' ? [NOME_NIVEL_DA_CLASSE] : []),
+    ...(entrada.tipo === 'magia' ? [NOME_NIVEL_DO_ESPACO] : []),
+  ];
+  const conferir = (texto: string) =>
+    texto.trim() === ''
+      ? 'Escreva a fórmula, como 1d8 + mod(FOR).'
+      : problemaNaFormula(REGRAS_PADRAO, texto, {
+          extras,
+          colunas: entrada.tipo === 'habilidade' ? 'qualquer' : null,
+          dados: 'permitidos',
+        });
+  const trocarAcao = (indice: number, nova: AcaoDeEntrada, campo: string) =>
+    mudar(
+      entrada.acoes.map((a, i) => (i === indice ? nova : a)),
+      `acao-${nova.id}-${campo}`,
+    );
+
+  return (
+    <fieldset className="campo-largo editor-lista editor-acoes">
+      <span>Ações (menu do botão direito)</span>
+      <p className="tela-dica">
+        Cada ação aparece no menu da carta e faz os passos em ordem.
+        {entrada.tipo === 'magia' && ' Nas fórmulas, nivel_espaco é o nível do espaço usado para conjurar.'}
+        {entrada.tipo === 'habilidade' && ' Nas fórmulas, nivel_classe é o nível na classe da habilidade.'}
+      </p>
+      {entrada.acoes.map((acao, indice) => (
+        <div key={acao.id} className="editor-acao">
+          <div className="editor-lista-item">
+            <div className="editor-lista-campos">
+              <CampoTexto rotulo="Nome da ação" valor={acao.rotulo} aoMudar={(rotulo) => trocarAcao(indice, { ...acao, rotulo }, 'rotulo')} />
+            </div>
+            <button type="button" onClick={() => mudar(entrada.acoes.filter((_, i) => i !== indice), `acao-remover-${acao.id}`)}>
+              Remover ação
+            </button>
+          </div>
+          <EditorLista
+            rotulo="Passos"
+            itens={acao.passos}
+            aoMudar={(passos) => trocarAcao(indice, { ...acao, passos }, 'passos')}
+            criar={() => passoNovo('rolar')}
+            rotuloAdicionar="+ Passo"
+            renderizar={(passo, alterar) => (
+              <>
+                <CampoOpcoes
+                  rotulo="Faz"
+                  valor={passo.tipo}
+                  rotulos={ROTULO_PASSO}
+                  aoMudar={(tipo) => tipo && tipo !== passo.tipo && alterar(passoNovo(tipo))}
+                />
+                {(passo.tipo === 'rolar' || passo.tipo === 'curar') && (
+                  <CampoFormula
+                    rotulo="Fórmula"
+                    dica="1d8 + mod(FOR)"
+                    valor={passo.formula}
+                    conferir={conferir}
+                    aoMudar={(formula) => formula.trim() !== '' && alterar({ ...passo, formula })}
+                  />
+                )}
+                {passo.tipo === 'rolar' && (
+                  <CampoTexto rotulo="Nome no registro" dica={acao.rotulo} valor={passo.rotulo} aoMudar={(rotulo) => alterar({ ...passo, rotulo })} />
+                )}
+                {(passo.tipo === 'consumir' || passo.tipo === 'gastarUso') && (
+                  <CampoNumero
+                    rotulo="Quantos"
+                    inteiro
+                    minimo={1}
+                    valor={passo.quantidade}
+                    aoMudar={(quantidade) => quantidade !== null && alterar({ ...passo, quantidade })}
+                  />
+                )}
+              </>
+            )}
+          />
+        </div>
+      ))}
+      <button
+        type="button"
+        className="editor-lista-adicionar"
+        onClick={() =>
+          mudar(
+            [...entrada.acoes, { id: crypto.randomUUID(), rotulo: 'Nova ação', passos: [passoNovo('rolar')] }],
+            `acao-nova-${crypto.randomUUID()}`,
+          )
+        }
+      >
+        + Ação
       </button>
     </fieldset>
   );

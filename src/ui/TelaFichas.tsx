@@ -1,9 +1,23 @@
-import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  descansoCurto,
+  descansoLongo,
+  ehAcaoDeDano,
+  espacosDeMagia,
+  executarAcao,
+  rolarTeste,
+  transferirItem,
+  type RolagemFeita,
+} from '../core/acoesDaFicha';
 import type { Calculado, Calculo } from '../core/calculadora';
 import { avisosDaFicha, calcularFicha, proficienciasAutomaticas, proficienciasDaFicha } from '../core/calculoDaFicha';
-import type { LojaCampanha } from '../core/campanha';
+import { ID_MESTRE, type LojaCampanha } from '../core/campanha';
 import { buscarEntradas, type EstadoCompendio, type LojaCompendio } from '../core/compendio';
-import { ATRIBUTOS, type Atributo, type EntradaDe } from '../core/entradas';
+import { ATRIBUTOS, type AcaoDeEntrada, type Atributo, type EntradaDe } from '../core/entradas';
+import { visibilidadeDaRolagem, type LojaRolagens } from '../core/rolagens';
+import { MenuDeContexto, type MenuAberto } from './MenuDeContexto';
+import type { Mesa } from './mesa';
+import { PainelRolagens } from './PainelRolagens';
 import {
   comClasse,
   comNivel,
@@ -45,6 +59,7 @@ interface TelaFichasProps {
   readonly lojaFichas: LojaFichas;
   readonly lojaCompendio: LojaCompendio;
   readonly lojaCampanha: LojaCampanha;
+  readonly lojaRolagens: LojaRolagens;
   readonly aoFechar: () => void;
 }
 
@@ -59,7 +74,8 @@ function resumoDaFicha(ficha: Ficha): string {
   return `${ROTULO_TIPO_FICHA[ficha.tipo]}${classes ? ` · ${classes}` : ''}`;
 }
 
-export function TelaFichas({ lojaFichas, lojaCompendio, lojaCampanha, aoFechar }: TelaFichasProps) {
+export function TelaFichas({ lojaFichas, lojaCompendio, lojaCampanha, lojaRolagens, aoFechar }: TelaFichasProps) {
+  const [secreta, setSecreta] = useState(false);
   const estado = useSyncExternalStore(lojaFichas.assinar, lojaFichas.obterEstado);
   const compendio = useSyncExternalStore(lojaCompendio.assinar, lojaCompendio.obterEstado);
   const campanha = useSyncExternalStore(lojaCampanha.assinar, lojaCampanha.obterEstado);
@@ -154,6 +170,9 @@ export function TelaFichas({ lojaFichas, lojaCompendio, lojaCampanha, aoFechar }
               compendio={compendio}
               participantes={campanha.participantes}
               lojaFichas={lojaFichas}
+              lojaRolagens={lojaRolagens}
+              secreta={secreta}
+              outras={fichas.filter((f) => f.id !== selecionada.id)}
               aoApagar={() => setSelecionadaId(null)}
             />
           ) : (
@@ -163,6 +182,7 @@ export function TelaFichas({ lojaFichas, lojaCompendio, lojaCampanha, aoFechar }
             </p>
           )}
         </main>
+        <PainelRolagens lojaRolagens={lojaRolagens} secreta={secreta} aoMudarSecreta={setSecreta} />
       </div>
     </div>
   );
@@ -173,22 +193,83 @@ interface EditorFichaProps {
   readonly compendio: EstadoCompendio;
   readonly participantes: readonly { readonly id: string; readonly nome: string }[];
   readonly lojaFichas: LojaFichas;
+  readonly lojaRolagens: LojaRolagens;
+  readonly secreta: boolean;
+  /** As outras fichas da campanha, que podem receber presentes. */
+  readonly outras: readonly Ficha[];
   readonly aoApagar: () => void;
 }
 
-function EditorFicha({ ficha, compendio, participantes, lojaFichas, aoApagar }: EditorFichaProps) {
+function EditorFicha({ ficha, compendio, participantes, lojaFichas, lojaRolagens, secreta, outras, aoApagar }: EditorFichaProps) {
   const sessaoDeFoco = useRef(0);
   const [explicando, setExplicando] = useState<Explicando | null>(null);
   const [classeEscolhida, setClasseEscolhida] = useState('');
+  const [menu, setMenu] = useState<MenuAberto | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [presenteando, setPresenteando] = useState<string | null>(null);
   const calculo = useMemo(() => calcularFicha(ficha, REGRAS), [ficha]);
   const fecharExplicacao = useCallback(() => setExplicando(null), []);
+  const fecharMenu = useCallback(() => setMenu(null), []);
+
+  useEffect(() => {
+    if (!aviso) {
+      return;
+    }
+    const temporizador = setTimeout(() => setAviso(null), 6000);
+    return () => clearTimeout(temporizador);
+  }, [aviso]);
 
   const editar = (nova: Ficha, campo: string) =>
     lojaFichas.despachar({ tipo: 'EditarFicha', ficha: nova }, `${ficha.id}:${campo}:${sessaoDeFoco.current}`);
 
-  const explicar = (evento: MouseEvent, rotulo: string, calculado: Calculado, nota?: string) => {
-    const caixa = (evento.currentTarget as HTMLElement).getBoundingClientRect();
+  const explicar = (alvo: HTMLElement, rotulo: string, calculado: Calculado, nota?: string) => {
+    const caixa = alvo.getBoundingClientRect();
     setExplicando({ rotulo, calculado, nota, x: caixa.left, y: caixa.bottom });
+  };
+
+  const registrar = (feitas: readonly RolagemFeita[]) => {
+    for (const feita of feitas) {
+      lojaRolagens.registrar({
+        // Enquanto não há contas, quem age neste computador é o mestre.
+        autorId: ID_MESTRE,
+        fichaId: ficha.id,
+        quem: ficha.nome || 'Sem nome',
+        rotulo: feita.rotulo,
+        formula: feita.formula,
+        dados: feita.rolagem.dados,
+        total: feita.rolagem.total,
+        visibilidade: visibilidadeDaRolagem(secreta),
+      });
+    }
+  };
+
+  const mesa: Mesa = {
+    calculo,
+    rolar: (termo, rotulo, modo = 'normal') => {
+      const resultado = rolarTeste(calculo, termo, rotulo, modo);
+      if (resultado.ok) {
+        registrar([resultado.feita]);
+      } else {
+        setAviso(resultado.erro);
+      }
+    },
+    menu: (evento, titulo, itens) => {
+      evento.preventDefault();
+      setMenu({ x: evento.clientX, y: evento.clientY, titulo, itens });
+    },
+    fazer: (resultado) => {
+      if (!resultado.ok) {
+        setAviso(resultado.erro);
+        return;
+      }
+      if (resultado.ficha !== ficha) {
+        editar(resultado.ficha, `acao-${crypto.randomUUID()}`);
+      }
+      registrar(resultado.rolagens);
+    },
+    presentear: setPresenteando,
+    temOutrasFichas: outras.length > 0,
+    explicar,
   };
 
   const monstro = entradaDaFicha(ficha, ficha.monstroId, 'monstro');
@@ -212,6 +293,20 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, aoApagar }: 
         <div className="tela-cabecalho-acoes">
           <button
             type="button"
+            title="Voltam os usos de habilidades que recarregam no descanso curto"
+            onClick={() => editar(descansoCurto(ficha), `descanso-${crypto.randomUUID()}`)}
+          >
+            Descanso curto
+          </button>
+          <button
+            type="button"
+            title="Voltam todos os usos, os espaços de magia e os PV"
+            onClick={() => editar(descansoLongo(ficha), `descanso-${crypto.randomUUID()}`)}
+          >
+            Descanso longo
+          </button>
+          <button
+            type="button"
             onClick={() => {
               lojaFichas.despachar({ tipo: 'RemoverFicha', fichaId: ficha.id });
               aoApagar();
@@ -221,6 +316,11 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, aoApagar }: 
           </button>
         </div>
       </div>
+      {aviso && (
+        <p className="mensagem-erro" role="alert">
+          {aviso}
+        </p>
+      )}
 
       <div className="formulario">
         <CampoTexto rotulo="Nome" valor={ficha.nome} aoMudar={(nome) => editar({ ...ficha, nome }, 'nome')} />
@@ -300,17 +400,130 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, aoApagar }: 
             </fieldset>
           </>
         )}
-        {monstro && <ResumoMonstro monstro={monstro} />}
+        {monstro && <ResumoMonstro monstro={monstro} ficha={ficha} mesa={mesa} />}
       </div>
 
-      <BlocoAtributos ficha={ficha} calculo={calculo} editar={editar} explicar={explicar} />
-      <BlocoCombate ficha={ficha} calculo={calculo} editar={editar} explicar={explicar} />
-      <BlocoTestes ficha={ficha} calculo={calculo} editar={editar} explicar={explicar} />
+      <BlocoAtributos ficha={ficha} calculo={calculo} editar={editar} explicar={explicar} mesa={mesa} />
+      <BlocoCombate ficha={ficha} calculo={calculo} editar={editar} explicar={explicar} mesa={mesa} />
+      <BlocoEspacos ficha={ficha} calculo={calculo} editar={editar} />
+      <BlocoTestes ficha={ficha} calculo={calculo} editar={editar} explicar={explicar} mesa={mesa} />
       {ficha.tipo !== 'monstro' && <BlocoDadosDeVida ficha={ficha} editar={editar} />}
-      <OrganizacaoFicha ficha={ficha} compendio={compendio} calculo={calculo} regras={REGRAS} editar={editar} />
+      <OrganizacaoFicha ficha={ficha} compendio={compendio} calculo={calculo} regras={REGRAS} editar={editar} mesa={mesa} />
 
       {explicando && <ExplicacaoValor explicando={explicando} aoFechar={fecharExplicacao} />}
+      {menu && <MenuDeContexto menu={menu} aoFechar={fecharMenu} />}
+      {presenteando && (
+        <JanelaPresentear
+          ficha={ficha}
+          pilhaId={presenteando}
+          outras={outras}
+          aoFechar={() => setPresenteando(null)}
+          aoConfirmar={(destino, quantidade) => {
+            const resultado = transferirItem(ficha, destino, presenteando, quantidade);
+            if (resultado) {
+              lojaFichas.despachar({ tipo: 'EditarFichas', fichas: resultado });
+            }
+            setPresenteando(null);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/** Escolher quem recebe o presente e quantas unidades. */
+function JanelaPresentear({
+  ficha,
+  pilhaId,
+  outras,
+  aoFechar,
+  aoConfirmar,
+}: {
+  readonly ficha: Ficha;
+  readonly pilhaId: string;
+  readonly outras: readonly Ficha[];
+  readonly aoFechar: () => void;
+  readonly aoConfirmar: (destino: Ficha, quantidade: number) => void;
+}) {
+  const pilha = ficha.itens.find((p) => p.id === pilhaId);
+  const item = pilha ? entradaDaFicha(ficha, pilha.entradaId, 'item') : null;
+  const [destinoId, setDestinoId] = useState(outras[0]?.id ?? '');
+  const [quantidade, setQuantidade] = useState(pilha?.quantidade ?? 1);
+  if (!pilha || !item) {
+    return null;
+  }
+  const destino = outras.find((f) => f.id === destinoId);
+  return (
+    <div className="janela-fundo" role="dialog" aria-label="Presentear">
+      <div className="janela">
+        <h3>Presentear: {item.nome}</h3>
+        <label className="campo">
+          <span>Para</span>
+          <select value={destinoId} onChange={(e) => setDestinoId(e.target.value)}>
+            {outras.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.nome || '(sem nome)'}
+              </option>
+            ))}
+          </select>
+        </label>
+        {pilha.quantidade > 1 && (
+          <CampoNumero
+            rotulo={`Quantas (de ${pilha.quantidade})`}
+            inteiro
+            minimo={1}
+            maximo={pilha.quantidade}
+            valor={quantidade}
+            aoMudar={(v) => v !== null && setQuantidade(v)}
+          />
+        )}
+        <div className="tela-cabecalho-acoes">
+          <button type="button" onClick={aoFechar}>
+            Cancelar
+          </button>
+          <button type="button" disabled={!destino} onClick={() => destino && aoConfirmar(destino, quantidade)}>
+            Presentear
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Os espaços de magia, quando a ficha conjura: gastos ao conjurar, de volta no descanso longo. */
+function BlocoEspacos({ ficha, calculo, editar }: Pick<PropsBloco, 'ficha' | 'calculo' | 'editar'>) {
+  const espacos = espacosDeMagia(ficha, calculo).filter((e) => e.maximo > 0);
+  if (espacos.length === 0) {
+    return null;
+  }
+  const ajustar = (nivel: number, gastos: number) => {
+    const lista = [...ficha.espacosGastos];
+    lista[nivel - 1] = Math.max(0, gastos);
+    editar({ ...ficha, espacosGastos: lista }, `espaco-${crypto.randomUUID()}`);
+  };
+  return (
+    <section className="ficha-secao">
+      <h3>Espaços de magia</h3>
+      <div className="ficha-espacos">
+        {espacos.map((e) => {
+          const restantes = Math.max(0, e.maximo - e.gastos);
+          return (
+            <div key={e.nivel} className="ficha-espaco">
+              <span>{e.nivel}º</span>
+              <span className="ficha-bolinhas" aria-label={`${restantes} de ${e.maximo}`}>
+                {Array.from({ length: e.maximo }, (_, i) => (i < restantes ? '●' : '○')).join('')}
+              </span>
+              <button type="button" title="Gastar um" disabled={restantes === 0} onClick={() => ajustar(e.nivel, e.gastos + 1)}>
+                −
+              </button>
+              <button type="button" title="Recuperar um" disabled={e.gastos === 0} onClick={() => ajustar(e.nivel, e.gastos - 1)}>
+                +
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -346,38 +559,68 @@ interface PropsBloco {
   readonly ficha: Ficha;
   readonly calculo: Calculo;
   readonly editar: (nova: Ficha, campo: string) => void;
-  readonly explicar: (evento: MouseEvent, rotulo: string, calculado: Calculado, nota?: string) => void;
+  readonly explicar: (alvo: HTMLElement, rotulo: string, calculado: Calculado, nota?: string) => void;
+  readonly mesa: Mesa;
 }
 
-/** Um número clicável, que abre a explicação. Sem valor, mostra um traço e o motivo ao passar o mouse. */
+/**
+ * Um número da ficha. Num teste (perícia, salvaguarda, atributo), o clique rola o d20 e o botão
+ * direito abre o menu com vantagem, desvantagem e a explicação. Nos outros, o clique explica.
+ */
 function Valor({
   calculado,
   rotulo,
   explicar,
   sinal = false,
   nota,
+  rolar,
 }: {
   readonly calculado: Calculado;
   readonly rotulo: string;
   readonly explicar: PropsBloco['explicar'];
   readonly sinal?: boolean;
   readonly nota?: string;
+  /** Torna o número um teste: o que soma ao d20 e a mesa que rola. */
+  readonly rolar?: { readonly termo: string; readonly mesa: Mesa };
 }) {
   const texto = calculado.ok ? (sinal ? comSinal(calculado.valor) : numeroNaTela(calculado.valor)) : '—';
   const mudou = calculado.ok && calculado.ajustes.some((a) => a.aplicado);
+  const classe = [mudou ? 'ficha-valor ficha-valor-alterado' : 'ficha-valor', rolar ? 'ficha-valor-rolavel' : ''].join(' ');
+  if (!rolar || !calculado.ok) {
+    return (
+      <button
+        type="button"
+        className={classe}
+        title={calculado.ok ? 'De onde vem este número?' : calculado.erro}
+        onClick={(e) => explicar(e.currentTarget, rotulo, calculado, nota)}
+      >
+        {texto}
+      </button>
+    );
+  }
+  const { termo, mesa } = rolar;
   return (
     <button
       type="button"
-      className={mudou ? 'ficha-valor ficha-valor-alterado' : 'ficha-valor'}
-      title={calculado.ok ? 'De onde vem este número?' : calculado.erro}
-      onClick={(e) => explicar(e, rotulo, calculado, nota)}
+      className={classe}
+      title={`Rolar ${rotulo}. Botão direito: vantagem, desvantagem e de onde vem o número.`}
+      onClick={() => mesa.rolar(termo, rotulo)}
+      onContextMenu={(e) => {
+        const alvo = e.currentTarget;
+        mesa.menu(e, rotulo, [
+          { rotulo: 'Rolar', aoEscolher: () => mesa.rolar(termo, rotulo) },
+          { rotulo: 'Rolar com vantagem', aoEscolher: () => mesa.rolar(termo, rotulo, 'vantagem') },
+          { rotulo: 'Rolar com desvantagem', aoEscolher: () => mesa.rolar(termo, rotulo, 'desvantagem') },
+          { rotulo: 'De onde vem este número?', separar: true, aoEscolher: () => explicar(alvo, rotulo, calculado, nota) },
+        ]);
+      }}
     >
       {texto}
     </button>
   );
 }
 
-function BlocoAtributos({ ficha, calculo, editar, explicar }: PropsBloco) {
+function BlocoAtributos({ ficha, calculo, editar, explicar, mesa }: PropsBloco) {
   return (
     <section className="ficha-secao">
       <h3>Atributos</h3>
@@ -387,7 +630,13 @@ function BlocoAtributos({ ficha, calculo, editar, explicar }: PropsBloco) {
           return (
             <div key={atributo} className="ficha-atributo">
               <span>{nome}</span>
-              <Valor calculado={calculo.modificador(atributo)} rotulo={`Modificador de ${nome}`} explicar={explicar} sinal />
+              <Valor
+                calculado={calculo.modificador(atributo)}
+                rotulo={`Teste de ${nome}`}
+                explicar={explicar}
+                sinal
+                rolar={{ termo: `mod(${atributo.toUpperCase()})`, mesa }}
+              />
               <Valor calculado={calculo.valor(atributo)} rotulo={nome} explicar={explicar} />
               <CampoNumero
                 rotulo="Valor escolhido"
@@ -405,7 +654,7 @@ function BlocoAtributos({ ficha, calculo, editar, explicar }: PropsBloco) {
   );
 }
 
-function BlocoCombate({ ficha, calculo, editar, explicar }: PropsBloco) {
+function BlocoCombate({ ficha, calculo, editar, explicar, mesa }: PropsBloco) {
   const pvMaximos = calculo.valor('pv_maximos');
   const maximo = pvMaximos.ok ? pvMaximos.valor : null;
   const avisos = avisosDaFicha(ficha, calculo);
@@ -431,7 +680,13 @@ function BlocoCombate({ ficha, calculo, editar, explicar }: PropsBloco) {
           return (
             <div key={id} className="ficha-caixa">
               <span>{calculo.rotulo(id)}</span>
-              <Valor calculado={calculado} rotulo={calculo.rotulo(id)} explicar={explicar} sinal={comSinalNoValor.has(id)} />
+              <Valor
+                calculado={calculado}
+                rotulo={calculo.rotulo(id)}
+                explicar={explicar}
+                sinal={comSinalNoValor.has(id)}
+                rolar={id === 'iniciativa' ? { termo: 'iniciativa', mesa } : undefined}
+              />
             </div>
           );
         })}
@@ -469,7 +724,7 @@ const NOME_MULTIPLICADOR: Readonly<Record<string, string>> = {
   '2': 'especialista',
 };
 
-function BlocoTestes({ ficha, calculo, editar, explicar }: PropsBloco) {
+function BlocoTestes({ ficha, calculo, editar, explicar, mesa }: PropsBloco) {
   const automaticas = proficienciasAutomaticas(ficha, REGRAS);
   const todas = proficienciasDaFicha(ficha, REGRAS);
   // Monstros já trazem os bônus prontos: os marcadores não mudariam nada.
@@ -508,7 +763,14 @@ function BlocoTestes({ ficha, calculo, editar, explicar }: PropsBloco) {
         <span>
           {nome} <small>{sigla}</small>
         </span>
-        <Valor calculado={calculo.valor(id)} rotulo={nome} explicar={explicar} sinal nota={`Proficiência: ${nota}.`} />
+        <Valor
+          calculado={calculo.valor(id)}
+          rotulo={id.startsWith('salvaguarda_') ? `Salvaguarda de ${nome}` : nome}
+          explicar={explicar}
+          sinal
+          nota={`Proficiência: ${nota}.`}
+          rolar={{ termo: id, mesa }}
+        />
       </li>
     );
   };
@@ -567,8 +829,18 @@ function BlocoDadosDeVida({ ficha, editar }: { readonly ficha: Ficha; readonly e
   );
 }
 
-function ResumoMonstro({ monstro }: { readonly monstro: EntradaDe<'monstro'> }) {
+function ResumoMonstro({
+  monstro,
+  ficha,
+  mesa,
+}: {
+  readonly monstro: EntradaDe<'monstro'>;
+  readonly ficha: Ficha;
+  readonly mesa: Mesa;
+}) {
   const d = monstro.dados;
+  const rolarAcao = (acao: AcaoDeEntrada, critico = false) =>
+    mesa.fazer(executarAcao(ficha, mesa.calculo, acao, {}, { critico }));
   const linhas: [string, string][] = [
     ['Tipo', `${ROTULO_TAMANHO[d.tamanho]} ${d.tipoCriatura}, ${d.alinhamento}`],
     ['Deslocamento', d.deslocamento],
@@ -587,6 +859,26 @@ function ResumoMonstro({ monstro }: { readonly monstro: EntradaDe<'monstro'> }) 
   ];
   return (
     <div className="campo-largo ficha-monstro">
+      {monstro.acoes.length > 0 && (
+        <div className="ficha-acoes-monstro">
+          {monstro.acoes.map((acao) => (
+            <button
+              key={acao.id}
+              type="button"
+              title={ehAcaoDeDano(acao) ? 'Clique para rolar. Botão direito: dano crítico.' : 'Clique para rolar.'}
+              onClick={() => rolarAcao(acao)}
+              onContextMenu={(e) =>
+                mesa.menu(e, acao.rotulo, [
+                  { rotulo: 'Rolar', aoEscolher: () => rolarAcao(acao) },
+                  ...(ehAcaoDeDano(acao) ? [{ rotulo: 'Rolar crítico (dados em dobro)', aoEscolher: () => rolarAcao(acao, true) }] : []),
+                ])
+              }
+            >
+              {acao.rotulo}
+            </button>
+          ))}
+        </div>
+      )}
       <dl>
         {linhas
           .filter(([, valor]) => valor.trim() !== '')

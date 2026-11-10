@@ -180,6 +180,8 @@ function lerPasso(valor: unknown, onde: string): PassoDeAcao {
       return { tipo: 'curar', formula: textoPreenchido(d, 'formula', onde) };
     case 'consumir':
       return { tipo: 'consumir', quantidade: numero(d, 'quantidade', onde, { inteiro: true, minimo: 1 }) };
+    case 'gastarUso':
+      return { tipo: 'gastarUso', quantidade: numero(d, 'quantidade', onde, { inteiro: true, minimo: 1 }) };
     default:
       throw new ErroDeFormato(`${onde} tem um tipo de passo desconhecido.`);
   }

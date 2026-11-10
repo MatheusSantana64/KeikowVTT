@@ -17,6 +17,12 @@ import type { EstadoCompendio, LojaCompendio } from '../core/compendio';
 import { desserializarCompendio, serializarCompendio } from '../core/persistenciaCompendio';
 import type { EstadoFichas, LojaFichas } from '../core/fichas';
 import { desserializarFichas, serializarFichas } from '../core/persistenciaFichas';
+import {
+  desserializarRolagens,
+  serializarRolagens,
+  type LojaRolagens,
+  type RolagemRegistrada,
+} from '../core/rolagens';
 import type { ArmazenamentoLocal } from './armazenamentoLocal';
 
 const ESPERA_MS = 500;
@@ -281,6 +287,35 @@ export function manterFichasLocal(
     DOCUMENTO_FICHAS,
     () => serializarFichas(lojaFichas.obterEstado()),
     [lojaFichas.assinar],
+    aoFalhar,
+    { principal, rapido },
+  );
+}
+
+const DOCUMENTO_ROLAGENS = {
+  chave: 'keikow.rolagens',
+  chaveEmergencia: 'keikow.rolagens.emergencia',
+  desserializar: desserializarRolagens,
+};
+
+/** Lê o registro de rolagens, ou `null` se ainda não houver nada. */
+export function lerRolagensLocal(
+  principal: ArmazenamentoLocal,
+  rapido: ArmazenamentoRapido,
+): Promise<ResultadoDe<{ readonly rolagens: readonly RolagemRegistrada[] }> | null> {
+  return lerDocumento(DOCUMENTO_ROLAGENS, { principal, rapido });
+}
+
+export function manterRolagensLocal(
+  lojaRolagens: LojaRolagens,
+  aoFalhar: () => void,
+  principal: ArmazenamentoLocal,
+  rapido: ArmazenamentoRapido,
+): () => void {
+  return manterDocumento(
+    DOCUMENTO_ROLAGENS,
+    () => serializarRolagens(lojaRolagens.obterRolagens()),
+    [lojaRolagens.assinar],
     aoFalhar,
     { principal, rapido },
   );

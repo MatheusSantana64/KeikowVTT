@@ -82,6 +82,8 @@ export const NOME_DO_VALOR_NO_MODIFICADOR = 'valor';
 export const NOMES_LOCAIS_DA_PERICIA = ['atributo', 'proficiencia'] as const;
 /** Nas fórmulas de habilidades de uma classe: o nível naquela classe. */
 export const NOME_NIVEL_DA_CLASSE = 'nivel_classe';
+/** Nas fórmulas de uma magia: o nível do espaço usado para conjurá-la (sobe o dano ao usar espaço maior). */
+export const NOME_NIVEL_DO_ESPACO = 'nivel_espaco';
 
 const RESERVADOS: ReadonlySet<string> = new Set([
   'e',
@@ -90,6 +92,7 @@ const RESERVADOS: ReadonlySet<string> = new Set([
   NOME_DO_VALOR_NO_MODIFICADOR,
   ...NOMES_LOCAIS_DA_PERICIA,
   NOME_NIVEL_DA_CLASSE,
+  NOME_NIVEL_DO_ESPACO,
 ]);
 
 export function idSalvaguarda(atributo: Atributo): string {

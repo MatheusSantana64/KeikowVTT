@@ -84,6 +84,8 @@ export interface ExtrasDaEntrada {
   readonly nivelClasse?: number;
   /** O texto da célula de uma coluna da tabela da classe, no nível atual. */
   readonly coluna?: (coluna: string) => string | undefined;
+  /** Outros nomes que só existem nesta fórmula, como `nivel_espaco` ao conjurar uma magia. */
+  readonly valores?: Readonly<Record<string, number>>;
 }
 
 export interface Calculo {
@@ -93,7 +95,12 @@ export interface Calculo {
   modificador(atributo: Atributo): Calculado;
   /** Uma fórmula avulsa, como os usos de uma habilidade. */
   formula(texto: string, extras?: ExtrasDaEntrada): ResultadoFormula<{ readonly valor: number; readonly partes: readonly Parte[] }>;
-  rolar(texto: string, extras?: ExtrasDaEntrada, aleatorio?: () => number): ResultadoFormula<Rolagem>;
+  rolar(
+    texto: string,
+    extras?: ExtrasDaEntrada,
+    aleatorio?: () => number,
+    opcoes?: { readonly dadosDobrados?: boolean },
+  ): ResultadoFormula<Rolagem>;
   /** A fórmula com os números já postos, mantendo os dados: `1d8 + mod(FOR)` → `1d8 + 3`. */
   texto(texto: string, extras?: ExtrasDaEntrada): ResultadoFormula<{ readonly texto: string }>;
   rotulo(nome: string): string;
@@ -332,7 +339,8 @@ export function criarCalculo(regras: Regras, entrada: EntradaDoCalculo): Calculo
     const coluna = extras?.coluna;
     return {
       valor: (nome) =>
-        nome === NOME_NIVEL_DA_CLASSE && extras?.nivelClasse !== undefined ? extras.nivelClasse : numeroDe(nome),
+        extras?.valores?.[nome] ??
+        (nome === NOME_NIVEL_DA_CLASSE && extras?.nivelClasse !== undefined ? extras.nivelClasse : numeroDe(nome)),
       funcao,
       tabela: coluna
         ? (nome) => {
@@ -377,8 +385,8 @@ export function criarCalculo(regras: Regras, entrada: EntradaDoCalculo): Calculo
       }
     },
     formula: (texto, extras) => comFormula(texto, (lida) => calcularFormula(lida, contextoDaEntrada(extras))),
-    rolar: (texto, extras, aleatorio) =>
-      comFormula(texto, (lida) => rolarFormula(lida, contextoDaEntrada(extras), aleatorio)),
+    rolar: (texto, extras, aleatorio, opcoes) =>
+      comFormula(texto, (lida) => rolarFormula(lida, contextoDaEntrada(extras), aleatorio, opcoes)),
     texto: (texto, extras) => comFormula(texto, (lida) => textoResolvido(lida, contextoDaEntrada(extras))),
     rotulo,
   };

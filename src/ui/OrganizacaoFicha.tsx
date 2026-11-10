@@ -1,8 +1,18 @@
-import { useMemo, useState, type DragEvent } from 'react';
+import { useMemo, useState, type DragEvent, type MouseEvent } from 'react';
+import {
+  acoesDaArma,
+  conjurar as conjurarMagia,
+  ehAcaoDeDano,
+  espacosDeMagia,
+  executarAcao,
+  gastarUso,
+  usosDaHabilidadeNaFicha,
+} from '../core/acoesDaFicha';
 import type { Calculo } from '../core/calculadora';
-import { usosDaHabilidade } from '../core/calculoDaFicha';
 import { buscarEntradas, type EstadoCompendio } from '../core/compendio';
-import { MOEDAS, type Entrada } from '../core/entradas';
+import { MOEDAS, type AcaoDeEntrada, type Entrada } from '../core/entradas';
+import type { ItemDoMenu } from './MenuDeContexto';
+import type { Mesa } from './mesa';
 import {
   comCopiaEditada,
   comExtra,
@@ -24,7 +34,7 @@ import { numeroNaTela } from './numeros';
 import { comCartaMovida, pesoCarregado, secoesOrganizadas, type Carta } from '../core/organizacaoDaFicha';
 import type { Regras } from '../core/regras';
 import { CampoNumero, CampoTexto } from './camposFormulario';
-import { EditorEfeitos, FormularioDados } from './FormulariosEntrada';
+import { EditorAcoes, EditorEfeitos, FormularioDados } from './FormulariosEntrada';
 import { ROTULO_ESCOLA, ROTULO_MOEDA, ROTULO_RECARGA, ROTULO_TIPO } from './rotulosCompendio';
 
 const TIPO_ARRASTE = 'application/x-keikow-carta';
@@ -36,6 +46,97 @@ interface Props {
   readonly regras: Regras;
   /** `campo` agrupa a digitação num passo de desfazer; ações de um clique usam um campo único. */
   readonly editar: (nova: Ficha, campo: string) => void;
+  readonly mesa: Mesa;
+}
+
+/** O que o menu do botão direito de cada carta oferece. */
+function itensDaCarta(carta: Carta, ficha: Ficha, mesa: Mesa, editar: Props['editar']): ItemDoMenu[] {
+  const { calculo } = mesa;
+  const comCritico = (acao: AcaoDeEntrada, fazer: (critico: boolean) => void): ItemDoMenu[] => [
+    { rotulo: acao.rotulo, aoEscolher: () => fazer(false) },
+    ...(ehAcaoDeDano(acao) ? [{ rotulo: `${acao.rotulo} (crítico, dados em dobro)`, aoEscolher: () => fazer(true) }] : []),
+  ];
+
+  if (carta.tipo === 'nota') {
+    return [];
+  }
+
+  if (carta.tipo === 'item') {
+    const { pilha, entrada } = carta;
+    const usar = entrada.acoes.flatMap((a) =>
+      comCritico(a, (critico) => mesa.fazer(executarAcao(ficha, calculo, a, { pilhaId: pilha.id }, { critico }))),
+    );
+    const arma = acoesDaArma(ficha, entrada).flatMap((a) =>
+      comCritico(a, (critico) => mesa.fazer(executarAcao(ficha, calculo, a, { pilhaId: pilha.id }, { critico }))),
+    );
+    return [
+      ...usar,
+      ...arma,
+      {
+        rotulo: pilha.equipado ? 'Desequipar' : 'Equipar',
+        separar: usar.length + arma.length > 0,
+        aoEscolher: () => editar(comPilha(ficha, pilha.id, { equipado: !pilha.equipado }), unico('equipar')),
+      },
+      ...(entrada.dados.requerSintonia
+        ? [
+            {
+              rotulo: pilha.sintonizado ? 'Desfazer a sintonia' : 'Sintonizar',
+              aoEscolher: () => editar(comPilha(ficha, pilha.id, { sintonizado: !pilha.sintonizado }), unico('sintonizar')),
+            },
+          ]
+        : []),
+      {
+        rotulo: 'Presentear…',
+        desativado: !mesa.temOutrasFichas,
+        dica: mesa.temOutrasFichas ? undefined : 'Não há outra ficha para receber.',
+        aoEscolher: () => mesa.presentear(pilha.id),
+      },
+      { rotulo: 'Descartar', aoEscolher: () => editar(semPilha(ficha, pilha.id), unico('descartar')) },
+    ];
+  }
+
+  const { entrada, extra, habilidade } = carta;
+  const tirar: ItemDoMenu[] = extra
+    ? [{ rotulo: 'Tirar da ficha', separar: true, aoEscolher: () => editar(semExtra(ficha, entrada.id), unico('tirar')) }]
+    : [];
+
+  if (entrada.tipo === 'magia') {
+    const nivel = entrada.dados.nivel;
+    let conjurar: ItemDoMenu[];
+    if (nivel === 0) {
+      conjurar = [{ rotulo: 'Conjurar (truque)', aoEscolher: () => mesa.fazer(conjurarMagia(ficha, calculo, entrada, 0)) }];
+    } else {
+      const espacos = espacosDeMagia(ficha, calculo).filter((e) => e.nivel >= nivel && e.maximo > 0);
+      conjurar =
+        espacos.length > 0
+          ? espacos.map((e) => {
+              const restantes = Math.max(0, e.maximo - e.gastos);
+              return {
+                rotulo: `Conjurar com espaço de ${e.nivel}º (${restantes} de ${e.maximo})`,
+                desativado: restantes === 0,
+                aoEscolher: () => mesa.fazer(conjurarMagia(ficha, calculo, entrada, e.nivel)),
+              };
+            })
+          : [{ rotulo: `Conjurar (sem espaços de ${nivel}º nível)`, desativado: true, aoEscolher: () => undefined }];
+    }
+    // Rolar de novo, sem gastar espaço: para quando o mestre pede outra rolagem.
+    const rolarDeNovo = entrada.acoes.flatMap((a) =>
+      comCritico({ ...a, rotulo: `Só rolar: ${a.rotulo}` }, (critico) =>
+        mesa.fazer(executarAcao(ficha, calculo, a, { extras: { valores: { nivel_espaco: Math.max(1, nivel) } } }, { critico })),
+      ),
+    );
+    return [...conjurar, ...(rolarDeNovo.length > 0 ? [{ ...rolarDeNovo[0], separar: true }, ...rolarDeNovo.slice(1)] : []), ...tirar];
+  }
+
+  const acoes = entrada.acoes.flatMap((a) =>
+    comCritico(a, (critico) => mesa.fazer(executarAcao(ficha, calculo, a, { habilidade: habilidade ?? undefined }, { critico }))),
+  );
+  const gastaPorConta = entrada.acoes.some((a) => a.passos.some((p) => p.tipo === 'gastarUso'));
+  const usar: ItemDoMenu[] =
+    habilidade && entrada.tipo === 'habilidade' && entrada.dados.usos && !gastaPorConta
+      ? [{ rotulo: 'Usar (gasta 1 uso)', aoEscolher: () => mesa.fazer(gastarUso(ficha, calculo, habilidade)) }]
+      : [];
+  return [...usar, ...acoes, ...tirar];
 }
 
 const unico = (nome: string) => `${nome}-${crypto.randomUUID()}`;
@@ -44,7 +145,7 @@ function kg(valor: number): string {
   return `${numeroNaTela(valor)} kg`;
 }
 
-export function OrganizacaoFicha({ ficha, compendio, calculo, regras, editar }: Props) {
+export function OrganizacaoFicha({ ficha, compendio, calculo, regras, editar, mesa }: Props) {
   const secoes = useMemo(() => secoesOrganizadas(ficha), [ficha]);
   const [aberta, setAberta] = useState<string | null>(null);
   const [alvo, setAlvo] = useState<{ secaoId: string; posicao: number } | null>(null);
@@ -192,6 +293,7 @@ export function OrganizacaoFicha({ ficha, compendio, calculo, regras, editar }: 
                     podeDescer={indice < cartas.length - 1}
                     mover={(secaoId, posicao) => mover(carta.chave, secaoId, posicao)}
                     indice={indice}
+                    mesa={mesa}
                   />
                 </li>
               ))}
@@ -281,10 +383,24 @@ interface PropsCarta {
   readonly podeDescer: boolean;
   readonly indice: number;
   readonly mover: (secaoId: string, posicao: number) => void;
+  readonly mesa: Mesa;
 }
 
 function CartaDaFicha(props: PropsCarta) {
-  const { carta, ficha, calculo, aberta, alternar, editar, secoes, secaoAtual, podeSubir, podeDescer, indice, mover } = props;
+  const { carta, ficha, calculo, aberta, alternar, editar, secoes, secaoAtual, podeSubir, podeDescer, indice, mover, mesa } = props;
+  const nomeDaCarta = carta.tipo === 'nota' ? carta.nota.titulo : carta.entrada.nome || '(sem nome)';
+  const itensDoMenu = itensDaCarta(carta, ficha, mesa, editar);
+  const abrirMenu = (e: MouseEvent) => {
+    if (itensDoMenu.length > 0) {
+      mesa.menu(e, nomeDaCarta, itensDoMenu);
+    }
+  };
+  const botaoDoMenu =
+    itensDoMenu.length > 0 ? (
+      <button type="button" className="carta-menu" title="Ações (ou clique com o botão direito na carta)" onClick={abrirMenu}>
+        ⋯
+      </button>
+    ) : null;
 
   const controlesDeLugar = (
     <span className="carta-lugar">
@@ -341,8 +457,9 @@ function CartaDaFicha(props: PropsCarta) {
   if (carta.tipo === 'item') {
     const { pilha, entrada } = carta;
     return (
-      <div className="carta">
+      <div className="carta" onContextMenu={abrirMenu}>
         <div className="carta-linha">
+          {botaoDoMenu}
           <button type="button" className="carta-nome" aria-expanded={aberta} onClick={alternar}>
             {entrada.nome || '(sem nome)'}
           </button>
@@ -394,22 +511,23 @@ function CartaDaFicha(props: PropsCarta) {
   }
 
   const { entrada, origem, extra, habilidade } = carta;
-  const usos = habilidade ? usosDaHabilidade(calculo, habilidade) : null;
+  const usos = habilidade ? usosDaHabilidadeNaFicha(ficha, calculo, habilidade) : null;
   const recarga = entrada.tipo === 'habilidade' && entrada.dados.usos ? ROTULO_RECARGA[entrada.dados.usos.recarga].toLowerCase() : '';
   const resumo =
     entrada.tipo === 'magia'
       ? `${entrada.dados.nivel === 0 ? 'Truque' : `${entrada.dados.nivel}º nível`} · ${ROTULO_ESCOLA[entrada.dados.escola]}`
       : origem;
   return (
-    <div className="carta">
+    <div className="carta" onContextMenu={abrirMenu}>
       <div className="carta-linha">
+        {botaoDoMenu}
         <button type="button" className="carta-nome" aria-expanded={aberta} onClick={alternar}>
           {entrada.nome || '(sem nome)'}
         </button>
         <small>{resumo}</small>
         {usos && (
-          <span className="ficha-usos" title={usos.ok ? undefined : usos.erro}>
-            {usos.ok ? `${numeroNaTela(usos.valor)} por ${recarga}` : 'usos: —'}
+          <span className="ficha-usos" title={usos.ok ? `Recupera em: ${recarga}` : usos.erro}>
+            {usos.ok ? `${numeroNaTela(usos.usos.restantes)} de ${numeroNaTela(usos.usos.maximo)} · ${recarga}` : 'usos: —'}
           </span>
         )}
         {controlesDeLugar}
@@ -456,6 +574,7 @@ function DetalhesDaCopia({ entrada, ficha, editar }: { readonly entrada: Entrada
           mudar={(parcial, campo) => mudar({ ...entrada, dados: { ...entrada.dados, ...parcial } } as Entrada, `dados-${campo}`)}
         />
         <EditorEfeitos entrada={entrada} mudar={(efeitos, campo) => mudar({ ...entrada, efeitos } as Entrada, campo)} />
+        <EditorAcoes entrada={entrada} mudar={(acoes, campo) => mudar({ ...entrada, acoes } as Entrada, campo)} />
       </div>
       <button type="button" onClick={() => setEditando(false)}>
         Pronto

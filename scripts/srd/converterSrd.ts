@@ -10,6 +10,7 @@ import {
   type DadosArma,
   type DadosArmadura,
   type DadosHabilidade,
+  type AcaoDeEntrada,
   type DadosItem,
   type Efeito,
   type Entrada,
@@ -18,7 +19,7 @@ import {
   type TipoEntrada,
 } from '../../src/core/entradas';
 import type { Credito, Pacote } from '../../src/core/pacotes';
-import { NOME_NIVEL_DA_CLASSE, nomesDasRegras, problemaNaFormula } from '../../src/core/regras';
+import { NOME_NIVEL_DA_CLASSE, NOME_NIVEL_DO_ESPACO, nomesDasRegras, problemaNaFormula } from '../../src/core/regras';
 import { REGRAS_PADRAO } from '../../src/core/regrasPadrao';
 import { entradaParaMetrico } from '../../src/core/persistenciaCompendio';
 import { librasParaQuilos } from '../../src/core/unidades';
@@ -355,6 +356,14 @@ export function converterItemMagico(registro: Registro): EntradaDe<'item'> {
       'Magic Item',
     ]),
     efeitos: efeitosProntos(registro.index),
+    acoes: CURA_DAS_POCOES[registro.index]
+      ? [
+          acao(`item-magico/${registro.index}`, 1, 'Beber', [
+            { tipo: 'curar', formula: CURA_DAS_POCOES[registro.index] },
+            { tipo: 'consumir', quantidade: 1 },
+          ]),
+        ]
+      : [],
     dados: {
       categoria,
       peso: 0,
@@ -378,6 +387,7 @@ export function converterMagia(registro: Registro): EntradaDe<'magia'> {
     .join('\n\n');
   return {
     ...base('magia', id('magia', registro.index), registro.name, descricao, nomes(registro.classes)),
+    acoes: acoesDaMagia(registro),
     dados: {
       nivel: registro.level,
       escola: traduzir(ESCOLA, registro.school?.index, `escola de ${registro.index}`),
@@ -608,6 +618,98 @@ const USOS: Readonly<Record<string, DadosHabilidade['usos']>> = {
   'divine-sense': { maximo: '1 + mod(CAR)', recarga: 'descanso-longo' },
   'lay-on-hands': { maximo: 'nivel_classe * 5', recarga: 'descanso-longo' },
 };
+
+// ---------- Ações prontas ----------
+
+const CURA_DAS_POCOES: Readonly<Record<string, string>> = {
+  'potion-of-healing-common': '2d4 + 2',
+  'potion-of-healing-greater': '4d4 + 4',
+  'potion-of-healing-superior': '8d4 + 8',
+  'potion-of-healing-supreme': '10d4 + 20',
+};
+
+function acao(idBase: string, n: number, rotulo: string, passos: AcaoDeEntrada['passos']): AcaoDeEntrada {
+  return { id: `${ID_PACOTE}/${idBase}/acao-${n}`, rotulo, passos };
+}
+
+/** O dado da base, como "1d8 + MOD", na linguagem das fórmulas: MOD é o modificador de conjuração. */
+function dadoDaBase(texto: string): string {
+  // "4d6 OR 5d6" (Flame Strike): o dano extra vai para um dos tipos, à escolha; fica a opção maior.
+  const escolhido = texto.split(/\s+OR\s+/i).at(-1) ?? texto;
+  return escolhido.replace(/\bMOD\b/g, 'mod(conjuracao)').trim();
+}
+
+/**
+ * Uma fórmula que muda com um nível: `se(nivel >= 17, 4d10, se(nivel >= 11, 3d10, ...))`.
+ * `porNivel` é como na base: { "1": "1d10", "5": "2d10", ... }.
+ */
+function escadaDeNiveis(nome: string, porNivel: Readonly<Record<string, string>>): string {
+  const degraus = Object.entries(porNivel)
+    .map(([nivel, dado]) => ({ nivel: Number(nivel), dado: dadoDaBase(dado) }))
+    .sort((a, b) => a.nivel - b.nivel);
+  return degraus
+    .slice(1)
+    .reduce((formula, { nivel, dado }) => `se(${nome} >= ${nivel}, ${dado}, ${formula})`, degraus[0]?.dado ?? '0');
+}
+
+const NOME_ATRIBUTO_DA_CD: Readonly<Record<string, string>> = { str: 'FOR', dex: 'DES', con: 'CON', int: 'INT', wis: 'SAB', cha: 'CAR' };
+
+/** As ações de uma magia: ataque mágico, dano (que sobe com o nível) e cura, quando a base as tem. */
+export function acoesDaMagia(registro: Registro): AcaoDeEntrada[] {
+  const acoes: AcaoDeEntrada[] = [];
+  const idBase = `magia/${registro.index}`;
+  if (registro.attack_type) {
+    acoes.push(acao(idBase, acoes.length + 1, 'Ataque mágico', [{ tipo: 'rolar', formula: '1d20 + ataque_magico', rotulo: `${registro.name}: ataque` }]));
+  }
+  const salvaguarda = registro.dc?.dc_type?.index
+    ? ` (salvaguarda de ${NOME_ATRIBUTO_DA_CD[registro.dc.dc_type.index] ?? registro.dc.dc_type.name}${registro.dc.dc_success === 'half' ? ', metade se passar' : ''})`
+    : '';
+  const danos: Registro[] = Array.isArray(registro.damage) ? registro.damage : registro.damage ? [registro.damage] : [];
+  for (const dano of danos) {
+    const formula = dano.damage_at_character_level
+      ? escadaDeNiveis('nivel', dano.damage_at_character_level)
+      : dano.damage_at_slot_level
+        ? escadaDeNiveis(NOME_NIVEL_DO_ESPACO, dano.damage_at_slot_level)
+        : null;
+    if (formula) {
+      const tipo = dano.damage_type?.name ? ` (${String(dano.damage_type.name).toLowerCase()})` : '';
+      acoes.push(acao(idBase, acoes.length + 1, 'Dano', [{ tipo: 'rolar', formula, rotulo: `${registro.name}: dano${tipo}${salvaguarda}` }]));
+    }
+  }
+  if (registro.heal_at_slot_level) {
+    acoes.push(
+      acao(idBase, acoes.length + 1, 'Cura', [
+        { tipo: 'rolar', formula: escadaDeNiveis(NOME_NIVEL_DO_ESPACO, registro.heal_at_slot_level), rotulo: `${registro.name}: cura` },
+      ]),
+    );
+  }
+  return acoes;
+}
+
+/** Os ataques de um monstro: "Scimitar: ataque" (d20 + bônus) e "Scimitar: dano", com cada tipo de dano. */
+export function acoesDoMonstro(registro: Registro): AcaoDeEntrada[] {
+  const acoes: AcaoDeEntrada[] = [];
+  const idBase = `monstro/${registro.index}`;
+  for (const a of (registro.actions ?? []) as Registro[]) {
+    if (typeof a.attack_bonus === 'number') {
+      acoes.push(acao(idBase, acoes.length + 1, `${a.name}: ataque`, [{ tipo: 'rolar', formula: `1d20 + ${a.attack_bonus}`, rotulo: `${a.name}: ataque` }]));
+    }
+    const dados = ((a.damage ?? []) as Registro[]).filter((d) => typeof d.damage_dice === 'string' && /d/.test(d.damage_dice));
+    if (dados.length > 0) {
+      const tipos = dados.map((d) => String(d.damage_type?.name ?? '').toLowerCase()).filter(Boolean);
+      acoes.push(
+        acao(idBase, acoes.length + 1, `${a.name}: dano`, [
+          {
+            tipo: 'rolar',
+            formula: dados.map((d) => String(d.damage_dice).replace(/\s+/g, '')).join(' + '),
+            rotulo: `${a.name}: dano${tipos.length ? ` (${tipos.join(' + ')})` : ''}`,
+          },
+        ]),
+      );
+    }
+  }
+  return acoes;
+}
 
 // ---------- Efeitos prontos ----------
 
@@ -933,6 +1035,7 @@ export function converterMonstro(registro: Registro): EntradaDe<'monstro'> {
       [registro.type, `CR ${formatarNivelDesafio(nd)}`],
       true,
     ),
+    acoes: acoesDoMonstro(registro),
     dados: {
       tamanho: traduzir(TAMANHO, registro.size, `tamanho de ${registro.index}`),
       tipoCriatura: registro.subtype ? `${registro.type} (${registro.subtype})` : registro.type,
@@ -1063,6 +1166,21 @@ export function formulasQuebradas(pacote: Pacote): string[] {
         problemas.push(`${entrada.id}, efeito ${efeito.id}: o alvo "${efeito.alvo}" não existe nas regras.`);
       }
       conferir(`efeito ${efeito.id}`, efeito.valor);
+    }
+    // As ações podem rolar dados; nas magias, também usam o nível do espaço.
+    const extrasDasAcoes = [
+      ...(classes.length > 0 ? [NOME_NIVEL_DA_CLASSE] : []),
+      ...(entrada.tipo === 'magia' ? [NOME_NIVEL_DO_ESPACO] : []),
+    ];
+    for (const a of entrada.acoes) {
+      for (const passo of a.passos) {
+        if (passo.tipo === 'rolar' || passo.tipo === 'curar') {
+          const problema = problemaNaFormula(REGRAS_PADRAO, passo.formula, { extras: extrasDasAcoes, colunas: null, dados: 'permitidos' });
+          if (problema) {
+            problemas.push(`${entrada.id}, ação ${a.id}: ${problema}`);
+          }
+        }
+      }
     }
   }
   return problemas;

@@ -11,6 +11,7 @@ import { chaveHex, type CoordHex, type PontoMundo } from '../core/hex';
 import { criarLojaCampanha, ID_MESTRE, type LojaCampanha } from '../core/campanha';
 import { criarLojaCompendio, type LojaCompendio } from '../core/compendio';
 import { criarLojaFichas, type LojaFichas } from '../core/fichas';
+import { criarLojaRolagens, type LojaRolagens } from '../core/rolagens';
 import { criarLojaRegistro, type LojaRegistro } from '../core/registro';
 import { criarLojaGrupo, type LojaGrupo } from '../core/grupo';
 import { criarLojaMapa, type LojaMapa } from '../core/loja';
@@ -22,10 +23,12 @@ import {
   lerCampanhaLocal,
   lerCompendioLocal,
   lerFichasLocal,
+  lerRolagensLocal,
   lerSalvamentoLocal,
   manterCampanhaLocal,
   manterCompendioLocal,
   manterFichasLocal,
+  manterRolagensLocal,
   manterSalvamentoLocal,
 } from '../net/salvamentoLocal';
 import { carregarManifesto } from '../render/assets';
@@ -71,6 +74,7 @@ interface EditorCarregado {
   readonly lojaRegistro: LojaRegistro;
   readonly lojaCompendio: LojaCompendio;
   readonly lojaFichas: LojaFichas;
+  readonly lojaRolagens: LojaRolagens;
   readonly aviso: Mensagem | null;
 }
 
@@ -81,11 +85,12 @@ const ARMAZENAMENTO = criarArmazenamentoNavegador();
 
 async function iniciarEditor(): Promise<EditorCarregado> {
   pedirProtecaoDosDados();
-  const [salvo, salvaCampanha, salvoCompendio, salvasFichas] = await Promise.all([
+  const [salvo, salvaCampanha, salvoCompendio, salvasFichas, salvasRolagens] = await Promise.all([
     lerSalvamentoLocal(ARMAZENAMENTO, localStorage),
     lerCampanhaLocal(ARMAZENAMENTO, localStorage),
     lerCompendioLocal(ARMAZENAMENTO, localStorage),
     lerFichasLocal(ARMAZENAMENTO, localStorage),
+    lerRolagensLocal(ARMAZENAMENTO, localStorage),
   ]);
   const campanha = salvaCampanha?.ok ? salvaCampanha : null;
   const mapa = salvo?.ok ? salvo : null;
@@ -110,6 +115,8 @@ async function iniciarEditor(): Promise<EditorCarregado> {
     lojaRegistro,
     lojaCompendio: criarLojaCompendio(compendio?.estado, opcoesRegistro),
     lojaFichas: criarLojaFichas(salvasFichas?.ok ? salvasFichas.estado : undefined, opcoesRegistro),
+    // Um registro de rolagens ilegível não impede de abrir: começa vazio.
+    lojaRolagens: criarLojaRolagens(salvasRolagens?.ok ? salvasRolagens.rolagens : []),
     aviso: falha
       ? { tipo: 'erro', texto: `O salvamento automático não pôde ser lido: ${falha}` }
       : null,
@@ -152,7 +159,16 @@ export function App() {
   return <Editor {...editor} />;
 }
 
-function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, lojaCompendio, lojaFichas, aviso }: EditorCarregado) {
+function Editor({
+  loja,
+  lojaGrupo,
+  lojaCampanha,
+  lojaRegistro,
+  lojaCompendio,
+  lojaFichas,
+  lojaRolagens,
+  aviso,
+}: EditorCarregado) {
   const mapRef = useRef<HTMLDivElement>(null);
   const cenaRef = useRef<CenaMapa | null>(null);
   const assetArrastado = useRef<string | null>(null);
@@ -273,6 +289,17 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, lojaCompendio, lo
         localStorage,
       ),
     [lojaFichas],
+  );
+
+  useEffect(
+    () =>
+      manterRolagensLocal(
+        lojaRolagens,
+        () => setMensagem({ tipo: 'erro', texto: 'O navegador recusou guardar o registro de rolagens.' }),
+        ARMAZENAMENTO,
+        localStorage,
+      ),
+    [lojaRolagens],
   );
 
   useEffect(() => {
@@ -635,6 +662,7 @@ function Editor({ loja, lojaGrupo, lojaCampanha, lojaRegistro, lojaCompendio, lo
           lojaFichas={lojaFichas}
           lojaCompendio={lojaCompendio}
           lojaCampanha={lojaCampanha}
+          lojaRolagens={lojaRolagens}
           aoFechar={() => setTelaAberta(null)}
         />
       )}

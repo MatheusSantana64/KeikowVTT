@@ -130,7 +130,7 @@ export interface HabilidadeNaFicha {
 }
 
 /** O nível e a tabela de uma classe, para fórmulas como `tabela(furias)` e `nivel_classe`. */
-function extrasDaClasse(classe: { readonly entrada: EntradaDe<'classe'>; readonly nivel: number }): ExtrasDaEntrada {
+export function extrasDaClasse(classe: { readonly entrada: EntradaDe<'classe'>; readonly nivel: number }): ExtrasDaEntrada {
   return {
     nivelClasse: classe.nivel,
     coluna: (id) => classe.entrada.dados.tabela.find((c) => c.id === id)?.valores[classe.nivel - 1],

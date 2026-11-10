@@ -1,5 +1,6 @@
 import { ATRIBUTOS, MOEDAS, type Atributo } from './entradas';
 import {
+  ESPACOS_ZERADOS,
   MOEDAS_ZERADAS,
   MULTIPLICADORES_PROFICIENCIA,
   NIVEL_MAXIMO,
@@ -18,23 +19,31 @@ import { ehObjeto, exigir, type ResultadoDe } from './persistencia';
 import { atualizarEntradas, comoResultado, lerEntradas, lerJson, VERSAO_COMPENDIO } from './persistenciaCompendio';
 
 /** Aumente ao mudar o formato das fichas, e acrescente a conversão em `converterFicha`. */
-const VERSAO_FICHAS = 2;
+const VERSAO_FICHAS = 3;
 
 /** Passa uma ficha gravada numa versão antiga para a atual, ainda sem conferir. */
 function converterFicha(ficha: unknown, versao: number): unknown {
-  if (!ehObjeto(ficha) || versao >= 2) {
+  if (!ehObjeto(ficha)) {
     return ficha;
   }
-  // Versão 2: inventário, cartas extras, moedas e seções. A nota única virou uma carta de nota.
-  const notaAntiga = typeof ficha.notas === 'string' ? ficha.notas : '';
-  return {
-    ...ficha,
-    itens: [],
-    extras: [],
-    notas: notaAntiga.trim() === '' ? [] : [{ id: 'nota-antiga', titulo: 'Notas', texto: notaAntiga }],
-    moedas: { ...MOEDAS_ZERADAS },
-    secoes: SECOES_PADRAO,
-  };
+  let atual: Record<string, unknown> = ficha;
+  if (versao < 2) {
+    // Versão 2: inventário, cartas extras, moedas e seções. A nota única virou uma carta de nota.
+    const notaAntiga = typeof atual.notas === 'string' ? atual.notas : '';
+    atual = {
+      ...atual,
+      itens: [],
+      extras: [],
+      notas: notaAntiga.trim() === '' ? [] : [{ id: 'nota-antiga', titulo: 'Notas', texto: notaAntiga }],
+      moedas: { ...MOEDAS_ZERADAS },
+      secoes: SECOES_PADRAO,
+    };
+  }
+  if (versao < 3) {
+    // Versão 3: usos de habilidades e espaços de magia gastos.
+    atual = { ...atual, usosGastos: {}, espacosGastos: ESPACOS_ZERADOS };
+  }
+  return atual;
 }
 
 type Dado = Record<string, unknown>;
@@ -177,7 +186,18 @@ function lerOrganizacao(valor: Dado, onde: string, entradas: Record<string, { ti
   exigir(secoes.length > 0, `${onde} precisa ter ao menos uma seção.`);
   semRepetir(secoes.map((s) => s.id), `${onde}: as seções`);
 
-  return { itens, extras, notas, moedas: lidasMoedas, secoes };
+  const usos = valor.usosGastos;
+  exigir(ehObjeto(usos), `${onde} está sem os usos gastos.`);
+  const usosGastos = Object.fromEntries(
+    Object.entries(usos).map(([id, n]) => [id, inteiro(n, `${onde}: os usos gastos`, 0)]),
+  );
+  exigir(
+    Array.isArray(valor.espacosGastos) && valor.espacosGastos.length === ESPACOS_ZERADOS.length,
+    `${onde}: os espaços de magia gastos não são válidos.`,
+  );
+  const espacosGastos = valor.espacosGastos.map((n) => inteiro(n, `${onde}: os espaços de magia gastos`, 0));
+
+  return { itens, extras, notas, moedas: lidasMoedas, secoes, usosGastos, espacosGastos };
 }
 
 export function fichasParaObjeto(estado: EstadoFichas) {

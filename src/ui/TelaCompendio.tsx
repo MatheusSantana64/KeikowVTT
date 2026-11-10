@@ -3,7 +3,7 @@ import { buscarEntradas, entradaEm, type LojaCompendio } from '../core/compendio
 import { criarEntrada, TIPOS_ENTRADA, type Entrada, type TipoEntrada } from '../core/entradas';
 import { SO_MESTRE, VISIVEL_A_TODOS } from '../core/visibilidade';
 import { CampoLinhas, CampoTexto } from './camposFormulario';
-import { EditorEfeitos, FormularioDados } from './FormulariosEntrada';
+import { EditorAcoes, EditorEfeitos, FormularioDados } from './FormulariosEntrada';
 import { PainelImportacao } from './PainelImportacao';
 import { ROTULO_TIPO } from './rotulosCompendio';
 
@@ -264,10 +264,7 @@ function EditorEntrada({
           }
         />
         <EditorEfeitos entrada={entrada} mudar={(efeitos, campo) => editar({ ...entrada, efeitos } as Entrada, campo)} />
-        <p className="tela-dica campo-largo">
-          Ações desta entrada (menu do botão direito): {entrada.acoes.length}. Elas poderão ser editadas no passo das
-          rolagens.
-        </p>
+        <EditorAcoes entrada={entrada} mudar={(acoes, campo) => editar({ ...entrada, acoes } as Entrada, campo)} />
       </div>
     </div>
   );

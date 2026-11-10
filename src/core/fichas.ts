@@ -56,7 +56,13 @@ export interface Ficha {
   readonly moedas: Readonly<Record<Moeda, number>>;
   /** Como o jogador arrumou as cartas. Cartas que não estão em nenhuma seção vão para a seção padrão do tipo delas. */
   readonly secoes: readonly SecaoDaFicha[];
+  /** Usos já gastos de cada habilidade, pelo id da cópia. Voltam nos descansos. */
+  readonly usosGastos: Readonly<Record<string, number>>;
+  /** Espaços de magia já gastos, do 1º ao 9º nível. Voltam no descanso longo. */
+  readonly espacosGastos: readonly number[];
 }
+
+export const ESPACOS_ZERADOS: readonly number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
 
 export type Moeda = (typeof MOEDAS)[number];
 
@@ -112,6 +118,8 @@ export type AcaoFichas =
   /** Troca a ficha inteira pela nova versão, mantendo id e tipo. */
   | { readonly tipo: 'EditarFicha'; readonly ficha: Ficha }
   | { readonly tipo: 'RemoverFicha'; readonly fichaId: string }
+  /** Muda várias fichas de uma vez, num só passo de desfazer: presentear ou trocar itens entre elas. */
+  | { readonly tipo: 'EditarFichas'; readonly fichas: readonly Ficha[] }
   | { readonly tipo: 'CarregarFichas'; readonly estado: EstadoFichas };
 
 export function criarFichasVazias(): EstadoFichas {
@@ -148,6 +156,8 @@ export function criarFicha(tipo: Exclude<TipoFicha, 'monstro'>, id: string, dono
     notas: [],
     moedas: { ...MOEDAS_ZERADAS },
     secoes: SECOES_PADRAO,
+    usosGastos: {},
+    espacosGastos: ESPACOS_ZERADOS,
   };
 }
 
@@ -444,6 +454,12 @@ export function aplicarAcaoFichas(estado: EstadoFichas, acao: AcaoFichas): Estad
         : { fichas: { ...estado.fichas, [acao.ficha.id]: acao.ficha } };
     case 'EditarFicha':
       return editarFicha(estado, acao.ficha);
+    case 'EditarFichas':
+      // Se alguma ficha não existe (ou mudaria de tipo), nada muda: é tudo ou nada.
+      if (acao.fichas.some((f) => estado.fichas[f.id]?.tipo !== f.tipo)) {
+        return estado;
+      }
+      return acao.fichas.reduce(editarFicha, estado);
     case 'RemoverFicha': {
       if (!(acao.fichaId in estado.fichas)) {
         return estado;

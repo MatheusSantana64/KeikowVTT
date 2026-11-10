@@ -79,11 +79,20 @@ export interface Efeito {
   readonly quando: (typeof QUANDO_EFEITO)[number];
 }
 
-/** Uma etapa do que acontece ao usar uma ação, como rolar dados ou curar. */
+/**
+ * Uma etapa do que acontece ao usar uma ação:
+ * - rolar: rola a fórmula e mostra no registro, como "Dano: 1d8 + 3".
+ * - curar: rola a fórmula e devolve esses PV a quem usou.
+ * - consumir: gasta unidades da pilha do item (uma poção bebida).
+ * - gastarUso: gasta usos da habilidade (uma Fúria).
+ */
 export type PassoDeAcao =
   | { readonly tipo: 'rolar'; readonly formula: string; readonly rotulo: string }
   | { readonly tipo: 'curar'; readonly formula: string }
-  | { readonly tipo: 'consumir'; readonly quantidade: number };
+  | { readonly tipo: 'consumir'; readonly quantidade: number }
+  | { readonly tipo: 'gastarUso'; readonly quantidade: number };
+
+export const TIPOS_PASSO = ['rolar', 'curar', 'consumir', 'gastarUso'] as const;
 
 /** Uma opção do menu do botão direito, vinda da própria entrada, como "Beber" numa poção. */
 export interface AcaoDeEntrada {

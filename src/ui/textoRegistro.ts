@@ -43,6 +43,7 @@ const DESCRICOES: Readonly<Record<TipoEvento, (quantidade: number) => string>> =
   CriarFicha: fixo('criou uma ficha'),
   EditarFicha: fixo('editou uma ficha'),
   RemoverFicha: fixo('apagou uma ficha'),
+  EditarFichas: fixo('passou itens entre fichas'),
   CarregarFichas: fixo('abriu fichas de um arquivo'),
   DesfazerFichas: fixo('desfez uma edição de ficha'),
   RefazerFichas: fixo('refez uma edição de ficha'),

@@ -508,6 +508,8 @@ interface Ambiente {
   readonly texto: string;
   /** `null` quando a fórmula não pode rolar dados. */
   readonly rolarDado: ((faces: number) => number) | null;
+  /** No acerto crítico, os dados de dano rolam em dobro. Grupos com kh/kl (como a vantagem) não dobram. */
+  readonly dadosDobrados: boolean;
   readonly rolagem: { rolados: DadoRolado[]; quantidade: number; tabelas: number };
 }
 
@@ -656,7 +658,8 @@ function rolarGrupo(no: Extract<Arvore, { tipo: 'dados' }>, amb: Ambiente): numb
   if (!amb.rolarDado) {
     throw new ErroDeFormula('Esta fórmula rola dados, então só vale numa rolagem.', no.inicio);
   }
-  const quantidade = inteiroEntre(avaliar(no.quantidade, amb), 0, LIMITE_DADOS_GRUPO, 'A quantidade de dados', no.inicio);
+  const pedida = inteiroEntre(avaliar(no.quantidade, amb), 0, LIMITE_DADOS_GRUPO, 'A quantidade de dados', no.inicio);
+  const quantidade = amb.dadosDobrados && !no.manter ? pedida * 2 : pedida;
   const faces = inteiroEntre(avaliar(no.faces, amb), 1, LIMITE_FACES, 'O número de faces', no.faces.inicio);
   const manter = no.manter
     ? {
@@ -683,8 +686,9 @@ function novoAmbiente(
   formula: FormulaLida,
   contexto: ContextoFormula,
   rolarDado: Ambiente['rolarDado'],
+  dadosDobrados = false,
 ): Ambiente {
-  return { contexto, texto: formula.texto, rolarDado, rolagem: { rolados: [], quantidade: 0, tabelas: 0 } };
+  return { contexto, texto: formula.texto, rolarDado, dadosDobrados, rolagem: { rolados: [], quantidade: 0, tabelas: 0 } };
 }
 
 /** Uma parcela da conta, para mostrar de onde vem o resultado: "10", "mod(DES)" etc. */
@@ -756,10 +760,11 @@ export function rolarFormula(
   formula: FormulaLida,
   contexto: ContextoFormula,
   aleatorio: () => number = Math.random,
+  { dadosDobrados = false }: { readonly dadosDobrados?: boolean } = {},
 ): ResultadoFormula<Rolagem> {
   const rolarDado = (faces: number) => Math.min(faces, 1 + Math.floor(aleatorio() * faces));
   return comoResultado(() => {
-    const amb = novoAmbiente(formula, contexto, rolarDado);
+    const amb = novoAmbiente(formula, contexto, rolarDado, dadosDobrados);
     const { valor, partes } = calcularPartes(formula, amb);
     return { total: valor, partes, dados: amb.rolagem.rolados };
   });
@@ -822,6 +827,9 @@ export function textoResolvido(formula: FormulaLida, contexto: ContextoFormula):
           };
         }
         case 'binaria': {
+          if (no.op === '+' || no.op === '-') {
+            return escreverSoma(no, ambiente);
+          }
           const minha = PRECEDENCIA[no.op];
           const esquerda = escrever(no.esquerda, ambiente);
           let op: string = no.op;
@@ -839,6 +847,11 @@ export function textoResolvido(formula: FormulaLida, contexto: ContextoFormula):
           return { texto: `${textoEsquerda} ${op} ${direitaFinal}`, precedencia: minha };
         }
         case 'chamada': {
+          // Um "se" com dados escreve só o lado que vale agora.
+          if (no.funcao === 'se') {
+            const [condicao, sim, nao] = no.argumentos;
+            return escrever(avaliar(condicao, ambiente) !== 0 ? sim : nao, ambiente);
+          }
           if (no.funcao === 'tabela') {
             const coluna = (no.argumentos[0] as { nome: string }).nome;
             const celula = ambiente.contexto.tabela?.(coluna);
@@ -852,6 +865,41 @@ export function textoResolvido(formula: FormulaLida, contexto: ContextoFormula):
         default:
           return { texto: formatarNumero(avaliar(no, ambiente)), precedencia: PRECEDENCIA_ATOMO };
       }
+    };
+
+    /**
+     * Uma soma com dados: os termos com dados aparecem na ordem, e tudo o que é só número
+     * vira uma constante no fim, como "4d4 + 4" em vez de "4d4 + 2 + 2".
+     */
+    const escreverSoma = (no: Arvore, ambiente: Ambiente): { texto: string; precedencia: number } => {
+      const termos: { no: Arvore; sinal: 1 | -1 }[] = [];
+      const juntar = (n: Arvore, sinal: 1 | -1) => {
+        if (n.tipo === 'binaria' && (n.op === '+' || n.op === '-')) {
+          juntar(n.esquerda, sinal);
+          juntar(n.direita, n.op === '+' ? sinal : sinal === 1 ? -1 : 1);
+        } else {
+          termos.push({ no: n, sinal });
+        }
+      };
+      juntar(no, 1);
+      let constante = 0;
+      const partes: { texto: string; sinal: 1 | -1 }[] = [];
+      for (const { no: termo, sinal } of termos) {
+        if (temDadosResolvendo(termo, ambiente)) {
+          const escrito = escrever(termo, ambiente);
+          const texto = escrito.precedencia <= PRECEDENCIA.ou + 3 ? `(${escrito.texto})` : escrito.texto;
+          partes.push({ texto, sinal });
+        } else {
+          constante += sinal * avaliar(termo, ambiente);
+        }
+      }
+      if (constante !== 0 || partes.length === 0) {
+        partes.push({ texto: formatarNumero(Math.abs(constante)), sinal: constante < 0 ? -1 : 1 });
+      }
+      const texto = partes
+        .map((p, i) => (i === 0 ? `${p.sinal < 0 ? '-' : ''}${p.texto}` : ` ${p.sinal < 0 ? '-' : '+'} ${p.texto}`))
+        .join('');
+      return { texto, precedencia: PRECEDENCIA['+'] };
     };
 
     return { texto: escrever(formula.arvore, amb).texto };
