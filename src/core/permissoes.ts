@@ -7,7 +7,7 @@
  * liberada pelo mestre.
  */
 import type { Entrada } from './entradas';
-import type { EstadoFichas, Ficha, PilhaDeItem } from './fichas';
+import { nivelTotal, type EstadoFichas, type Ficha, type PilhaDeItem } from './fichas';
 import { ehMestre, podeVer } from './visibilidade';
 
 export { ehMestre };
@@ -34,9 +34,14 @@ export function podeAgirNaFicha(ficha: Ficha, participanteId: string): boolean {
   return ehMestre(participanteId) || ficha.donoId === participanteId;
 }
 
+/** Com a edição liberada ou durante a criação pelo assistente, o dono muda tudo na ficha. */
+function liberadaParaODono(ficha: Ficha): boolean {
+  return ficha.edicaoLiberada || ficha.emCriacao;
+}
+
 /** Atributos, classes, espécie, proficiências, itens novos, cópias: o mestre, ou o dono com a edição liberada. */
 export function podeEditarTudo(ficha: Ficha, participanteId: string): boolean {
-  return ehMestre(participanteId) || (ficha.donoId === participanteId && ficha.edicaoLiberada);
+  return ehMestre(participanteId) || (ficha.donoId === participanteId && liberadaParaODono(ficha));
 }
 
 /** O motivo de um controle estar desativado, para a dica da tela. */
@@ -70,6 +75,30 @@ const SO_DO_MESTRE: readonly [keyof Ficha, string][] = [
   ['visibilidade', 'quem vê a ficha'],
   ['edicaoLiberada', 'a liberação da edição'],
 ];
+
+/** Opções da conferência que dependem das regras da campanha. */
+export interface OpcoesDaConferencia {
+  /** Os jogadores podem criar os próprios personagens pelo assistente. */
+  readonly jogadoresCriam?: boolean;
+}
+
+/**
+ * Uma ficha nova criada por um jogador: só o personagem dele, começando "em criação",
+ * sem nada que só o mestre decide (edição liberada, quem vê, níveis liberados).
+ */
+function problemaNaFichaNova(ficha: Ficha, autorId: string, jogadoresCriam: boolean): string | null {
+  if (!jogadoresCriam) {
+    return 'Nesta campanha, só o mestre cria fichas.';
+  }
+  const valida =
+    ficha.donoId === autorId &&
+    ficha.tipo === 'personagem' &&
+    ficha.emCriacao &&
+    !ficha.edicaoLiberada &&
+    ficha.visibilidade.tipo === 'mestre' &&
+    ficha.niveisLiberados === 0;
+  return valida ? null : 'Um jogador só cria o próprio personagem, pelo assistente de criação.';
+}
 
 /** Campos que o dono só muda com a edição liberada. */
 const COM_EDICAO_LIBERADA: readonly [keyof Ficha, string][] = [
@@ -152,7 +181,12 @@ function copiasMudaram(antes: Ficha, depois: Ficha): boolean {
  * Confere uma mudança nas fichas feita por `autorId`. Presentear muda duas fichas de uma vez:
  * o que uma ficha ganha precisa ter saído de uma ficha do mesmo autor, na mesma mudança.
  */
-export function conferirFichas(antes: EstadoFichas, depois: EstadoFichas, autorId: string): Permissao {
+export function conferirFichas(
+  antes: EstadoFichas,
+  depois: EstadoFichas,
+  autorId: string,
+  { jogadoresCriam = true }: OpcoesDaConferencia = {},
+): Permissao {
   if (antes === depois || ehMestre(autorId)) {
     return PERMITIDO;
   }
@@ -161,8 +195,22 @@ export function conferirFichas(antes: EstadoFichas, depois: EstadoFichas, autorI
   for (const id of ids) {
     const a = antes.fichas[id];
     const d = depois.fichas[id];
+    if (!a && d) {
+      const motivo = problemaNaFichaNova(d, autorId, jogadoresCriam);
+      if (motivo) {
+        return recusar(motivo);
+      }
+      continue;
+    }
+    if (a && !d) {
+      // O jogador pode desistir do personagem que ainda está criando.
+      if (a.donoId === autorId && a.emCriacao) {
+        continue;
+      }
+      return recusar('Só o mestre apaga fichas.');
+    }
     if (!a || !d) {
-      return recusar('Só o mestre cria ou apaga fichas.');
+      continue;
     }
     if (a !== d && !igual(a, d)) {
       mudadas.push([a, d]);
@@ -177,8 +225,8 @@ export function conferirFichas(antes: EstadoFichas, depois: EstadoFichas, autorI
     if (a.donoId === autorId) {
       perdidas.forEach((n, chave) => doado.set(chave, (doado.get(chave) ?? 0) + n));
     }
-    // Com a edição liberada, o dono pode criar itens na própria ficha.
-    if (!(a.donoId === autorId && a.edicaoLiberada)) {
+    // Com a edição liberada (ou durante a criação), o dono pode criar itens na própria ficha.
+    if (!(a.donoId === autorId && liberadaParaODono(a))) {
       ganhas.forEach((n, chave) => recebido.set(chave, (recebido.get(chave) ?? 0) + n));
     }
   }
@@ -203,8 +251,22 @@ function problemaNaFichaDoDono(antes: Ficha, depois: Ficha): string | null {
       return `Só o mestre muda ${nome}.`;
     }
   }
-  if (antes.edicaoLiberada) {
+  // Concluir a criação só vai num sentido: a ficha não volta a ficar em criação.
+  if (!antes.emCriacao && depois.emCriacao) {
+    return 'Só o mestre devolve uma ficha à criação.';
+  }
+  const gastou = antes.niveisLiberados - depois.niveisLiberados;
+  if (gastou < 0) {
+    return 'Só o mestre libera níveis.';
+  }
+  if (gastou > 1) {
+    return 'Suba um nível de cada vez.';
+  }
+  if (liberadaParaODono(antes)) {
     return null;
+  }
+  if (gastou === 1) {
+    return problemaNaSubida(antes, depois);
   }
   for (const [campo, nome] of COM_EDICAO_LIBERADA) {
     if (!igual(antes[campo], depois[campo])) {
@@ -215,6 +277,38 @@ function problemaNaFichaDoDono(antes: Ficha, depois: Ficha): string | null {
     return 'Só o mestre muda as cópias do compêndio na ficha, a menos que ele libere a edição dela.';
   }
   return null;
+}
+
+/**
+ * Uma subida de nível liberada pelo mestre: exatamente um nível a mais, aumentos de atributo de
+ * no máximo 2 pontos, habilidades, talentos e magias novas, e nada tirado. Espécie, antecedente,
+ * proficiências marcadas e as cópias que já existiam ficam como estavam.
+ */
+function problemaNaSubida(antes: Ficha, depois: Ficha): string | null {
+  const recusa = (oQue: string) => `Na subida de nível, ${oQue}.`;
+  if (nivelTotal(depois) !== nivelTotal(antes) + 1) {
+    return recusa('a ficha ganha exatamente um nível');
+  }
+  for (const campo of ['especieId', 'antecedenteId', 'monstroId', 'proficiencias'] as const) {
+    if (!igual(antes[campo], depois[campo])) {
+      return recusa('só a classe, os PV, os atributos, os talentos e as magias mudam');
+    }
+  }
+  const aumentos = Object.entries(depois.atributos).map(([a, v]) => v - antes.atributos[a as keyof Ficha['atributos']]);
+  if (aumentos.some((n) => n < 0) || aumentos.reduce((s, n) => s + n, 0) > 2) {
+    return recusa('os atributos sobem no máximo 2 pontos ao todo');
+  }
+  if (!antes.extras.every((id) => depois.extras.includes(id))) {
+    return recusa('nada é tirado da ficha');
+  }
+  if (Object.entries(antes.entradas).some(([id, copia]) => depois.entradas[id] !== undefined && !igual(copia, depois.entradas[id]))) {
+    return recusa('as cópias do compêndio que já estavam na ficha não mudam');
+  }
+  const classesAntes = new Set(antes.classes.map((c) => c.entradaId));
+  const tirouCopia = Object.keys(antes.entradas).some(
+    (id) => !(id in depois.entradas) && (classesAntes.has(id) || antes.extras.includes(id)),
+  );
+  return tirouCopia ? recusa('nada é tirado da ficha') : null;
 }
 
 /** Quem não é dono da ficha só pode ter dado algo a ela: novas pilhas ou mais unidades, nada mais. */

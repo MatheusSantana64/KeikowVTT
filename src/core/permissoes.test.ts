@@ -158,10 +158,10 @@ describe('fichas dos outros', () => {
     expect(conferirFichas(antes, trocar(antes, origem, inflado), 'ana').ok).toBe(false);
   });
 
-  it('só o mestre cria ou apaga fichas', () => {
+  it('só o mestre apaga fichas prontas', () => {
     const antes = mesa();
     const sem = { fichas: { fa: antes.fichas.fa, fb: antes.fichas.fb } };
-    expect(conferirFichas(antes, sem, 'ana')).toMatchObject({ ok: false, motivo: expect.stringContaining('cria ou apaga') });
+    expect(conferirFichas(antes, sem, 'ana')).toMatchObject({ ok: false, motivo: expect.stringContaining('apaga fichas') });
     expect(conferirFichas(antes, sem, 'mestre').ok).toBe(true);
   });
 });

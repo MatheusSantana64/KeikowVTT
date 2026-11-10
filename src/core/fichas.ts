@@ -8,7 +8,7 @@ import { ID_MESTRE } from './campanha';
 import type { EstadoCompendio } from './compendio';
 import { ATRIBUTOS, criarEntrada, MOEDAS, NIVEIS_DA_TABELA, type Atributo, type Entrada, type EntradaDe } from './entradas';
 import { SO_MESTRE, VISIVEL_A_TODOS, type Visibilidade } from './visibilidade';
-import { conferirFichas } from './permissoes';
+import { conferirFichas, type OpcoesDaConferencia } from './permissoes';
 import { criarLojaComHistorico, type LojaComHistorico } from './lojaHistorico';
 import type { OpcoesRegistro } from './registro';
 
@@ -493,9 +493,20 @@ export function fichasEmOrdem(estado: EstadoFichas): Ficha[] {
 
 export type LojaFichas = LojaComHistorico<EstadoFichas, AcaoFichas>;
 
-export function criarLojaFichas(inicial: EstadoFichas = criarFichasVazias(), opcoes: OpcoesRegistro = {}): LojaFichas {
+/** `obterConferencia` traz o que as regras da campanha dizem, como se os jogadores podem criar personagens. */
+export function criarLojaFichas(
+  inicial: EstadoFichas = criarFichasVazias(),
+  opcoes: OpcoesRegistro = {},
+  obterConferencia: () => OpcoesDaConferencia = () => ({}),
+): LojaFichas {
   return criarLojaComHistorico(
-    { inicial, aplicar: aplicarAcaoFichas, eventoDesfazer: 'DesfazerFichas', eventoRefazer: 'RefazerFichas', conferir: conferirFichas },
+    {
+      inicial,
+      aplicar: aplicarAcaoFichas,
+      eventoDesfazer: 'DesfazerFichas',
+      eventoRefazer: 'RefazerFichas',
+      conferir: (antes, depois, autorId) => conferirFichas(antes, depois, autorId, obterConferencia()),
+    },
     opcoes,
   );
 }

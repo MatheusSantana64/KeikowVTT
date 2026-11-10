@@ -121,6 +121,9 @@ async function iniciarEditor(): Promise<EditorCarregado> {
     aoRecusar: (motivo: string) => sessao.aoRecusar(motivo),
   };
 
+  // As regras vêm com a campanha; sem campanha guardada, valem as padrão.
+  const lojaRegras = criarLojaRegras(campanha?.regras, opcoesRegistro);
+
   const falha =
     (salvo && !salvo.ok && salvo.erro) ||
     (salvaCampanha && !salvaCampanha.ok && salvaCampanha.erro) ||
@@ -132,11 +135,12 @@ async function iniciarEditor(): Promise<EditorCarregado> {
     lojaCampanha: criarLojaCampanha(campanha?.campanha, opcoesRegistro),
     lojaRegistro,
     lojaCompendio: criarLojaCompendio(compendio?.estado, opcoesRegistro),
-    lojaFichas: criarLojaFichas(salvasFichas?.ok ? salvasFichas.estado : undefined, opcoesRegistro),
+    lojaFichas: criarLojaFichas(salvasFichas?.ok ? salvasFichas.estado : undefined, opcoesRegistro, () => ({
+      jogadoresCriam: lojaRegras.obterEstado().criacao.jogadoresCriam,
+    })),
     // Um registro de rolagens ilegível não impede de abrir: começa vazio.
     lojaRolagens: criarLojaRolagens(salvasRolagens?.ok ? salvasRolagens.rolagens : []),
-    // As regras vêm com a campanha; sem campanha guardada, valem as padrão.
-    lojaRegras: criarLojaRegras(campanha?.regras, opcoesRegistro),
+    lojaRegras,
     sessao,
     aviso: falha
       ? { tipo: 'erro', texto: `O salvamento automático não pôde ser lido: ${falha}` }
