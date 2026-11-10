@@ -34,6 +34,8 @@ function exemplo(): EstadoFichas {
     pvTemporarios: 3,
     visibilidade: paraJogadores(['jogador-2']),
     edicaoLiberada: true,
+    emCriacao: true,
+    niveisLiberados: 2,
   };
   const comInventario = comSecao(
     comNota(
@@ -100,7 +102,15 @@ describe('salvar e ler fichas', () => {
     expect(lido.ok && lido.estado.fichas.h1).toMatchObject({ visibilidade: { tipo: 'mestre' }, edicaoLiberada: false });
   });
 
+  it('fichas da versão 4 não estão em criação nem têm níveis liberados', () => {
+    const objeto = fichasParaObjeto(exemplo());
+    const { emCriacao: _c, niveisLiberados: _n, ...antiga } = objeto.fichas[0];
+    const lido = desserializarFichas(comoTexto({ ...objeto, versao: 4, fichas: [antiga] }));
+    expect(lido.ok && lido.estado.fichas.h1).toMatchObject({ emCriacao: false, niveisLiberados: 0 });
+  });
+
   it.each([
+    ['níveis liberados negativos', (f: Record<string, unknown>) => ({ ...f, niveisLiberados: -1 }), 'níveis liberados'],
     ['visibilidade desconhecida', (f: Record<string, unknown>) => ({ ...f, visibilidade: { tipo: 'amigos' } }), 'visibilidade inválida'],
     ['lista de jogadores estranha', (f: Record<string, unknown>) => ({ ...f, visibilidade: { tipo: 'jogadores', ids: [3] } }), 'lista de jogadores'],
     ['edição liberada que não é sim ou não', (f: Record<string, unknown>) => ({ ...f, edicaoLiberada: 'talvez' }), 'edicaoLiberada'],

@@ -82,4 +82,23 @@ export const REGRAS_PADRAO: Regras = {
     },
     { id: 'capacidade_carga', nome: 'Capacidade de carga', formula: 'FOR * 7.5', descricao: 'Em quilos.' },
   ],
+  criacao: {
+    jogadoresCriam: true,
+    metodos: ['pontos', 'padrao', 'rolagem'],
+    // A compra de pontos do 5e: 27 pontos, valores de 8 a 15.
+    pontos: 27,
+    custos: [
+      { valor: 8, custo: 0 },
+      { valor: 9, custo: 1 },
+      { valor: 10, custo: 2 },
+      { valor: 11, custo: 3 },
+      { valor: 12, custo: 4 },
+      { valor: 13, custo: 5 },
+      { valor: 14, custo: 7 },
+      { valor: 15, custo: 9 },
+    ],
+    conjuntoPadrao: [15, 14, 13, 12, 10, 8],
+    rolagem: '4d6kh3',
+    maximoAtributo: 20,
+  },
 };

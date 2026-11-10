@@ -20,7 +20,7 @@ import { SO_MESTRE } from './visibilidade';
 import { atualizarEntradas, comoResultado, lerEntradas, lerJson, VERSAO_COMPENDIO } from './persistenciaCompendio';
 
 /** Aumente ao mudar o formato das fichas, e acrescente a conversão em `converterFicha`. */
-const VERSAO_FICHAS = 4;
+const VERSAO_FICHAS = 5;
 
 /** Passa uma ficha gravada numa versão antiga para a atual, ainda sem conferir. */
 function converterFicha(ficha: unknown, versao: number): unknown {
@@ -47,6 +47,10 @@ function converterFicha(ficha: unknown, versao: number): unknown {
   if (versao < 4) {
     // Versão 4: quem mais vê a ficha e a edição liberada. As antigas ficam só com o dono e o mestre.
     atual = { ...atual, visibilidade: SO_MESTRE, edicaoLiberada: false };
+  }
+  if (versao < 5) {
+    // Versão 5: assistente de criação e subida de nível.
+    atual = { ...atual, emCriacao: false, niveisLiberados: 0 };
   }
   return atual;
 }
@@ -124,6 +128,8 @@ function lerFicha(valor: unknown, onde: string, versaoEntradas: number): Ficha {
     donoId: texto(valor, 'donoId', onde),
     visibilidade: lerVisibilidade(valor.visibilidade, onde),
     edicaoLiberada: booleano(valor, 'edicaoLiberada', onde),
+    emCriacao: booleano(valor, 'emCriacao', onde),
+    niveisLiberados: inteiro(valor.niveisLiberados, `${onde}: os níveis liberados`, 0, NIVEL_MAXIMO),
     atributos: Object.fromEntries(
       ATRIBUTOS.map((a) => [a, inteiro(atributos[a], `${onde}: ${a.toUpperCase()}`, 1, 30)]),
     ) as Record<Atributo, number>,

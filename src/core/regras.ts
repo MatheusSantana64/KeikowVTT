@@ -38,6 +38,27 @@ export function encontrarPericia(regras: Regras, texto: string): string | null {
   return pericia?.id ?? null;
 }
 
+/** Como os atributos são escolhidos na criação de personagem. */
+export const METODOS_ATRIBUTOS = ['pontos', 'padrao', 'rolagem'] as const;
+export type MetodoAtributos = (typeof METODOS_ATRIBUTOS)[number];
+
+export interface RegrasDeCriacao {
+  /** Os jogadores podem criar os próprios personagens pelo assistente. */
+  readonly jogadoresCriam: boolean;
+  /** Os métodos de atributos que valem nesta campanha, ao menos um. */
+  readonly metodos: readonly MetodoAtributos[];
+  /** Pontos para gastar na compra de pontos. */
+  readonly pontos: number;
+  /** Quanto custa cada valor na compra de pontos; só esses valores podem ser comprados. */
+  readonly custos: readonly { readonly valor: number; readonly custo: number }[];
+  /** Os seis valores do conjunto padrão, distribuídos entre os atributos. */
+  readonly conjuntoPadrao: readonly number[];
+  /** A fórmula rolada para cada atributo, como `4d6kh3`. */
+  readonly rolagem: string;
+  /** Nenhum atributo passa disto por aumentos de nível. */
+  readonly maximoAtributo: number;
+}
+
 export interface Regras {
   readonly nome: string;
   /** Nome de cada atributo, como "Destreza". */
@@ -53,6 +74,7 @@ export interface Regras {
   readonly pesoPorMoeda: number;
   /** Os demais valores da ficha, na ordem em que aparecem. */
   readonly valores: readonly DefinicaoValor[];
+  readonly criacao: RegrasDeCriacao;
 }
 
 /** Valores que vêm da própria ficha, e não de uma fórmula. */
@@ -291,6 +313,45 @@ export function conferirRegras(regras: Regras): ProblemaNasRegras[] {
   for (const id of dependencias.keys()) {
     visitar(id);
   }
+  problemas.push(...problemasNaCriacao(regras.criacao));
+  return problemas;
+}
+
+/** Confere as regras de criação de personagem: métodos, pontos, custos, conjunto e rolagem. */
+function problemasNaCriacao(criacao: RegrasDeCriacao): ProblemaNasRegras[] {
+  const problemas: ProblemaNasRegras[] = [];
+  const onde = 'Criação de personagem';
+  const valorDeAtributo = (n: number) => Number.isInteger(n) && n >= 1 && n <= 30;
+  if (criacao.metodos.length === 0) {
+    problemas.push({ onde, erro: 'Escolha ao menos um método de atributos.' });
+  }
+  if (!Number.isInteger(criacao.pontos) || criacao.pontos < 0) {
+    problemas.push({ onde, erro: 'Os pontos precisam ser um número inteiro, zero ou mais.' });
+  }
+  if (criacao.custos.length === 0) {
+    problemas.push({ onde, erro: 'A compra de pontos precisa de ao menos um valor com custo.' });
+  }
+  if (criacao.custos.some((c) => !valorDeAtributo(c.valor) || !Number.isInteger(c.custo) || c.custo < 0)) {
+    problemas.push({ onde, erro: 'Cada custo precisa de um valor de 1 a 30 e um custo inteiro, zero ou mais.' });
+  }
+  if (new Set(criacao.custos.map((c) => c.valor)).size !== criacao.custos.length) {
+    problemas.push({ onde, erro: 'Há valores repetidos na tabela de custos.' });
+  }
+  if (criacao.conjuntoPadrao.length !== ATRIBUTOS.length || !criacao.conjuntoPadrao.every(valorDeAtributo)) {
+    problemas.push({ onde, erro: `O conjunto padrão precisa de ${ATRIBUTOS.length} valores de 1 a 30.` });
+  }
+  if (!valorDeAtributo(criacao.maximoAtributo)) {
+    problemas.push({ onde, erro: 'O máximo de um atributo precisa ser de 1 a 30.' });
+  }
+  const lida = lerFormula(criacao.rolagem);
+  if (!lida.ok) {
+    problemas.push({ onde: 'Rolagem dos atributos', erro: lida.erro });
+  } else {
+    const uso = usoDaFormula(lida.formula);
+    if (!uso.temDados || uso.nomes.size > 0 || uso.funcoes.size > 0 || uso.colunas.size > 0) {
+      problemas.push({ onde: 'Rolagem dos atributos', erro: 'Use só dados e números, como 4d6kh3.' });
+    }
+  }
   return problemas;
 }
 
@@ -302,8 +363,43 @@ function texto(d: Record<string, unknown>, campo: string, onde: string): string 
   return valor;
 }
 
-/** Lê regras guardadas num arquivo ou na campanha, e confere as fórmulas. */
-export function lerRegras(valor: unknown): Regras {
+function lerCriacao(valor: unknown, padrao: RegrasDeCriacao): RegrasDeCriacao {
+  // Regras guardadas antes do assistente de criação não têm este bloco: valem as padrão.
+  if (valor === undefined) {
+    return padrao;
+  }
+  const onde = 'A criação de personagem';
+  exigir(ehObjeto(valor), `${onde} não é válida.`);
+  const numeros = (lista: unknown, oQue: string) => {
+    exigir(Array.isArray(lista) && lista.every((n) => typeof n === 'number'), `${onde}: ${oQue} não são válidos.`);
+    return lista as number[];
+  };
+  exigir(typeof valor.jogadoresCriam === 'boolean', `${onde}: "jogadoresCriam" precisa ser sim ou não.`);
+  exigir(
+    Array.isArray(valor.metodos) && valor.metodos.every((m) => (METODOS_ATRIBUTOS as readonly unknown[]).includes(m)),
+    `${onde}: os métodos são desconhecidos.`,
+  );
+  exigir(typeof valor.pontos === 'number' && typeof valor.maximoAtributo === 'number', `${onde}: os números não são válidos.`);
+  exigir(
+    Array.isArray(valor.custos) && valor.custos.every((c) => ehObjeto(c) && typeof c.valor === 'number' && typeof c.custo === 'number'),
+    `${onde}: os custos não são válidos.`,
+  );
+  return {
+    jogadoresCriam: valor.jogadoresCriam,
+    metodos: [...new Set(valor.metodos as MetodoAtributos[])],
+    pontos: valor.pontos,
+    custos: (valor.custos as { valor: number; custo: number }[]).map((c) => ({ valor: c.valor, custo: c.custo })),
+    conjuntoPadrao: numeros(valor.conjuntoPadrao, 'os valores do conjunto padrão'),
+    rolagem: texto(valor, 'rolagem', onde),
+    maximoAtributo: valor.maximoAtributo,
+  };
+}
+
+/**
+ * Lê regras guardadas num arquivo ou na campanha, e confere as fórmulas.
+ * `padraoDaCriacao` completa regras antigas, sem o bloco de criação de personagem.
+ */
+export function lerRegras(valor: unknown, padraoDaCriacao?: RegrasDeCriacao): Regras {
   exigir(ehObjeto(valor), 'As regras não são válidas.');
   const atributos = valor.atributos;
   exigir(ehObjeto(atributos), 'As regras estão sem os nomes dos atributos.');
@@ -353,6 +449,10 @@ export function lerRegras(valor: unknown): Regras {
         descricao: typeof v.descricao === 'string' ? v.descricao : '',
       };
     }),
+    criacao: (() => {
+      exigir(valor.criacao !== undefined || padraoDaCriacao !== undefined, 'As regras estão sem a criação de personagem.');
+      return lerCriacao(valor.criacao, padraoDaCriacao!);
+    })(),
   };
   const problemas = conferirRegras(regras);
   if (problemas.length > 0) {

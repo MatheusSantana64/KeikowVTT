@@ -36,6 +36,7 @@ const barbaro: EntradaDe<'classe'> = {
   ...criarEntrada('classe', 'barbaro'),
   nome: 'Barbarian',
   dados: {
+    ...criarEntrada('classe', 'barbaro').dados,
     dadoVida: 12,
     salvaguardas: ['for', 'con'],
     proficiencias: [],

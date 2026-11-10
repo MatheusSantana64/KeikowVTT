@@ -181,10 +181,24 @@ export interface ColunaTabela {
   readonly valores: readonly string[];
 }
 
+/** "Escolha N entre estas perícias", como nas classes do 5e. */
+export interface EscolhaDePericias {
+  readonly quantidade: number;
+  /** Nomes das perícias como no texto, como "Skill: Athletics" ou "Atletismo"; as regras acham a perícia. */
+  readonly opcoes: readonly string[];
+}
+
+/** Os níveis com aumento de atributo do 5e, para classes novas e antigas. */
+export const NIVEIS_DE_AUMENTO_PADRAO: readonly number[] = [4, 8, 12, 16, 19];
+
 export interface DadosClasse {
   readonly dadoVida: number;
   readonly salvaguardas: readonly Atributo[];
   readonly proficiencias: readonly string[];
+  /** As perícias que o personagem escolhe ao pegar a classe como a primeira. */
+  readonly escolhaPericias: EscolhaDePericias | null;
+  /** Níveis da classe em que se ganha aumento de atributo (ou um talento). */
+  readonly niveisDeAumento: readonly number[];
   /** Ids das entradas de habilidade ganhas em cada nível. */
   readonly habilidades: readonly { readonly nivel: number; readonly entradaId: string }[];
   readonly atributoConjuracao: Atributo | null;
@@ -308,6 +322,8 @@ const DADOS_INICIAIS: { readonly [T in TipoEntrada]: () => DadosPorTipo[T] } = {
     habilidades: [],
     atributoConjuracao: null,
     tabela: [],
+    escolhaPericias: null,
+    niveisDeAumento: NIVEIS_DE_AUMENTO_PADRAO,
   }),
   especie: () => ({
     tamanho: 'medio',

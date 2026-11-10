@@ -36,6 +36,10 @@ export interface Ficha {
   readonly visibilidade: Visibilidade;
   /** Com a edição liberada pelo mestre, o dono muda tudo na ficha, inclusive atributos e classes. */
   readonly edicaoLiberada: boolean;
+  /** A ficha está sendo montada pelo assistente de criação: o dono muda tudo até concluir. */
+  readonly emCriacao: boolean;
+  /** Níveis que o mestre liberou e o dono ainda não subiu pelo assistente. */
+  readonly niveisLiberados: number;
   /** Os valores escolhidos para a ficha, antes dos aumentos da espécie e de outros efeitos. */
   readonly atributos: Readonly<Record<Atributo, number>>;
   /** Cópias das entradas do compêndio que a ficha usa, pelo id. */
@@ -148,6 +152,8 @@ export function criarFicha(tipo: Exclude<TipoFicha, 'monstro'>, id: string, dono
     donoId,
     visibilidade: SO_MESTRE,
     edicaoLiberada: false,
+    emCriacao: false,
+    niveisLiberados: 0,
     atributos: { ...ATRIBUTOS_INICIAIS },
     entradas: {},
     classes: [],

@@ -198,6 +198,15 @@ describe('entradas inválidas', () => {
     expect(erroDe(comDados(classe, { salvaguardas: ['forca'] }))).toContain('atributo');
   });
 
+  it('lê a escolha de perícias e recusa níveis de aumento repetidos ou fora de 1 a 20', () => {
+    const classe = criarEntrada('classe', 'c');
+    const comEscolha = comDados(classe, { escolhaPericias: { quantidade: 2, opcoes: ['Atletismo', 'Furtividade'] } });
+    expect(desserializarCompendio(serializarCompendio({ entradas: { c: comEscolha } }))).toMatchObject({ ok: true });
+    expect(erroDe(comDados(classe, { escolhaPericias: { quantidade: 0, opcoes: [] } }))).toContain('quantidade');
+    expect(erroDe(comDados(classe, { niveisDeAumento: [4, 4] }))).toContain('repetidos');
+    expect(erroDe(comDados(classe, { niveisDeAumento: [21] }))).toContain('nível de 1 a 20');
+  });
+
   it('recusa habilidade de classe acima do nível 20', () => {
     const classe = criarEntrada('classe', 'c');
     expect(erroDe(comDados(classe, { habilidades: [{ nivel: 21, entradaId: 'h' }] }))).toContain('nivel');
@@ -270,6 +279,13 @@ describe('listas e arquivos de compêndio', () => {
     const esperado = { ok: true, estado: { entradas: { guerreiro: classe } } };
     expect(desserializarCompendio(JSON.stringify({ versao: 1, entradas: [antiga] }))).toEqual(esperado);
     expect(desserializarCompendio(JSON.stringify({ versao: 2, entradas: [antiga] }))).toEqual(esperado);
+  });
+
+  it('classes da versão 5 ganham a escolha de perícias vazia e os níveis de aumento do 5e', () => {
+    const classe = criarEntrada('classe', 'guerreiro');
+    const { escolhaPericias: _e, niveisDeAumento: _n, ...dadosAntigos } = classe.dados;
+    const lido = desserializarCompendio(JSON.stringify({ versao: 5, entradas: [{ ...classe, dados: dadosAntigos }] }));
+    expect(lido.ok && lido.estado.entradas.guerreiro.dados).toMatchObject({ escolhaPericias: null, niveisDeAumento: [4, 8, 12, 16, 19] });
   });
 
   it('itens das versões 1 a 3 passam de libras para quilos', () => {

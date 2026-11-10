@@ -383,6 +383,29 @@ export function FormularioClasse({ dados, mudar, todas }: PropsFormulario<'class
         </div>
       </fieldset>
       <CampoLinhas rotulo="Proficiências" valores={dados.proficiencias} aoMudar={(v) => mudar({ proficiencias: v }, 'proficiencias')} />
+      <CampoNumero
+        rotulo="Perícias à escolha (quantas)"
+        inteiro
+        minimo={0}
+        maximo={18}
+        valor={dados.escolhaPericias?.quantidade ?? 0}
+        aoMudar={(n) =>
+          n !== null &&
+          mudar({ escolhaPericias: n === 0 ? null : { quantidade: n, opcoes: dados.escolhaPericias?.opcoes ?? [] } }, 'escolha-quantidade')
+        }
+      />
+      {dados.escolhaPericias && (
+        <CampoLinhas
+          rotulo="Perícias que podem ser escolhidas (uma por linha)"
+          valores={dados.escolhaPericias.opcoes}
+          aoMudar={(opcoes) => mudar({ escolhaPericias: { quantidade: dados.escolhaPericias!.quantidade, opcoes } }, 'escolha-opcoes')}
+        />
+      )}
+      <CampoNiveis
+        rotulo="Níveis com aumento de atributo (ou talento)"
+        valores={dados.niveisDeAumento}
+        aoMudar={(niveisDeAumento) => mudar({ niveisDeAumento }, 'aumentos')}
+      />
       <EditorLista
         rotulo="Habilidades por nível"
         itens={dados.habilidades}
@@ -418,6 +441,44 @@ export function FormularioClasse({ dados, mudar, todas }: PropsFormulario<'class
       />
       <EditorTabela tabela={dados.tabela} mudar={(tabela, campo) => mudar({ tabela }, campo)} />
     </>
+  );
+}
+
+/** Uma lista de níveis escrita como "4, 8, 12": só guarda quando todos são números de 1 a 20. */
+function CampoNiveis({
+  rotulo,
+  valores,
+  aoMudar,
+}: {
+  readonly rotulo: string;
+  readonly valores: readonly number[];
+  readonly aoMudar: (valores: number[]) => void;
+}) {
+  const [rascunho, setRascunho] = useState(valores.join(', '));
+  const ler = (texto: string): number[] | null => {
+    const partes = texto.split(/[,\s]+/).filter((p) => p !== '');
+    const numeros = partes.map(Number);
+    return numeros.every((n) => Number.isInteger(n) && n >= 1 && n <= 20) ? [...new Set(numeros)].sort((a, b) => a - b) : null;
+  };
+  const lidos = ler(rascunho);
+  return (
+    <label className="campo">
+      <span>{rotulo}</span>
+      <input
+        type="text"
+        value={rascunho}
+        aria-invalid={lidos === null}
+        placeholder="4, 8, 12, 16, 19"
+        onChange={(e) => {
+          setRascunho(e.target.value);
+          const novos = ler(e.target.value);
+          if (novos) {
+            aoMudar(novos);
+          }
+        }}
+      />
+      {lidos === null && <small className="mensagem-erro">Escreva níveis de 1 a 20, separados por vírgula.</small>}
+    </label>
   );
 }
 

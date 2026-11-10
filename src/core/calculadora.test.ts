@@ -268,6 +268,24 @@ describe('regras diferentes', () => {
     );
   });
 
+  it('regras sem o bloco de criação, gravadas antes do assistente, ganham o padrão', () => {
+    const { criacao: _c, ...antigas } = REGRAS_PADRAO;
+    expect(lerRegras(JSON.parse(JSON.stringify(antigas)), REGRAS_PADRAO.criacao)).toEqual(REGRAS_PADRAO);
+    expect(() => lerRegras(JSON.parse(JSON.stringify(antigas)))).toThrow('criação de personagem');
+  });
+
+  it.each<[string, Partial<Regras['criacao']>, string]>([
+    ['nenhum método', { metodos: [] }, 'ao menos um método'],
+    ['pontos negativos', { pontos: -1 }, 'pontos'],
+    ['custo repetido', { custos: [{ valor: 8, custo: 0 }, { valor: 8, custo: 1 }] }, 'repetidos'],
+    ['conjunto com 5 valores', { conjuntoPadrao: [15, 14, 13, 12, 10] }, 'conjunto padrão'],
+    ['rolagem sem dados', { rolagem: '10' }, 'só dados'],
+    ['rolagem que cita a ficha', { rolagem: '1d20 + FOR' }, 'só dados'],
+  ])('confere a criação de personagem: %s', (_nome, mudanca, trecho) => {
+    const regras = { ...REGRAS_PADRAO, criacao: { ...REGRAS_PADRAO.criacao, ...mudanca } };
+    expect(conferirRegras(regras).map((p) => p.erro).join(' ')).toContain(trecho);
+  });
+
   it('lerRegras recusa regras com problema', () => {
     const quebradas = { ...REGRAS_PADRAO, formulaPericia: 'mod(atributo) +' };
     expect(() => lerRegras(JSON.parse(JSON.stringify(quebradas)))).toThrow('Fórmula das perícias');

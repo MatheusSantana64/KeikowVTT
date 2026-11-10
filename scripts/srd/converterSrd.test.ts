@@ -17,6 +17,7 @@ import {
   formatarNivelDesafio,
   formatarUso,
   juntarTexto,
+  niveisDeAumento,
   referenciasQuebradas,
   type Fontes,
   type Registro,
@@ -220,7 +221,14 @@ describe('características de classe', () => {
         hit_die: 8,
         saving_throws: [ref('dex', 'DEX'), ref('cha', 'CHA')],
         proficiencies: [ref('light-armor', 'Light Armor'), ref('saving-throw-dex', 'Saving Throw: DEX')],
-        proficiency_choices: [{ desc: 'Choose any three' }],
+        proficiency_choices: [
+          {
+            desc: 'Choose any three',
+            choose: 3,
+            from: { options: [{ option_type: 'reference', item: ref('skill-acrobatics', 'Skill: Acrobatics') }, { option_type: 'reference', item: ref('skill-arcana', 'Skill: Arcana') }] },
+          },
+          { desc: 'Three musical instruments', choose: 3, from: { options: [{ option_type: 'reference', item: ref('lute', 'Lute') }] } },
+        ],
         spellcasting: { spellcasting_ability: ref('cha', 'CHA'), info: [{ name: 'Cantrips', desc: ['You know two.'] }] },
       },
       caracteristicas,
@@ -229,10 +237,13 @@ describe('características de classe', () => {
     expect(classe.dados).toEqual({
       dadoVida: 8,
       salvaguardas: ['des', 'car'],
-      proficiencias: ['Light Armor', 'Choose any three'],
+      proficiencias: ['Light Armor', 'Three musical instruments'],
       habilidades: [{ nivel: 4, entradaId: 'srd-5.1/caracteristica/barbarian-ability-score-improvement-4' }],
       atributoConjuracao: 'car',
       tabela: [],
+      // A escolha de perícias vira dado; a de instrumentos continua como texto.
+      escolhaPericias: { quantidade: 3, opcoes: ['Skill: Acrobatics', 'Skill: Arcana'] },
+      niveisDeAumento: [],
     });
     expect(classe.descricao).toBe('Cantrips. You know two.');
   });
@@ -296,6 +307,15 @@ describe('tabelas de nível', () => {
     expect(formulasQuebradas(pacote)).toEqual([
       'srd-5.1/caracteristica/rage, usos: A tabela da classe não tem a coluna "furias".',
     ]);
+  });
+});
+
+describe('níveis de aumento de atributo', () => {
+  it('conta cada vez que a contagem acumulada passa do maior valor, apesar do erro do ladino na base', () => {
+    const contagens = [0, 0, 0, 1, 1, 1, 1, 2, 2, 3, 2, 4, 3, 3, 3, 5, 4, 4, 6, 5];
+    const niveis = contagens.map((n, i) => ({ level: i + 1, class: ref('rogue', 'Rogue'), ability_score_bonuses: n }));
+    expect(niveisDeAumento('rogue', niveis)).toEqual([4, 8, 10, 12, 16, 19]);
+    expect(niveisDeAumento('wizard', niveis)).toEqual([]);
   });
 });
 

@@ -6,6 +6,7 @@ import {
   ESCOLAS_MAGIA,
   MOEDAS,
   NIVEIS_DA_TABELA,
+  NIVEIS_DE_AUMENTO_PADRAO,
   OPERACOES_EFEITO,
   PESOS_ARMADURA,
   QUANDO_EFEITO,
@@ -35,7 +36,7 @@ import {
 } from './persistencia';
 
 /** Aumente ao mudar o formato das entradas, e acrescente a conversão em CONVERSOES. */
-export const VERSAO_COMPENDIO = 5;
+export const VERSAO_COMPENDIO = 6;
 
 type Dado = Record<string, unknown>;
 
@@ -320,6 +321,24 @@ const LER_DADOS: LeitorDeDados = {
     }),
     atributoConjuracao: opcaoOuNulo(d, 'atributoConjuracao', ATRIBUTOS, onde),
     tabela: lerTabela(d, onde),
+    escolhaPericias: (() => {
+      if (d.escolhaPericias === null) {
+        return null;
+      }
+      const e = objeto(d.escolhaPericias, `${onde}: a escolha de perícias`);
+      return {
+        quantidade: numero(e, 'quantidade', `${onde}: a escolha de perícias`, { inteiro: true, minimo: 1 }),
+        opcoes: listaDeTextos(e, 'opcoes', `${onde}: a escolha de perícias`),
+      };
+    })(),
+    niveisDeAumento: (() => {
+      const niveis = lista(d, 'niveisDeAumento', onde, (item, aqui) => {
+        exigir(typeof item === 'number' && Number.isInteger(item) && item >= 1 && item <= 20, `${aqui} não é um nível de 1 a 20.`);
+        return item;
+      });
+      exigir(new Set(niveis).size === niveis.length, `${onde}: há níveis de aumento repetidos.`);
+      return [...niveis].sort((a, b) => a - b);
+    })(),
   }),
   especie: (d, onde) => ({
     tamanho: opcao(d, 'tamanho', TAMANHOS, onde),
@@ -436,6 +455,8 @@ const CONVERSOES: Readonly<Record<number, (entradas: unknown) => unknown>> = {
       : entradas,
   // Versão 5: distâncias e demais medidas imperiais passaram para o sistema métrico.
   4: (entradas) => (Array.isArray(entradas) ? entradas.map(entradaParaMetrico) : entradas),
+  // Versão 6: as classes ganharam a escolha de perícias e os níveis de aumento de atributo.
+  5: (entradas) => completarDados(entradas, 'classe', { escolhaPericias: null, niveisDeAumento: NIVEIS_DE_AUMENTO_PADRAO }),
 };
 
 /** Um número em pés vira metros; um texto, como "Movimento (pés)", troca as medidas imperiais. */

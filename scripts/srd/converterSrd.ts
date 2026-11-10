@@ -556,6 +556,24 @@ const COLUNAS: Readonly<Record<string, { readonly id: string; readonly nome: str
  * A tabela de nível de uma classe, a partir das linhas da base (uma por nível).
  * Colunas sempre vazias ou zeradas ficam de fora, como os espaços de 6º nível do paladino.
  */
+/**
+ * Os níveis em que a classe ganha aumento de atributo. A base traz a contagem acumulada por nível
+ * (com um erro no ladino, que volta a contar menos no 11º): conta-se cada vez que ela passa do maior valor visto.
+ */
+export function niveisDeAumento(classe: string, niveis: readonly Registro[]): number[] {
+  const linhas = niveis.filter((n) => n.class?.index === classe && !n.subclass).sort((a, b) => a.level - b.level);
+  const resultado: number[] = [];
+  let maior = 0;
+  for (const linha of linhas) {
+    const contagem = Number(linha.ability_score_bonuses ?? 0);
+    if (contagem > maior) {
+      resultado.push(linha.level);
+      maior = contagem;
+    }
+  }
+  return resultado;
+}
+
 export function converterTabela(classe: string, niveis: readonly Registro[]): ColunaTabela[] {
   const linhas = niveis
     .filter((n) => n.class?.index === classe && !n.subclass)
@@ -780,7 +798,14 @@ export function converterClasse(
   const proprias = caracteristicas
     .filter((c) => c.class?.index === registro.index && !c.subclass && !c.parent)
     .sort((a, b) => a.level - b.level);
+  // A escolha de perícias vira dado, para o assistente de criação oferecer; as outras (instrumentos, ferramentas) ficam como texto.
+  const ehDePericias = (escolha: Registro) =>
+    Array.isArray(escolha.from?.options) &&
+    escolha.from.options.length > 0 &&
+    escolha.from.options.every((o: Registro) => o.option_type === 'reference' && String(o.item?.name ?? '').startsWith('Skill: '));
+  const dePericias = (registro.proficiency_choices ?? []).find(ehDePericias);
   const escolhas = (registro.proficiency_choices ?? [])
+    .filter((escolha: Registro) => escolha !== dePericias)
     .map((escolha: Registro) => escolha.desc)
     .filter((d: unknown): d is string => typeof d === 'string' && d !== '');
   const partes: string[] = [];
@@ -824,6 +849,10 @@ export function converterClasse(
       })),
       atributoConjuracao: conjuracao ? traduzir(ATRIBUTO, conjuracao, `conjuração de ${registro.index}`) : null,
       tabela: converterTabela(registro.index, niveis),
+      escolhaPericias: dePericias
+        ? { quantidade: dePericias.choose, opcoes: dePericias.from.options.map((o: Registro) => o.item.name as string) }
+        : null,
+      niveisDeAumento: niveisDeAumento(registro.index, niveis),
     },
   };
 }
