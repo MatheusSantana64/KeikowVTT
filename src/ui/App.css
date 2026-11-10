@@ -2314,3 +2314,84 @@ fieldset.formulario {
     position: static;
   }
 }
+
+/* ---------- Subida de nível ---------- */
+
+.janela-larga {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.subida h4 {
+  margin: 0 0 6px;
+  color: #a5a79f;
+  font-size: 13px;
+}
+
+.subida section {
+  padding-bottom: 10px;
+  border-bottom: 1px solid #262a35;
+}
+
+.subida details summary {
+  color: #7fd4ff;
+  cursor: pointer;
+}
+
+.subida button {
+  padding: 5px 12px;
+  border: 1px solid #333846;
+  border-radius: 4px;
+  background: #2a2e3a;
+  color: #e6e3da;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.subida button:disabled {
+  color: #a5a79f;
+  cursor: default;
+}
+
+.subida-dois {
+  display: flex;
+  gap: 8px;
+}
+
+.subida-magias {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.subida-comparacao {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 2px 16px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.subida-comparacao div {
+  display: flex;
+  justify-content: space-between;
+}
+
+.subida-comparacao dt {
+  color: #a5a79f;
+}
+
+.subida-comparacao dd {
+  margin: 0;
+}
+
+.subida-mudou dd {
+  color: #a8d08a;
+  font-weight: 600;
+}
+
+.ficha-subir {
+  border-color: #a8d08a !important;
+  color: #a8d08a !important;
+}

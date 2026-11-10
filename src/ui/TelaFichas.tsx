@@ -49,6 +49,7 @@ import { CampoNumero, CampoTexto } from './camposFormulario';
 import { comSinal, ExplicacaoValor, type Explicando } from './ExplicacaoValor';
 import { OrganizacaoFicha } from './OrganizacaoFicha';
 import { AssistenteCriacao } from './AssistenteCriacao';
+import { SubidaDeNivel } from './SubidaDeNivel';
 import { novaFichaEmCriacao } from '../core/criacaoDePersonagem';
 import { ROTULO_TAMANHO } from './rotulosCompendio';
 import { SeletorVisibilidade } from './SeletorVisibilidade';
@@ -303,6 +304,7 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, lojaRolagens
   const [menu, setMenu] = useState<MenuAberto | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [presenteando, setPresenteando] = useState<string | null>(null);
+  const [subindo, setSubindo] = useState(false);
   // As regras da campanha: mudá-las recalcula a ficha na hora.
   const REGRAS = useRegras();
   const calculo = useMemo(() => calcularFicha(ficha, REGRAS), [ficha, REGRAS]);
@@ -410,6 +412,27 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, lojaRolagens
           </p>
         </div>
         <div className="tela-cabecalho-acoes">
+          {mestre && ficha.tipo !== 'monstro' && (
+            <button
+              type="button"
+              title="Deixa o dono subir um nível pelo assistente"
+              disabled={nivelTotal(ficha) + ficha.niveisLiberados >= 20}
+              onClick={() => editar({ ...ficha, niveisLiberados: ficha.niveisLiberados + 1 }, `liberar-nivel-${crypto.randomUUID()}`)}
+            >
+              Liberar 1 nível{ficha.niveisLiberados > 0 ? ` (${ficha.niveisLiberados} liberado${ficha.niveisLiberados === 1 ? '' : 's'})` : ''}
+            </button>
+          )}
+          {ficha.tipo !== 'monstro' && (mestre || (podeAgir && ficha.niveisLiberados > 0)) && (
+            <button
+              type="button"
+              className={ficha.niveisLiberados > 0 ? 'ficha-subir' : undefined}
+              disabled={nivelTotal(ficha) >= 20 || ficha.classes.length === 0}
+              title={ficha.classes.length === 0 ? 'A ficha precisa de uma classe.' : 'Escolher a classe, os PV e o que mais o nível novo traz'}
+              onClick={() => setSubindo(true)}
+            >
+              Subir de nível
+            </button>
+          )}
           <button
             type="button"
             disabled={!podeAgir}
@@ -574,6 +597,24 @@ function EditorFicha({ ficha, compendio, participantes, lojaFichas, lojaRolagens
 
       {explicando && <ExplicacaoValor explicando={explicando} aoFechar={fecharExplicacao} />}
       {menu && <MenuDeContexto menu={menu} aoFechar={fecharMenu} />}
+      {subindo && (
+        <SubidaDeNivel
+          ficha={ficha}
+          compendio={compendio}
+          autorId={autorId}
+          registrarRolagens={registrar}
+          aoFechar={() => setSubindo(false)}
+          aoConfirmar={(nova) => {
+            editar(nova, `subida-${crypto.randomUUID()}`);
+            setSubindo(false);
+          }}
+        />
+      )}
+      {podeAgir && !mestre && ficha.niveisLiberados > 0 && (
+        <p className="mensagem-info">
+          O mestre liberou {ficha.niveisLiberados === 1 ? 'um nível' : `${ficha.niveisLiberados} níveis`}: use "Subir de nível".
+        </p>
+      )}
       {presenteando && (
         <JanelaPresentear
           ficha={ficha}
