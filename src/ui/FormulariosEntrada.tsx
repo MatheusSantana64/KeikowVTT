@@ -7,12 +7,14 @@ import {
   type DadosArma,
   type DadosArmadura,
   type DadosPorTipo,
+  type Efeito,
   type Entrada,
+  type OperacaoEfeito,
   type EntradaDe,
   type TipoEntrada,
 } from '../core/entradas';
 import { normalizarNome } from '../core/formulas';
-import { NOME_NIVEL_DA_CLASSE, problemaNaFormula } from '../core/regras';
+import { idSalvaguarda, NOME_NIVEL_DA_CLASSE, problemaNaFormula } from '../core/regras';
 import { REGRAS_PADRAO } from '../core/regrasPadrao';
 import {
   CampoFormula,
@@ -687,6 +689,127 @@ export function FormularioMonstro({ dados, mudar }: PropsFormulario<'monstro'>) 
       <EditorBlocos rotulo="Reações" blocos={dados.reacoes} aoMudar={(v) => mudar({ reacoes: v }, 'reacoes')} />
       <EditorBlocos rotulo="Ações lendárias" blocos={dados.acoesLendarias} aoMudar={(v) => mudar({ acoesLendarias: v }, 'lendarias')} />
     </>
+  );
+}
+
+const ROTULO_OPERACAO: Readonly<Record<OperacaoEfeito, string>> = {
+  somar: 'Soma',
+  minimo: 'No mínimo',
+  definir: 'Define (vence tudo)',
+};
+
+const ROTULO_QUANDO: Readonly<Record<Efeito['quando'], string>> = {
+  sempre: 'Sempre (só por ter)',
+  equipado: 'Quando equipado',
+  sintonizado: 'Quando sintonizado',
+};
+
+/** Os valores da ficha que um efeito pode mudar, em grupos, com o nome legível. */
+function alvosDosEfeitos(): { grupo: string; opcoes: { id: string; nome: string }[] }[] {
+  const r = REGRAS_PADRAO;
+  return [
+    { grupo: 'Atributos', opcoes: ATRIBUTOS.map((a) => ({ id: a, nome: r.atributos[a] })) },
+    { grupo: 'Valores', opcoes: r.valores.map((v) => ({ id: v.id, nome: v.nome })) },
+    { grupo: 'Salvaguardas', opcoes: ATRIBUTOS.map((a) => ({ id: idSalvaguarda(a), nome: `Salvaguarda de ${r.atributos[a]}` })) },
+    { grupo: 'Perícias', opcoes: r.pericias.map((p) => ({ id: p.id, nome: p.nome })) },
+  ];
+}
+
+/**
+ * Os efeitos de uma entrada: o que ela muda na ficha de quem a tem.
+ * Em itens, cada efeito diz se vale sempre, ao equipar ou ao sintonizar.
+ */
+export function EditorEfeitos({
+  entrada,
+  mudar,
+}: {
+  readonly entrada: Entrada;
+  readonly mudar: (efeitos: Efeito[], campo: string) => void;
+}) {
+  const ehItem = entrada.tipo === 'item';
+  const grupos = alvosDosEfeitos();
+  const conhecidos = new Set(grupos.flatMap((g) => g.opcoes.map((o) => o.id)));
+  // Habilidades de classe podem ler o nível e a tabela da classe; a coluna é conferida ao usar.
+  const conferir = (texto: string) =>
+    problemaNaFormula(REGRAS_PADRAO, texto, {
+      extras: entrada.tipo === 'habilidade' ? [NOME_NIVEL_DA_CLASSE] : [],
+      colunas: entrada.tipo === 'habilidade' ? 'qualquer' : null,
+      dados: 'proibidos',
+    });
+  const trocar = (indice: number, novo: Efeito, campo: string) =>
+    mudar(
+      entrada.efeitos.map((e, i) => (i === indice ? novo : e)),
+      `efeito-${novo.id}-${campo}`,
+    );
+
+  return (
+    <fieldset className="campo-largo editor-lista editor-efeitos">
+      <span>Efeitos na ficha</span>
+      <p className="tela-dica">
+        O que esta entrada muda em quem a tem. A fórmula pode usar a ficha, como mod(CAR), e o equipamento, como
+        usando_armadura ou escudo_bonus{entrada.tipo === 'habilidade' ? ', e também nivel_classe e tabela(...)' : ''}.
+      </p>
+      {entrada.efeitos.map((efeito, indice) => (
+        <div key={efeito.id} className="editor-lista-item">
+          <div className="editor-lista-campos">
+            <label className="campo">
+              <span>Muda</span>
+              <select value={efeito.alvo} onChange={(e) => trocar(indice, { ...efeito, alvo: e.target.value }, 'alvo')}>
+                {!conhecidos.has(efeito.alvo) && <option value={efeito.alvo}>{`(desconhecido: ${efeito.alvo})`}</option>}
+                {grupos.map((g) => (
+                  <optgroup key={g.grupo} label={g.grupo}>
+                    {g.opcoes.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.nome}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
+            <CampoOpcoes
+              rotulo="Como"
+              valor={efeito.operacao}
+              rotulos={ROTULO_OPERACAO}
+              aoMudar={(v) => v && trocar(indice, { ...efeito, operacao: v }, 'operacao')}
+            />
+            <CampoFormula
+              rotulo="Valor (fórmula)"
+              dica="1 ou mod(CON)"
+              valor={efeito.valor}
+              conferir={(t) => (t.trim() === '' ? 'Escreva o valor, como 1 ou mod(CON).' : conferir(t))}
+              aoMudar={(v) => v.trim() !== '' && trocar(indice, { ...efeito, valor: v }, 'valor')}
+            />
+            {ehItem && (
+              <CampoOpcoes
+                rotulo="Quando vale"
+                valor={efeito.quando}
+                rotulos={ROTULO_QUANDO}
+                aoMudar={(v) => v && trocar(indice, { ...efeito, quando: v }, 'quando')}
+              />
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => mudar(entrada.efeitos.filter((_, i) => i !== indice), `efeito-remover-${efeito.id}`)}
+          >
+            Remover
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="editor-lista-adicionar"
+        onClick={() =>
+          mudar(
+            [...entrada.efeitos, { id: crypto.randomUUID(), alvo: 'ca', operacao: 'somar', valor: '1', quando: ehItem ? 'equipado' : 'sempre' }],
+            `efeito-novo-${crypto.randomUUID()}`,
+          )
+        }
+      >
+        + Efeito
+      </button>
+    </fieldset>
   );
 }
 

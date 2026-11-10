@@ -81,6 +81,7 @@ describe('regras padrão', () => {
       partes: [
         { texto: '10', valor: 10 },
         { texto: 'mod(DES)', valor: 2, nome: 'des', funcao: 'mod' },
+        { texto: 'escudo_bonus', valor: 0, nome: 'escudo_bonus' },
       ],
       ajustes: [],
     });

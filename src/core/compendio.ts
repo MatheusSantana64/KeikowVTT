@@ -12,8 +12,11 @@ export type AcaoCompendio =
   | { readonly tipo: 'EditarEntrada'; readonly entrada: Entrada }
   | { readonly tipo: 'DuplicarEntrada'; readonly entradaId: string; readonly novoId: string }
   | { readonly tipo: 'RemoverEntrada'; readonly entradaId: string }
-  /** Acrescenta várias entradas de uma vez. Nunca substitui as que já existem. */
-  | { readonly tipo: 'ImportarEntradas'; readonly entradas: readonly Entrada[] }
+  /**
+   * Acrescenta várias entradas de uma vez. Só substitui as que já existem com `substituir`,
+   * para atualizar um pacote (as edições feitas nelas se perdem).
+   */
+  | { readonly tipo: 'ImportarEntradas'; readonly entradas: readonly Entrada[]; readonly substituir?: boolean }
   | { readonly tipo: 'CarregarCompendio'; readonly estado: EstadoCompendio };
 
 export function criarCompendioVazio(): EstadoCompendio {
@@ -60,11 +63,18 @@ function removerEntrada(estado: EstadoCompendio, entradaId: string): EstadoCompe
   return { entradas };
 }
 
-function importarEntradas(estado: EstadoCompendio, novas: readonly Entrada[]): EstadoCompendio {
+function importarEntradas(estado: EstadoCompendio, novas: readonly Entrada[], substituir: boolean): EstadoCompendio {
   const entradas = { ...estado.entradas };
+  const vistas = new Set<string>();
   let alguma = false;
   for (const entrada of novas) {
-    if (!(entrada.id in entradas)) {
+    // Numa lista com ids repetidos, vale a primeira.
+    if (vistas.has(entrada.id)) {
+      continue;
+    }
+    vistas.add(entrada.id);
+    const existe = entrada.id in entradas;
+    if (!existe || (substituir && JSON.stringify(entradas[entrada.id]) !== JSON.stringify(entrada))) {
       entradas[entrada.id] = entrada;
       alguma = true;
     }
@@ -87,7 +97,7 @@ export function aplicarAcaoCompendio(
     case 'RemoverEntrada':
       return removerEntrada(estado, acao.entradaId);
     case 'ImportarEntradas':
-      return importarEntradas(estado, acao.entradas);
+      return importarEntradas(estado, acao.entradas, acao.substituir ?? false);
     case 'CarregarCompendio':
       return acao.estado;
   }

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent } from 'react';
 import type { Calculado, Calculo } from '../core/calculadora';
-import { calcularFicha, proficienciasAutomaticas, proficienciasDaFicha } from '../core/calculoDaFicha';
+import { avisosDaFicha, calcularFicha, proficienciasAutomaticas, proficienciasDaFicha } from '../core/calculoDaFicha';
 import type { LojaCampanha } from '../core/campanha';
 import { buscarEntradas, type EstadoCompendio, type LojaCompendio } from '../core/compendio';
 import { ATRIBUTOS, type Atributo, type EntradaDe } from '../core/entradas';
@@ -408,11 +408,19 @@ function BlocoAtributos({ ficha, calculo, editar, explicar }: PropsBloco) {
 function BlocoCombate({ ficha, calculo, editar, explicar }: PropsBloco) {
   const pvMaximos = calculo.valor('pv_maximos');
   const maximo = pvMaximos.ok ? pvMaximos.valor : null;
+  const avisos = avisosDaFicha(ficha, calculo);
   const valores = ['ca', 'iniciativa', 'deslocamento', 'prof', 'percepcao_passiva', 'cd_magia', 'ataque_magico'] as const;
   const comSinalNoValor = new Set(['iniciativa', 'prof', 'ataque_magico']);
   return (
     <section className="ficha-secao">
       <h3>Combate</h3>
+      {avisos.length > 0 && (
+        <ul className="ficha-avisos">
+          {avisos.map((aviso) => (
+            <li key={aviso}>{aviso}</li>
+          ))}
+        </ul>
+      )}
       <div className="ficha-combate">
         {valores.map((id) => {
           const calculado = calculo.valor(id);

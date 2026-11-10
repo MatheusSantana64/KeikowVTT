@@ -699,11 +699,17 @@ export interface Parte {
   readonly funcao?: string;
 }
 
-/** As parcelas de uma soma no nível de fora da fórmula: `10 + mod(DES) - 1` tem três. */
-function parcelas(no: Arvore, sinal: 1 | -1, saida: { no: Arvore; sinal: 1 | -1 }[]): void {
+/**
+ * As parcelas de uma soma no nível de fora da fórmula: `10 + mod(DES) - 1` tem três.
+ * Um `se(...)` é aberto no lado que vale, para a explicação mostrar só o que conta.
+ */
+function parcelas(no: Arvore, sinal: 1 | -1, saida: { no: Arvore; sinal: 1 | -1 }[], amb: Ambiente): void {
   if (no.tipo === 'binaria' && (no.op === '+' || no.op === '-')) {
-    parcelas(no.esquerda, sinal, saida);
-    parcelas(no.direita, no.op === '+' ? sinal : sinal === 1 ? -1 : 1, saida);
+    parcelas(no.esquerda, sinal, saida, amb);
+    parcelas(no.direita, no.op === '+' ? sinal : sinal === 1 ? -1 : 1, saida, amb);
+  } else if (no.tipo === 'chamada' && no.funcao === 'se') {
+    const [condicao, sim, nao] = no.argumentos;
+    parcelas(avaliar(condicao, amb) !== 0 ? sim : nao, sinal, saida, amb);
   } else {
     saida.push({ no, sinal });
   }
@@ -711,7 +717,7 @@ function parcelas(no: Arvore, sinal: 1 | -1, saida: { no: Arvore; sinal: 1 | -1 
 
 function calcularPartes(formula: FormulaLida, amb: Ambiente): { valor: number; partes: Parte[] } {
   const itens: { no: Arvore; sinal: 1 | -1 }[] = [];
-  parcelas(formula.arvore, 1, itens);
+  parcelas(formula.arvore, 1, itens, amb);
   const partes = itens.map(({ no, sinal }): Parte => {
     const valor = sinal * avaliar(no, amb);
     const texto = formula.texto.slice(no.inicio, no.fim);

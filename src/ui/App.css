@@ -565,6 +565,20 @@ body {
   text-align: center;
 }
 
+.ficha-avisos {
+  margin: 0 0 10px;
+  padding: 6px 10px 6px 26px;
+  border: 1px solid #5a4a2a;
+  border-radius: 4px;
+  background: #2a2418;
+  color: #f0c870;
+  font-size: 13px;
+}
+
+.editor-efeitos > .tela-dica {
+  margin: 0;
+}
+
 .ficha-combate {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));

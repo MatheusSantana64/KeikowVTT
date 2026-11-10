@@ -24,7 +24,7 @@ import { numeroNaTela } from './numeros';
 import { comCartaMovida, pesoCarregado, secoesOrganizadas, type Carta } from '../core/organizacaoDaFicha';
 import type { Regras } from '../core/regras';
 import { CampoNumero, CampoTexto } from './camposFormulario';
-import { FormularioDados } from './FormulariosEntrada';
+import { EditorEfeitos, FormularioDados } from './FormulariosEntrada';
 import { ROTULO_ESCOLA, ROTULO_MOEDA, ROTULO_RECARGA, ROTULO_TIPO } from './rotulosCompendio';
 
 const TIPO_ARRASTE = 'application/x-keikow-carta';
@@ -455,6 +455,7 @@ function DetalhesDaCopia({ entrada, ficha, editar }: { readonly entrada: Entrada
           todas={Object.values(ficha.entradas)}
           mudar={(parcial, campo) => mudar({ ...entrada, dados: { ...entrada.dados, ...parcial } } as Entrada, `dados-${campo}`)}
         />
+        <EditorEfeitos entrada={entrada} mudar={(efeitos, campo) => mudar({ ...entrada, efeitos } as Entrada, campo)} />
       </div>
       <button type="button" onClick={() => setEditando(false)}>
         Pronto

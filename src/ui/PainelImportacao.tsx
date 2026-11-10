@@ -33,6 +33,7 @@ export function PainelImportacao({ estado, lojaCompendio, aoFechar, aoImportar }
   const [escolhido, setEscolhido] = useState<ResumoPacote | null>(null);
   const [pacote, setPacote] = useState<Carregamento<{ pacote: Pacote }> | null>(null);
   const [tipos, setTipos] = useState<ReadonlySet<TipoEntrada>>(new Set(TIPOS_ENTRADA));
+  const [atualizar, setAtualizar] = useState(false);
 
   useEffect(() => {
     let ativo = true;
@@ -69,7 +70,15 @@ export function PainelImportacao({ estado, lojaCompendio, aoFechar, aoImportar }
   const pronto = pacote?.estado === 'pronto' ? pacote.pacote : null;
   const contagem = useMemo(() => (pronto ? contarImportacao(estado, pronto) : null), [estado, pronto]);
   const aImportar = useMemo(
-    () => (pronto ? entradasParaImportar(estado, pronto, tipos) : []),
+    () => (pronto ? entradasParaImportar(estado, pronto, tipos, atualizar) : []),
+    [estado, pronto, tipos, atualizar],
+  );
+  // Quantas das que já existem estão diferentes no pacote (mais novas, ou editadas aqui).
+  const desatualizadas = useMemo(
+    () =>
+      pronto
+        ? entradasParaImportar(estado, pronto, tipos, true).length - entradasParaImportar(estado, pronto, tipos).length
+        : 0,
     [estado, pronto, tipos],
   );
 
@@ -87,7 +96,7 @@ export function PainelImportacao({ estado, lojaCompendio, aoFechar, aoImportar }
     if (!pronto || aImportar.length === 0) {
       return;
     }
-    lojaCompendio.despachar({ tipo: 'ImportarEntradas', entradas: aImportar });
+    lojaCompendio.despachar({ tipo: 'ImportarEntradas', entradas: aImportar, substituir: atualizar });
     aoImportar(pronto.id, aImportar.length);
   };
 
@@ -154,6 +163,13 @@ export function PainelImportacao({ estado, lojaCompendio, aoFechar, aoImportar }
               ))}
             </div>
           </fieldset>
+          {desatualizadas > 0 && (
+            <CampoMarcar
+              rotulo={`Atualizar também as ${desatualizadas} que já estão no compêndio e estão diferentes no pacote. As edições feitas nelas se perdem (Ctrl+Z desfaz).`}
+              valor={atualizar}
+              aoMudar={setAtualizar}
+            />
+          )}
           <div className="tela-cabecalho-acoes">
             <button type="button" disabled={aImportar.length === 0} onClick={importar}>
               {aImportar.length === 0

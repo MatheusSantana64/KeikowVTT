@@ -63,6 +63,20 @@ export const ENTRADAS_DA_FICHA: Readonly<Record<string, string>> = {
   conjuracao: 'Atributo de conjuração',
 };
 
+/**
+ * O que a ficha tem equipado, para as regras e efeitos usarem: CA com armadura,
+ * Defesa sem Armadura etc. Sem nada equipado, valem os padrões.
+ */
+export const VARIAVEIS_DO_EQUIPAMENTO: Readonly<Record<string, { readonly rotulo: string; readonly padrao: number }>> = {
+  usando_armadura: { rotulo: 'Usando armadura (1 sim, 0 não)', padrao: 0 },
+  armadura_pesada: { rotulo: 'Usando armadura pesada (1 sim, 0 não)', padrao: 0 },
+  armadura_base: { rotulo: 'CA base da armadura', padrao: 10 },
+  armadura_des_max: { rotulo: 'Destreza máxima da armadura', padrao: Infinity },
+  armadura_forca_minima: { rotulo: 'Força mínima da armadura', padrao: 0 },
+  usando_escudo: { rotulo: 'Usando escudo (1 sim, 0 não)', padrao: 0 },
+  escudo_bonus: { rotulo: 'Bônus do escudo', padrao: 0 },
+};
+
 /** Nomes que só existem dentro de certas fórmulas. */
 export const NOME_DO_VALOR_NO_MODIFICADOR = 'valor';
 export const NOMES_LOCAIS_DA_PERICIA = ['atributo', 'proficiencia'] as const;
@@ -87,6 +101,7 @@ export function nomesDasRegras(regras: Regras): ReadonlySet<string> {
   return new Set([
     ...ATRIBUTOS,
     ...Object.keys(ENTRADAS_DA_FICHA),
+    ...Object.keys(VARIAVEIS_DO_EQUIPAMENTO),
     ...ATRIBUTOS.map(idSalvaguarda),
     ...regras.pericias.map((p) => p.id),
     ...regras.valores.map((v) => v.id),
@@ -104,6 +119,7 @@ export function rotuloDoNome(regras: Regras, nome: string): string {
   }
   return (
     ENTRADAS_DA_FICHA[nome] ??
+    VARIAVEIS_DO_EQUIPAMENTO[nome]?.rotulo ??
     regras.pericias.find((p) => p.id === nome)?.nome ??
     regras.valores.find((v) => v.id === nome)?.nome ??
     (nome === NOME_NIVEL_DA_CLASSE ? 'Nível na classe' : nome)
@@ -170,7 +186,12 @@ export function conferirRegras(regras: Regras): ProblemaNasRegras[] {
   const globais = nomesDasRegras(regras);
 
   // Ids: válidos, sem repetir e sem tomar nomes reservados.
-  const vistos = new Set<string>([...ATRIBUTOS, ...Object.keys(ENTRADAS_DA_FICHA), ...ATRIBUTOS.map(idSalvaguarda)]);
+  const vistos = new Set<string>([
+    ...ATRIBUTOS,
+    ...Object.keys(ENTRADAS_DA_FICHA),
+    ...Object.keys(VARIAVEIS_DO_EQUIPAMENTO),
+    ...ATRIBUTOS.map(idSalvaguarda),
+  ]);
   for (const { id, nome } of [...regras.pericias, ...regras.valores]) {
     if (!/^[a-z_][a-z0-9_]*$/.test(id)) {
       problemas.push({ onde: nome, erro: `O nome "${id}" só pode ter letras minúsculas sem acento, números e "_".` });

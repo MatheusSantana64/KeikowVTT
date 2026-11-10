@@ -11,13 +11,14 @@ import {
   type DadosArmadura,
   type DadosHabilidade,
   type DadosItem,
+  type Efeito,
   type Entrada,
   type EntradaDe,
   type MOEDAS,
   type TipoEntrada,
 } from '../../src/core/entradas';
 import type { Credito, Pacote } from '../../src/core/pacotes';
-import { NOME_NIVEL_DA_CLASSE, problemaNaFormula } from '../../src/core/regras';
+import { NOME_NIVEL_DA_CLASSE, nomesDasRegras, problemaNaFormula } from '../../src/core/regras';
 import { REGRAS_PADRAO } from '../../src/core/regrasPadrao';
 import { entradaParaMetrico } from '../../src/core/persistenciaCompendio';
 import { librasParaQuilos } from '../../src/core/unidades';
@@ -353,6 +354,7 @@ export function converterItemMagico(registro: Registro): EntradaDe<'item'> {
       registro.equipment_category?.name ?? '',
       'Magic Item',
     ]),
+    efeitos: efeitosProntos(registro.index),
     dados: {
       categoria,
       peso: 0,
@@ -467,6 +469,7 @@ export function converterCaracteristica(grupo: readonly Registro[]): EntradaDe<'
       ...grupo.flatMap((r) => [r.class?.name ?? '', r.subclass?.name ?? '']),
       'Class Feature',
     ]),
+    efeitos: grupo.flatMap((r) => efeitosProntos(r.index)),
     dados: { requisito, usos: USOS[primeira.index] ?? null },
   };
 }
@@ -478,6 +481,7 @@ export function converterTraco(registro: Registro): EntradaDe<'habilidade'> {
       ...donos,
       'Racial Trait',
     ]),
+    efeitos: efeitosProntos(registro.index),
     dados: { requisito: donos.join(', '), usos: null },
   };
 }
@@ -604,6 +608,64 @@ const USOS: Readonly<Record<string, DadosHabilidade['usos']>> = {
   'divine-sense': { maximo: '1 + mod(CAR)', recarga: 'descanso-longo' },
   'lay-on-hands': { maximo: 'nivel_classe * 5', recarga: 'descanso-longo' },
 };
+
+// ---------- Efeitos prontos ----------
+
+type EfeitoPronto = Omit<Efeito, 'id'>;
+
+const SALVAGUARDAS_TODAS = (['for', 'des', 'con', 'int', 'sab', 'car'] as const).map((a) => `salvaguarda_${a}`);
+const somar = (alvo: string, valor: string, quando: Efeito['quando'] = 'sempre'): EfeitoPronto => ({ alvo, operacao: 'somar', valor, quando });
+const noMinimo = (alvo: string, valor: string, quando: Efeito['quando'] = 'sempre'): EfeitoPronto => ({ alvo, operacao: 'minimo', valor, quando });
+const protecaoMagica = (quando: Efeito['quando']): EfeitoPronto[] => [
+  somar('ca', '1', quando),
+  ...SALVAGUARDAS_TODAS.map((s) => somar(s, '1', quando)),
+];
+const cintoDeGigante = (forca: number): EfeitoPronto[] => [noMinimo('for', String(forca), 'sintonizado')];
+
+/**
+ * Efeitos que o SRD descreve só no texto, escritos aqui como dados, pelo índice da base.
+ * O mestre pode editar ou completar outros no compêndio.
+ */
+const EFEITOS_PRONTOS: Readonly<Record<string, readonly EfeitoPronto[]>> = {
+  // Itens mágicos.
+  'armor-1': [somar('ca', '1', 'equipado')],
+  'armor-2': [somar('ca', '2', 'equipado')],
+  'armor-3': [somar('ca', '3', 'equipado')],
+  'ring-of-protection': protecaoMagica('sintonizado'),
+  'cloak-of-protection': protecaoMagica('sintonizado'),
+  'bracers-of-defense': [somar('ca', 'se(usando_armadura ou usando_escudo, 0, 2)', 'sintonizado')],
+  'gauntlets-of-ogre-power': [noMinimo('for', '19', 'sintonizado')],
+  'belt-of-giant-strength-hill': cintoDeGigante(21),
+  'belt-of-giant-strength-stone': cintoDeGigante(23),
+  'belt-of-giant-strength-frost': cintoDeGigante(23),
+  'belt-of-giant-strength-fire': cintoDeGigante(25),
+  'belt-of-giant-strength-cloud': cintoDeGigante(27),
+  'belt-of-giant-strength-storm': cintoDeGigante(29),
+  'headband-of-intellect': [noMinimo('int', '19', 'sintonizado')],
+  'amulet-of-health': [noMinimo('con', '19', 'sintonizado')],
+  'stone-of-good-luck-luckstone': [
+    ...SALVAGUARDAS_TODAS.map((s) => somar(s, '1', 'sintonizado')),
+    ...REGRAS_PADRAO.pericias.map((p) => somar(p.id, '1', 'sintonizado')),
+  ],
+  // Habilidades de classe.
+  'barbarian-unarmored-defense': [noMinimo('ca', 'se(usando_armadura, 0, 10 + mod(DES) + mod(CON) + escudo_bonus)')],
+  'monk-unarmored-defense': [noMinimo('ca', 'se(usando_armadura ou usando_escudo, 0, 10 + mod(DES) + mod(SAB))')],
+  'fast-movement': [somar('deslocamento', 'se(armadura_pesada, 0, 3)')],
+  'unarmored-movement-1': [somar('deslocamento', 'se(usando_armadura ou usando_escudo, 0, tabela(movimento_sem_armadura))')],
+  // Habilidade de subclasse: ainda sem ligação com a classe, usa o nível total (igual sem multiclasse).
+  'draconic-resilience': [
+    somar('pv_maximos', 'nivel'),
+    noMinimo('ca', 'se(usando_armadura, 0, 13 + mod(DES) + escudo_bonus)'),
+  ],
+  'aura-of-protection': SALVAGUARDAS_TODAS.map((s) => somar(s, 'max(1, mod(CAR))')),
+  // Traços de espécie.
+  'dwarven-toughness': [somar('pv_maximos', 'nivel')],
+};
+
+/** Os efeitos prontos de um registro da base, com ids estáveis. */
+function efeitosProntos(indice: string): Efeito[] {
+  return (EFEITOS_PRONTOS[indice] ?? []).map((e, i) => ({ ...e, id: `${ID_PACOTE}/${indice}/efeito-${i + 1}` }));
+}
 
 // ---------- Classes ----------
 
@@ -979,19 +1041,28 @@ export function formulasQuebradas(pacote: Pacote): string[] {
       classesDaHabilidade.set(entradaId, [...(classesDaHabilidade.get(entradaId) ?? []), entrada]);
     }
   }
+  const alvos = nomesDasRegras(REGRAS_PADRAO);
   for (const entrada of pacote.entradas) {
-    if (entrada.tipo !== 'habilidade' || !entrada.dados.usos) {
-      continue;
-    }
     const classes = classesDaHabilidade.get(entrada.id) ?? [];
     const opcoes = (colunas: ReadonlySet<string> | null) =>
       ({ extras: classes.length > 0 ? [NOME_NIVEL_DA_CLASSE] : [], colunas, dados: 'proibidos' }) as const;
     const conferencias = classes.length > 0 ? classes.map((c) => new Set(c.dados.tabela.map((col) => col.id))) : [null];
-    for (const colunas of conferencias) {
-      const problema = problemaNaFormula(REGRAS_PADRAO, entrada.dados.usos.maximo, opcoes(colunas));
-      if (problema) {
-        problemas.push(`${entrada.id}, usos: ${problema}`);
+    const conferir = (onde: string, formula: string) => {
+      for (const colunas of conferencias) {
+        const problema = problemaNaFormula(REGRAS_PADRAO, formula, opcoes(colunas));
+        if (problema) {
+          problemas.push(`${entrada.id}, ${onde}: ${problema}`);
+        }
       }
+    };
+    if (entrada.tipo === 'habilidade' && entrada.dados.usos) {
+      conferir('usos', entrada.dados.usos.maximo);
+    }
+    for (const efeito of entrada.efeitos) {
+      if (!alvos.has(efeito.alvo)) {
+        problemas.push(`${entrada.id}, efeito ${efeito.id}: o alvo "${efeito.alvo}" não existe nas regras.`);
+      }
+      conferir(`efeito ${efeito.id}`, efeito.valor);
     }
   }
   return problemas;

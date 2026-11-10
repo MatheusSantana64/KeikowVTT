@@ -2,8 +2,8 @@
  * Transforma uma ficha no que a calculadora precisa: nível, PV dos dados de vida,
  * deslocamento, conjuração, proficiências e efeitos, cada um com a sua origem.
  */
-import { criarCalculo, type Calculo, type EfeitoAtivo, type EntradaDoCalculo } from './calculadora';
-import { ATRIBUTOS, type Atributo, type EntradaDe } from './entradas';
+import { criarCalculo, type Calculo, type EfeitoAtivo, type EntradaDoCalculo, type ExtrasDaEntrada } from './calculadora';
+import { ATRIBUTOS, type Atributo, type Entrada, type EntradaDe } from './entradas';
 import { entradaDaFicha, nivelTotal, pvPorNivel, type Ficha } from './fichas';
 import type { ResultadoFormula } from './formulas';
 import { encontrarPericia, idSalvaguarda, type Regras } from './regras';
@@ -52,15 +52,14 @@ export function efeitosDaFicha(ficha: Ficha): EfeitoAtivo[] {
       });
     }
   }
-  // Por enquanto só os efeitos permanentes; equipar e sintonizar entram no passo dos itens.
-  for (const { entrada } of entradasEmUso(ficha)) {
+  for (const { entrada, extras } of entradasEmUso(ficha)) {
     for (const efeito of entrada.efeitos) {
       if (efeito.quando === 'sempre') {
-        efeitos.push({ fonte: entrada.nome || 'Sem nome', efeito });
+        efeitos.push({ fonte: entrada.nome || 'Sem nome', efeito, extras });
       }
     }
   }
-  return efeitos;
+  return [...efeitos, ...efeitosDosItens(ficha)];
 }
 
 /** O bônus de proficiência de um monstro pelo nível de desafio, como na tabela dos livros. */
@@ -113,6 +112,7 @@ export function entradaDoCalculo(ficha: Ficha, regras: Regras): EntradaDoCalculo
     proficiencias,
     efeitos: efeitosDaFicha(ficha),
     fixos: monstro ? fixosDoMonstro(monstro, regras) : undefined,
+    equipamento: equipamentoDaFicha(ficha).variaveis,
   };
 }
 
@@ -129,13 +129,25 @@ export interface HabilidadeNaFicha {
   readonly classe: { readonly entrada: EntradaDe<'classe'>; readonly nivel: number } | null;
 }
 
-/** As entradas que a ficha usa agora: classes, espécie, antecedente e as habilidades já ganhas. */
-function entradasEmUso(ficha: Ficha): { entrada: EntradaDe<'classe' | 'especie' | 'antecedente' | 'habilidade'> }[] {
-  const lista: { entrada: EntradaDe<'classe' | 'especie' | 'antecedente' | 'habilidade'> }[] = [];
+/** O nível e a tabela de uma classe, para fórmulas como `tabela(furias)` e `nivel_classe`. */
+function extrasDaClasse(classe: { readonly entrada: EntradaDe<'classe'>; readonly nivel: number }): ExtrasDaEntrada {
+  return {
+    nivelClasse: classe.nivel,
+    coluna: (id) => classe.entrada.dados.tabela.find((c) => c.id === id)?.valores[classe.nivel - 1],
+  };
+}
+
+/**
+ * As entradas cujos efeitos "sempre" valem agora: classes, espécie, antecedente,
+ * habilidades já ganhas e as habilidades e talentos acrescentados à mão.
+ * Magias ficam de fora: o efeito delas vale ao conjurar, não o tempo todo.
+ */
+function entradasEmUso(ficha: Ficha): { entrada: Entrada; extras?: ExtrasDaEntrada }[] {
+  const lista: { entrada: Entrada; extras?: ExtrasDaEntrada }[] = [];
   for (const c of ficha.classes) {
     const classe = entradaDaFicha(ficha, c.entradaId, 'classe');
     if (classe) {
-      lista.push({ entrada: classe });
+      lista.push({ entrada: classe, extras: extrasDaClasse({ entrada: classe, nivel: c.nivel }) });
     }
   }
   const especie = entradaDaFicha(ficha, ficha.especieId, 'especie');
@@ -146,10 +158,123 @@ function entradasEmUso(ficha: Ficha): { entrada: EntradaDe<'classe' | 'especie' 
   if (antecedente) {
     lista.push({ entrada: antecedente });
   }
+  const vistas = new Set<string>();
   for (const h of habilidadesDaFicha(ficha)) {
-    lista.push({ entrada: h.entrada });
+    vistas.add(h.entrada.id);
+    lista.push({ entrada: h.entrada, extras: h.classe ? extrasDaClasse(h.classe) : undefined });
+  }
+  for (const id of ficha.extras) {
+    const entrada = ficha.entradas[id];
+    if (entrada && entrada.tipo !== 'magia' && !vistas.has(id)) {
+      lista.push({ entrada });
+    }
   }
   return lista;
+}
+
+/**
+ * Os efeitos dos itens carregados: "sempre" vale só por carregar, "equipado" quando a pilha
+ * está equipada, "sintonizado" quando está sintonizada. Duas pilhas do mesmo item não somam
+ * o efeito duas vezes, como no 5e (efeitos do mesmo objeto mágico não se acumulam).
+ */
+function efeitosDosItens(ficha: Ficha): EfeitoAtivo[] {
+  const efeitos: EfeitoAtivo[] = [];
+  const porEntrada = new Map<string, { equipado: boolean; sintonizado: boolean }>();
+  for (const pilha of ficha.itens) {
+    const atual = porEntrada.get(pilha.entradaId) ?? { equipado: false, sintonizado: false };
+    porEntrada.set(pilha.entradaId, {
+      equipado: atual.equipado || pilha.equipado,
+      sintonizado: atual.sintonizado || pilha.sintonizado,
+    });
+  }
+  for (const [id, estado] of porEntrada) {
+    const item = entradaDaFicha(ficha, id, 'item');
+    if (!item) {
+      continue;
+    }
+    for (const efeito of item.efeitos) {
+      const vale =
+        efeito.quando === 'sempre' ||
+        (efeito.quando === 'equipado' && estado.equipado) ||
+        // Sintonizar só faz sentido em itens que pedem sintonia; nos outros, basta equipar.
+        (efeito.quando === 'sintonizado' && (item.dados.requerSintonia ? estado.sintonizado : estado.equipado));
+      if (vale) {
+        efeitos.push({ fonte: item.nome || 'Item sem nome', efeito });
+      }
+    }
+  }
+  return efeitos;
+}
+
+/** O que a ficha tem equipado, para a regra da CA e do deslocamento. */
+export interface EquipamentoDaFicha {
+  readonly armadura: EntradaDe<'item'> | null;
+  readonly escudo: EntradaDe<'item'> | null;
+  readonly armadurasEquipadas: number;
+  readonly escudosEquipados: number;
+  readonly variaveis: Readonly<Record<string, { readonly valor: number; readonly origem: string }>>;
+}
+
+/** Com mais de uma armadura (ou escudo) equipada, vale a de maior CA. */
+export function equipamentoDaFicha(ficha: Ficha): EquipamentoDaFicha {
+  const equipados = ficha.itens
+    .filter((p) => p.equipado)
+    .map((p) => entradaDaFicha(ficha, p.entradaId, 'item'))
+    .filter((item): item is EntradaDe<'item'> => item !== null && item.dados.armadura !== null);
+  const armaduras = equipados.filter((i) => i.dados.armadura!.peso !== 'escudo');
+  const escudos = equipados.filter((i) => i.dados.armadura!.peso === 'escudo');
+  const melhor = (lista: EntradaDe<'item'>[]) =>
+    lista.reduce<EntradaDe<'item'> | null>((m, i) => (!m || i.dados.armadura!.caBase > m.dados.armadura!.caBase ? i : m), null);
+  const armadura = melhor(armaduras);
+  const escudo = melhor(escudos);
+  const variaveis: Record<string, { valor: number; origem: string }> = {};
+  if (armadura) {
+    const a = armadura.dados.armadura!;
+    const origem = armadura.nome || 'Armadura';
+    variaveis.usando_armadura = { valor: 1, origem };
+    variaveis.armadura_pesada = { valor: a.peso === 'pesada' ? 1 : 0, origem };
+    variaveis.armadura_base = { valor: a.caBase, origem };
+    variaveis.armadura_des_max = { valor: a.usaDestreza ? (a.destrezaMaxima ?? Infinity) : 0, origem };
+    variaveis.armadura_forca_minima = { valor: a.forcaMinima, origem };
+  }
+  if (escudo) {
+    const origem = escudo.nome || 'Escudo';
+    variaveis.usando_escudo = { valor: 1, origem };
+    variaveis.escudo_bonus = { valor: escudo.dados.armadura!.caBase, origem };
+  }
+  return { armadura, escudo, armadurasEquipadas: armaduras.length, escudosEquipados: escudos.length, variaveis };
+}
+
+/** Limite de itens sintonizados ao mesmo tempo, como no 5e. Passar dele só mostra um aviso. */
+export const LIMITE_SINTONIA = 3;
+
+/** Avisos sobre o equipamento: o que a ficha não bloqueia, mas o jogador precisa saber. */
+export function avisosDaFicha(ficha: Ficha, calculo: Calculo): string[] {
+  const avisos: string[] = [];
+  const equipamento = equipamentoDaFicha(ficha);
+  if (equipamento.armadurasEquipadas > 1) {
+    avisos.push(`${equipamento.armadurasEquipadas} armaduras equipadas: vale só ${equipamento.armadura?.nome}.`);
+  }
+  if (equipamento.escudosEquipados > 1) {
+    avisos.push(`${equipamento.escudosEquipados} escudos equipados: vale só ${equipamento.escudo?.nome}.`);
+  }
+  const sintonizados = new Set(
+    ficha.itens
+      .filter((p) => p.sintonizado && entradaDaFicha(ficha, p.entradaId, 'item')?.dados.requerSintonia)
+      .map((p) => p.entradaId),
+  ).size;
+  if (sintonizados > LIMITE_SINTONIA) {
+    avisos.push(`${sintonizados} itens sintonizados: o limite é ${LIMITE_SINTONIA}.`);
+  }
+  const armadura = equipamento.armadura?.dados.armadura;
+  if (armadura?.desvantagemFurtividade) {
+    avisos.push(`${equipamento.armadura!.nome} dá desvantagem em Furtividade.`);
+  }
+  const forca = calculo.valor('for');
+  if (armadura && forca.ok && forca.valor < armadura.forcaMinima) {
+    avisos.push(`${equipamento.armadura!.nome} exige Força ${armadura.forcaMinima}: o deslocamento cai 3 m.`);
+  }
+  return avisos;
 }
 
 /** As habilidades que a ficha já tem: as das classes até o nível atual, da espécie e do antecedente. */
@@ -199,16 +324,7 @@ export function usosDaHabilidade(
   if (!usos) {
     return null;
   }
-  const classe = habilidade.classe;
-  return calculo.formula(
-    usos.maximo,
-    classe
-      ? {
-          nivelClasse: classe.nivel,
-          coluna: (id) => classe.entrada.dados.tabela.find((c) => c.id === id)?.valores[classe.nivel - 1],
-        }
-      : undefined,
-  );
+  return calculo.formula(usos.maximo, habilidade.classe ? extrasDaClasse(habilidade.classe) : undefined);
 }
 
 export function modificadoresDaFicha(calculo: Calculo): Record<Atributo, ReturnType<Calculo['modificador']>> {

@@ -3,7 +3,7 @@ import { buscarEntradas, entradaEm, type LojaCompendio } from '../core/compendio
 import { criarEntrada, TIPOS_ENTRADA, type Entrada, type TipoEntrada } from '../core/entradas';
 import { SO_MESTRE, VISIVEL_A_TODOS } from '../core/visibilidade';
 import { CampoLinhas, CampoTexto } from './camposFormulario';
-import { FormularioDados } from './FormulariosEntrada';
+import { EditorEfeitos, FormularioDados } from './FormulariosEntrada';
 import { PainelImportacao } from './PainelImportacao';
 import { ROTULO_TIPO } from './rotulosCompendio';
 
@@ -263,9 +263,10 @@ function EditorEntrada({
             editar({ ...entrada, dados: { ...entrada.dados, ...parcial } } as Entrada, `dados-${campo}`)
           }
         />
+        <EditorEfeitos entrada={entrada} mudar={(efeitos, campo) => editar({ ...entrada, efeitos } as Entrada, campo)} />
         <p className="tela-dica campo-largo">
-          Efeitos e ações desta entrada: {entrada.efeitos.length} e {entrada.acoes.length}. Eles poderão ser
-          editados quando o motor de regras estiver pronto.
+          Ações desta entrada (menu do botão direito): {entrada.acoes.length}. Elas poderão ser editadas no passo das
+          rolagens.
         </p>
       </div>
     </div>

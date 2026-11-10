@@ -50,11 +50,17 @@ export const REGRAS_PADRAO: Regras = {
     {
       id: 'ca',
       nome: 'Classe de Armadura',
-      formula: '10 + mod(DES)',
-      descricao: 'Sem armadura. Armaduras, escudos e magias entram como efeitos.',
+      formula: 'se(usando_armadura, armadura_base + min(mod(DES), armadura_des_max), 10 + mod(DES)) + escudo_bonus',
+      descricao:
+        'Sem armadura, 10 + Destreza. Com armadura, a CA dela mais a Destreza até o limite da armadura. O escudo soma por cima.',
     },
     { id: 'iniciativa', nome: 'Iniciativa', formula: 'mod(DES)', descricao: '' },
-    { id: 'deslocamento', nome: 'Deslocamento', formula: 'deslocamento_base', descricao: 'Em metros.' },
+    {
+      id: 'deslocamento',
+      nome: 'Deslocamento',
+      formula: 'deslocamento_base - se(FOR < armadura_forca_minima, 3, 0)',
+      descricao: 'Em metros. Armadura que exige mais Força do que a ficha tem tira 3 m.',
+    },
     {
       id: 'pv_maximos',
       nome: 'Pontos de vida máximos',

@@ -19,6 +19,7 @@ import {
 } from './formulas';
 import {
   ENTRADAS_DA_FICHA,
+  VARIAVEIS_DO_EQUIPAMENTO,
   idSalvaguarda,
   NOME_DO_VALOR_NO_MODIFICADOR,
   NOME_NIVEL_DA_CLASSE,
@@ -30,6 +31,8 @@ import {
 export interface EfeitoAtivo {
   readonly fonte: string;
   readonly efeito: Efeito;
+  /** Para efeitos de uma habilidade de classe: o nível e a tabela daquela classe. */
+  readonly extras?: ExtrasDaEntrada;
 }
 
 /** O que a ficha informa para o cálculo. */
@@ -48,6 +51,8 @@ export interface EntradaDoCalculo {
    * Os efeitos continuam valendo por cima deles.
    */
   readonly fixos?: Readonly<Record<string, { readonly valor: number; readonly origem: string }>>;
+  /** O que está equipado, como `armadura_base` ou `usando_escudo`. O que faltar vale o padrão (nada equipado). */
+  readonly equipamento?: Readonly<Record<string, { readonly valor: number; readonly origem: string }>>;
 }
 
 /** O que um efeito fez (ou não fez) com um valor. */
@@ -135,7 +140,12 @@ export function criarCalculo(regras: Regras, entrada: EntradaDoCalculo): Calculo
   const rotulo = (nome: string) => rotuloDoNome(regras, nome);
   const ehAtributo = (nome: string): nome is Atributo => (ATRIBUTOS as readonly string[]).includes(nome);
   const conhecido = (nome: string) =>
-    ehAtributo(nome) || nome in ENTRADAS_DA_FICHA || valores.has(nome) || pericias.has(nome) || salvaguardas.has(nome);
+    ehAtributo(nome) ||
+    nome in ENTRADAS_DA_FICHA ||
+    nome in VARIAVEIS_DO_EQUIPAMENTO ||
+    valores.has(nome) ||
+    pericias.has(nome) ||
+    salvaguardas.has(nome);
 
   /** O número de um nome, para as fórmulas. Um nome com problema vira erro na fórmula que o cita. */
   function numeroDe(nome: string): number | undefined {
@@ -199,6 +209,12 @@ export function criarCalculo(regras: Regras, entrada: EntradaDoCalculo): Calculo
     const fixo = entrada.fixos?.[nome];
     if (fixo && !(nome in ENTRADAS_DA_FICHA)) {
       return comEfeitos(nome, fixo.valor, [{ texto: fixo.origem, valor: fixo.valor }]);
+    }
+    const doEquipamento = VARIAVEIS_DO_EQUIPAMENTO[nome];
+    if (doEquipamento) {
+      const informado = entrada.equipamento?.[nome];
+      const valor = informado?.valor ?? doEquipamento.padrao;
+      return { ok: true, valor, base: valor, partes: [{ texto: informado?.origem ?? 'nada equipado', valor }], ajustes: [] };
     }
     if (ehAtributo(nome)) {
       const base = entrada.atributos[nome];
@@ -264,13 +280,13 @@ export function criarCalculo(regras: Regras, entrada: EntradaDoCalculo): Calculo
    */
   function comEfeitos(nome: string, base: number, partes: readonly Parte[]): Calculado {
     const lista = efeitosPorAlvo.get(nome) ?? [];
-    const avaliados = lista.map(({ fonte, efeito }) => {
+    const avaliados = lista.map(({ fonte, efeito, extras }) => {
       const comum = { fonte, operacao: efeito.operacao, formula: efeito.valor };
       const lido = lerFormulaGuardada(efeito.valor);
       if (!lido.ok) {
         return { ...comum, valor: null, erro: lido.erro };
       }
-      const resultado = calcularFormula(lido.formula, contextoGeral);
+      const resultado = calcularFormula(lido.formula, extras ? contextoDaEntrada(extras) : contextoGeral);
       return resultado.ok ? { ...comum, valor: resultado.valor } : { ...comum, valor: null, erro: resultado.erro };
     });
 

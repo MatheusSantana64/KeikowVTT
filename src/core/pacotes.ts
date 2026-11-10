@@ -129,12 +129,20 @@ export function contarImportacao(estado: EstadoCompendio, pacote: Pacote): Conta
 
 /**
  * As entradas do pacote que ainda não estão no compêndio, só dos tipos escolhidos.
- * As que já existem ficam como estão, para não desfazer o que o mestre editou.
+ * As que já existem ficam como estão, para não desfazer o que o mestre editou,
+ * a menos que `atualizar` peça para trazê-las de novo (as que mudaram no pacote).
  */
 export function entradasParaImportar(
   estado: EstadoCompendio,
   pacote: Pacote,
   tipos: ReadonlySet<TipoEntrada>,
+  atualizar = false,
 ): Entrada[] {
-  return pacote.entradas.filter((entrada) => tipos.has(entrada.tipo) && !(entrada.id in estado.entradas));
+  return pacote.entradas.filter((entrada) => {
+    if (!tipos.has(entrada.tipo)) {
+      return false;
+    }
+    const atual = estado.entradas[entrada.id];
+    return !atual || (atualizar && JSON.stringify(atual) !== JSON.stringify(entrada));
+  });
 }

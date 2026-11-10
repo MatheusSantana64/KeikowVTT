@@ -100,4 +100,14 @@ describe('importação de um pacote', () => {
     expect(depois.entradas['teste/adaga']).toBe(editado);
     expect(Object.keys(depois.entradas).sort()).toEqual(['teste/adaga', 'teste/escudo', 'teste/goblin']);
   });
+
+  it('atualizar traz de novo as que mudaram, substituindo a versão do compêndio', () => {
+    const tipos = new Set<TipoEntrada>(['item']);
+    const lista = entradasParaImportar(estado, pacote, tipos, true);
+    expect(lista).toEqual([adaga, escudo]);
+    const depois = aplicarAcaoCompendio(estado, { tipo: 'ImportarEntradas', entradas: lista, substituir: true });
+    expect(depois.entradas['teste/adaga']).toBe(adaga);
+    // Sem nada diferente, atualizar não traz nada.
+    expect(entradasParaImportar(depois, pacote, tipos, true)).toEqual([]);
+  });
 });

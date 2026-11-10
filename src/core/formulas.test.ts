@@ -237,6 +237,15 @@ describe('explicação', () => {
     });
   });
 
+  it('o "se" mostra só as parcelas do lado que vale', () => {
+    const r = calcularFormula(ler('se(nivel >= 5, 10 + prof, 8) + mod(DES)'), contexto);
+    expect(r.ok && r.partes.map((p) => [p.texto, p.valor])).toEqual([
+      ['10', 10],
+      ['prof', 3],
+      ['mod(DES)', 2],
+    ]);
+  });
+
   it('uma fórmula que não é soma vira uma parte só', () => {
     const r = calcularFormula(ler('max(1, 2)'), contexto);
     expect(r.ok && r.partes).toEqual([{ texto: 'max(1, 2)', valor: 2 }]);
