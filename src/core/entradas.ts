@@ -104,7 +104,7 @@ export interface DadosArma {
   readonly dano: string;
   readonly tipoDano: string;
   readonly danoVersatil: string | null;
-  /** Em pés, como no SRD. */
+  /** Em metros (o SRD usa pés; 1 pé = 0,3 m). */
   readonly alcance: { readonly normal: number; readonly longo: number | null } | null;
   readonly propriedades: readonly string[];
 }
@@ -184,7 +184,7 @@ export interface DadosClasse {
 
 export interface DadosEspecie {
   readonly tamanho: (typeof TAMANHOS)[number];
-  /** Em pés, como no SRD. */
+  /** Em metros (o SRD usa pés; 1 pé = 0,3 m). */
   readonly deslocamento: number;
   readonly aumentosAtributo: Readonly<Partial<Record<Atributo, number>>>;
   readonly idiomas: readonly string[];
@@ -302,7 +302,7 @@ const DADOS_INICIAIS: { readonly [T in TipoEntrada]: () => DadosPorTipo[T] } = {
   }),
   especie: () => ({
     tamanho: 'medio',
-    deslocamento: 30,
+    deslocamento: 9,
     aumentosAtributo: {},
     idiomas: [],
     tracos: [],
@@ -318,7 +318,7 @@ const DADOS_INICIAIS: { readonly [T in TipoEntrada]: () => DadosPorTipo[T] } = {
     notaArmadura: '',
     pontosVida: 1,
     dadosVida: '1d8',
-    deslocamento: '30 pés',
+    deslocamento: '9 m',
     atributos: { ...ATRIBUTOS_PADRAO },
     salvaguardas: {},
     pericias: {},

@@ -19,6 +19,8 @@ import {
 import type { Credito, Pacote } from '../../src/core/pacotes';
 import { NOME_NIVEL_DA_CLASSE, problemaNaFormula } from '../../src/core/regras';
 import { REGRAS_PADRAO } from '../../src/core/regrasPadrao';
+import { entradaParaMetrico } from '../../src/core/persistenciaCompendio';
+import { librasParaQuilos } from '../../src/core/unidades';
 import { SO_MESTRE, VISIVEL_A_TODOS } from '../../src/core/visibilidade';
 
 export const ID_PACOTE = 'srd-5.1';
@@ -63,7 +65,7 @@ export const CREDITO_SRD: Credito = {
 export const CREDITO_ADAPTACAO: Credito = {
   titulo: 'Adaptação',
   texto:
-    'O conteúdo do SRD 5.1 foi reorganizado no formato do KeikowVTT: os campos foram separados e traduzidos para a interface, e as descrições mantêm o texto original em inglês.',
+    'O conteúdo do SRD 5.1 foi reorganizado no formato do KeikowVTT: os campos foram separados e traduzidos para a interface, e as descrições mantêm o texto original em inglês. As medidas foram convertidas para o sistema métrico, como na edição brasileira (1 pé = 0,3 m, 1 libra = 0,5 kg, 1 milha = 1,5 km).',
 };
 
 export const CREDITO_5E_BITS: Credito = {
@@ -228,11 +230,6 @@ function base<T extends TipoEntrada>(
   };
 }
 
-/** O programa usa quilos; o SRD, libras. 1 libra = 0,5 kg, como na edição brasileira do 5e. */
-export function libraEmQuilo(libras: number): number {
-  return libras / 2;
-}
-
 function custo(registro: Registro): DadosItem['custo'] {
   const c = registro.cost;
   if (!c || typeof c.quantity !== 'number') {
@@ -311,7 +308,7 @@ export function converterEquipamento(registro: Registro): EntradaDe<'item'> {
     ...base('item', id('equipamento', registro.index), registro.name, descricaoDoEquipamento(registro), nomes(registro.equipment_categories)),
     dados: {
       categoria,
-      peso: libraEmQuilo(registro.weight ?? 0),
+      peso: librasParaQuilos(registro.weight ?? 0),
       custo: custo(registro),
       raridade: null,
       requerSintonia: false,
@@ -948,9 +945,10 @@ export function converterSrd(fontes: Fontes): Pacote {
     id: ID_PACOTE,
     nome: 'SRD 5.1',
     descricao:
-      'O conteúdo de regras aberto da quinta edição: equipamentos, itens mágicos, magias, classes, espécies, condições e monstros. Textos em inglês.',
+      'O conteúdo de regras aberto da quinta edição: equipamentos, itens mágicos, magias, classes, espécies, condições e monstros. Textos em inglês, com medidas em metros e quilos.',
     creditos: CREDITOS,
-    entradas,
+    // As funções acima escrevem como o SRD (pés); aqui tudo passa para o sistema métrico.
+    entradas: entradas.map((e) => entradaParaMetrico(e) as Entrada),
   };
 }
 

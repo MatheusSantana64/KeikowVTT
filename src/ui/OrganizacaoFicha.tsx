@@ -20,7 +20,7 @@ import {
   semSecao,
   type Ficha,
 } from '../core/fichas';
-import { formatarNumero } from '../core/formulas';
+import { numeroNaTela } from './numeros';
 import { comCartaMovida, pesoCarregado, secoesOrganizadas, type Carta } from '../core/organizacaoDaFicha';
 import type { Regras } from '../core/regras';
 import { CampoNumero, CampoTexto } from './camposFormulario';
@@ -41,7 +41,7 @@ interface Props {
 const unico = (nome: string) => `${nome}-${crypto.randomUUID()}`;
 
 function kg(valor: number): string {
-  return `${formatarNumero(valor).replace('.', ',')} kg`;
+  return `${numeroNaTela(valor)} kg`;
 }
 
 export function OrganizacaoFicha({ ficha, compendio, calculo, regras, editar }: Props) {
@@ -409,7 +409,7 @@ function CartaDaFicha(props: PropsCarta) {
         <small>{resumo}</small>
         {usos && (
           <span className="ficha-usos" title={usos.ok ? undefined : usos.erro}>
-            {usos.ok ? `${formatarNumero(usos.valor)} por ${recarga}` : 'usos: —'}
+            {usos.ok ? `${numeroNaTela(usos.valor)} por ${recarga}` : 'usos: —'}
           </span>
         )}
         {controlesDeLugar}

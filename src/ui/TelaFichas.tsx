@@ -19,7 +19,7 @@ import {
   type LojaFichas,
   type TipoFicha,
 } from '../core/fichas';
-import { formatarNumero } from '../core/formulas';
+import { numeroNaTela } from './numeros';
 import { idSalvaguarda } from '../core/regras';
 import { REGRAS_PADRAO } from '../core/regrasPadrao';
 import { CampoNumero, CampoTexto } from './camposFormulario';
@@ -35,7 +35,7 @@ const ROTULO_TIPO_FICHA: Readonly<Record<TipoFicha, string>> = {
 
 /** 0,25 vira "1/4", como nos livros. */
 function formatarNivelDesafio(nd: number): string {
-  return { 0.125: '1/8', 0.25: '1/4', 0.5: '1/2' }[nd] ?? formatarNumero(nd);
+  return { 0.125: '1/8', 0.25: '1/4', 0.5: '1/2' }[nd] ?? numeroNaTela(nd);
 }
 
 /** Por enquanto, as regras que acompanham o programa. A campanha terá as próprias no passo 12. */
@@ -363,7 +363,7 @@ function Valor({
   readonly sinal?: boolean;
   readonly nota?: string;
 }) {
-  const texto = calculado.ok ? (sinal ? comSinal(calculado.valor) : formatarNumero(calculado.valor)) : '—';
+  const texto = calculado.ok ? (sinal ? comSinal(calculado.valor) : numeroNaTela(calculado.valor)) : '—';
   const mudou = calculado.ok && calculado.ajustes.some((a) => a.aplicado);
   return (
     <button

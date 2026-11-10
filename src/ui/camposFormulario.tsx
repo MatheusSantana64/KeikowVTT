@@ -59,13 +59,15 @@ export function CampoNumero({
   /** Campo vazio significa "nenhum valor". */
   readonly vazioPermitido?: boolean;
 }) {
-  const [rascunho, setRascunho] = useState(valor === null ? '' : String(valor));
+  // Decimais com vírgula, como se escreve no Brasil; o ponto também é aceito ao digitar.
+  const escrever = (n: number | null) => (n === null ? '' : String(n).replace('.', ','));
+  const [rascunho, setRascunho] = useState(escrever(valor));
 
   // Mantém o campo em dia quando o valor muda por fora, como num Ctrl+Z.
   useEffect(() => {
-    const atual = rascunho.trim() === '' ? null : Number(rascunho);
+    const atual = rascunho.trim() === '' ? null : Number(rascunho.replace(',', '.'));
     if (atual !== valor) {
-      setRascunho(valor === null ? '' : String(valor));
+      setRascunho(escrever(valor));
     }
     // Só deve reagir a mudanças do valor, não do rascunho.
     // eslint-disable-next-line react-hooks/exhaustive-deps

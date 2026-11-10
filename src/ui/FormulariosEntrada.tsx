@@ -146,20 +146,20 @@ function FormularioArma({ arma, mudar }: { arma: DadosArma; mudar: (arma: DadosA
         aoMudar={(v) => mudar({ ...arma, danoVersatil: v.trim() === '' ? null : v })}
       />
       <CampoMarcar
-        rotulo="Tem alcance em pés"
+        rotulo="Tem alcance (arremesso ou distância)"
         valor={arma.alcance !== null}
-        aoMudar={(sim) => mudar({ ...arma, alcance: sim ? { normal: 5, longo: null } : null })}
+        aoMudar={(sim) => mudar({ ...arma, alcance: sim ? { normal: 6, longo: null } : null })}
       />
       {arma.alcance && (
         <>
           <CampoNumero
-            rotulo="Alcance normal"
+            rotulo="Alcance normal (m)"
             minimo={0}
             valor={arma.alcance.normal}
             aoMudar={(normal) => normal !== null && arma.alcance && mudar({ ...arma, alcance: { ...arma.alcance, normal } })}
           />
           <CampoNumero
-            rotulo="Alcance longo (opcional)"
+            rotulo="Alcance longo (m, opcional)"
             minimo={0}
             vazioPermitido
             valor={arma.alcance.longo}
@@ -561,7 +561,7 @@ export function FormularioEspecie({ dados, mudar, todas }: PropsFormulario<'espe
   return (
     <>
       <CampoOpcoes rotulo="Tamanho" valor={dados.tamanho} rotulos={ROTULO_TAMANHO} aoMudar={(v) => v && mudar({ tamanho: v }, 'tamanho')} />
-      <CampoNumero rotulo="Deslocamento (pés)" minimo={0} valor={dados.deslocamento} aoMudar={(v) => v !== null && mudar({ deslocamento: v }, 'deslocamento')} />
+      <CampoNumero rotulo="Deslocamento (m)" minimo={0} valor={dados.deslocamento} aoMudar={(v) => v !== null && mudar({ deslocamento: v }, 'deslocamento')} />
       <h3 className="campo-largo">Aumentos de atributo (vazio: nenhum)</h3>
       {ATRIBUTOS.map((atributo) => (
         <CampoNumero

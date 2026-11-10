@@ -8,7 +8,7 @@ This work includes material taken from the System Reference Document 5.1 (“SRD
 
 ## Adaptação
 
-O conteúdo do SRD 5.1 foi reorganizado no formato do KeikowVTT: os campos foram separados e traduzidos para a interface, e as descrições mantêm o texto original em inglês.
+O conteúdo do SRD 5.1 foi reorganizado no formato do KeikowVTT: os campos foram separados e traduzidos para a interface, e as descrições mantêm o texto original em inglês. As medidas foram convertidas para o sistema métrico, como na edição brasileira (1 pé = 0,3 m, 1 libra = 0,5 kg, 1 milha = 1,5 km).
 
 ## Dados organizados pelo projeto 5e-bits (5e-database)
 

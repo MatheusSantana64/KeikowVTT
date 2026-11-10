@@ -1,4 +1,5 @@
 import type { EstadoCompendio } from './compendio';
+import { pesParaMetros, textoParaMetrico } from './unidades';
 import {
   ATRIBUTOS,
   CATEGORIAS_ITEM,
@@ -34,7 +35,7 @@ import {
 } from './persistencia';
 
 /** Aumente ao mudar o formato das entradas, e acrescente a conversão em CONVERSOES. */
-export const VERSAO_COMPENDIO = 4;
+export const VERSAO_COMPENDIO = 5;
 
 type Dado = Record<string, unknown>;
 
@@ -431,7 +432,89 @@ const CONVERSOES: Readonly<Record<number, (entradas: unknown) => unknown>> = {
             : entrada,
         )
       : entradas,
+  // Versão 5: distâncias e demais medidas imperiais passaram para o sistema métrico.
+  4: (entradas) => (Array.isArray(entradas) ? entradas.map(entradaParaMetrico) : entradas),
 };
+
+/** Um número em pés vira metros; um texto, como "Movimento (pés)", troca as medidas imperiais. */
+function metroSeNumero(valor: unknown): unknown {
+  return typeof valor === 'number' ? pesParaMetros(valor) : valor;
+}
+
+function textoMetrico(valor: unknown): unknown {
+  return typeof valor === 'string' ? textoParaMetrico(valor) : valor;
+}
+
+function blocosMetricos(valor: unknown): unknown {
+  return Array.isArray(valor)
+    ? valor.map((b) => (ehObjeto(b) ? { ...b, nome: textoMetrico(b.nome), descricao: textoMetrico(b.descricao) } : b))
+    : valor;
+}
+
+/**
+ * Passa uma entrada de medidas imperiais (pés, milhas, libras no texto…) para métricas.
+ * Funciona sobre dados ainda não conferidos: o que não tiver o formato esperado fica como está.
+ * O peso dos itens já é convertido antes, na versão 4.
+ */
+export function entradaParaMetrico(entrada: unknown): unknown {
+  if (!ehObjeto(entrada) || !ehObjeto(entrada.dados)) {
+    return entrada;
+  }
+  const d = entrada.dados;
+  let dados: Record<string, unknown> = d;
+  switch (entrada.tipo) {
+    case 'item':
+      if (ehObjeto(d.arma)) {
+        const alcance = ehObjeto(d.arma.alcance)
+          ? { ...d.arma.alcance, normal: metroSeNumero(d.arma.alcance.normal), longo: metroSeNumero(d.arma.alcance.longo) }
+          : d.arma.alcance;
+        dados = { ...d, arma: { ...d.arma, alcance } };
+      }
+      break;
+    case 'magia':
+      dados = {
+        ...d,
+        alcance: textoMetrico(d.alcance),
+        componentes: ehObjeto(d.componentes) ? { ...d.componentes, material: textoMetrico(d.componentes.material) } : d.componentes,
+      };
+      break;
+    case 'especie':
+      dados = { ...d, deslocamento: metroSeNumero(d.deslocamento) };
+      break;
+    case 'classe':
+      dados = {
+        ...d,
+        tabela: Array.isArray(d.tabela)
+          ? d.tabela.map((coluna) =>
+              ehObjeto(coluna) && typeof coluna.nome === 'string' && /\(pés\)/.test(coluna.nome) && Array.isArray(coluna.valores)
+                ? {
+                    ...coluna,
+                    nome: coluna.nome.replace('(pés)', '(m)'),
+                    valores: coluna.valores.map((v) =>
+                      typeof v === 'string' && /^\d+(\.\d+)?$/.test(v.trim()) ? String(pesParaMetros(Number(v))) : v,
+                    ),
+                  }
+                : coluna,
+            )
+          : d.tabela,
+      };
+      break;
+    case 'monstro':
+      dados = {
+        ...d,
+        notaArmadura: textoMetrico(d.notaArmadura),
+        deslocamento: textoMetrico(d.deslocamento),
+        sentidos: textoMetrico(d.sentidos),
+        idiomas: textoMetrico(d.idiomas),
+        tracos: blocosMetricos(d.tracos),
+        acoesDeCombate: blocosMetricos(d.acoesDeCombate),
+        reacoes: blocosMetricos(d.reacoes),
+        acoesLendarias: blocosMetricos(d.acoesLendarias),
+      };
+      break;
+  }
+  return { ...entrada, nome: textoMetrico(entrada.nome), descricao: textoMetrico(entrada.descricao), dados };
+}
 
 /**
  * Passa uma lista de entradas gravadas na versão `versao` para a atual, ainda sem conferir.

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Calculado } from '../core/calculadora';
 import type { OperacaoEfeito } from '../core/entradas';
-import { formatarNumero } from '../core/formulas';
+import { numeroNaTela } from './numeros';
 
 const OPERACAO: Readonly<Record<OperacaoEfeito, string>> = {
   somar: 'soma',
@@ -11,9 +11,9 @@ const OPERACAO: Readonly<Record<OperacaoEfeito, string>> = {
 
 export function comSinal(valor: number): string {
   if (!Number.isFinite(valor)) {
-    return formatarNumero(valor);
+    return numeroNaTela(valor);
   }
-  return valor >= 0 ? `+${formatarNumero(valor)}` : `−${formatarNumero(-valor)}`;
+  return valor >= 0 ? `+${numeroNaTela(valor)}` : `−${numeroNaTela(-valor)}`;
 }
 
 export interface Explicando {
@@ -59,7 +59,7 @@ export function ExplicacaoValor({ explicando, aoFechar }: { readonly explicando:
     >
       <header>
         <strong>{explicando.rotulo}</strong>
-        <span>{calculado.ok ? formatarNumero(calculado.valor) : '—'}</span>
+        <span>{calculado.ok ? numeroNaTela(calculado.valor) : '—'}</span>
       </header>
       {!calculado.ok && <p className="campo-problema">{calculado.erro}</p>}
       {calculado.ok && (
@@ -67,13 +67,13 @@ export function ExplicacaoValor({ explicando, aoFechar }: { readonly explicando:
           {calculado.partes.map((parte, i) => (
             <li key={`p${i}`}>
               <span>{parte.texto}</span>
-              <span>{i === 0 ? formatarNumero(parte.valor) : comSinal(parte.valor)}</span>
+              <span>{i === 0 ? numeroNaTela(parte.valor) : comSinal(parte.valor)}</span>
             </li>
           ))}
           {calculado.ajustes.length > 0 && (
             <li className="explicacao-subtotal">
               <span>pela regra</span>
-              <span>{formatarNumero(calculado.base)}</span>
+              <span>{numeroNaTela(calculado.base)}</span>
             </li>
           )}
           {calculado.ajustes.map((ajuste, i) => (
@@ -82,7 +82,7 @@ export function ExplicacaoValor({ explicando, aoFechar }: { readonly explicando:
                 {ajuste.fonte} ({OPERACAO[ajuste.operacao]})
                 {!ajuste.aplicado && (ajuste.erro ? ` — erro: ${ajuste.erro}` : ' — não contou')}
               </span>
-              <span>{ajuste.valor === null ? '—' : ajuste.operacao === 'somar' ? comSinal(ajuste.valor) : formatarNumero(ajuste.valor)}</span>
+              <span>{ajuste.valor === null ? '—' : ajuste.operacao === 'somar' ? comSinal(ajuste.valor) : numeroNaTela(ajuste.valor)}</span>
             </li>
           ))}
         </ul>

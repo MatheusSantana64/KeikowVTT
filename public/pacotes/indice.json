@@ -1,10 +1,10 @@
 {
-  "versao": 3,
+  "versao": 4,
   "pacotes": [
     {
       "id": "srd-5.1",
       "nome": "SRD 5.1",
-      "descricao": "O conteúdo de regras aberto da quinta edição: equipamentos, itens mágicos, magias, classes, espécies, condições e monstros. Textos em inglês.",
+      "descricao": "O conteúdo de regras aberto da quinta edição: equipamentos, itens mágicos, magias, classes, espécies, condições e monstros. Textos em inglês, com medidas em metros e quilos.",
       "arquivo": "srd-5.1.json",
       "creditos": [
         {
@@ -13,7 +13,7 @@
         },
         {
           "titulo": "Adaptação",
-          "texto": "O conteúdo do SRD 5.1 foi reorganizado no formato do KeikowVTT: os campos foram separados e traduzidos para a interface, e as descrições mantêm o texto original em inglês."
+          "texto": "O conteúdo do SRD 5.1 foi reorganizado no formato do KeikowVTT: os campos foram separados e traduzidos para a interface, e as descrições mantêm o texto original em inglês. As medidas foram convertidas para o sistema métrico, como na edição brasileira (1 pé = 0,3 m, 1 libra = 0,5 kg, 1 milha = 1,5 km)."
         },
         {
           "titulo": "Dados organizados pelo projeto 5e-bits (5e-database)",

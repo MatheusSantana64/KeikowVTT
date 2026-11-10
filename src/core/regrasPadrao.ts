@@ -54,7 +54,7 @@ export const REGRAS_PADRAO: Regras = {
       descricao: 'Sem armadura. Armaduras, escudos e magias entram como efeitos.',
     },
     { id: 'iniciativa', nome: 'Iniciativa', formula: 'mod(DES)', descricao: '' },
-    { id: 'deslocamento', nome: 'Deslocamento', formula: 'deslocamento_base', descricao: 'Em pés.' },
+    { id: 'deslocamento', nome: 'Deslocamento', formula: 'deslocamento_base', descricao: 'Em metros.' },
     {
       id: 'pv_maximos',
       nome: 'Pontos de vida máximos',

@@ -280,6 +280,45 @@ describe('listas e arquivos de compêndio', () => {
     expect(atual.ok && atual.estado.entradas.lanterna.dados).toMatchObject({ peso: 2 });
   });
 
+  it('entradas das versões 1 a 4 passam para o sistema métrico', () => {
+    const especie = { ...criarEntrada('especie', 'anao'), dados: { ...criarEntrada('especie', 'x').dados, deslocamento: 25 } };
+    const arco = {
+      ...criarEntrada('item', 'arco'),
+      nome: 'Rope, hempen (50 feet)',
+      descricao: 'Range 150/600 ft.',
+      dados: {
+        ...criarEntrada('item', 'x').dados,
+        arma: { dominio: 'marcial', alcanceTipo: 'distancia', dano: '1d8', tipoDano: '', danoVersatil: null, alcance: { normal: 150, longo: 600 }, propriedades: [] },
+      },
+    };
+    const goblin = {
+      ...criarEntrada('monstro', 'goblin'),
+      dados: { ...criarEntrada('monstro', 'x').dados, deslocamento: '30 ft., climb 30 ft.', sentidos: 'darkvision 60 ft.' },
+    };
+    const monge = {
+      ...criarEntrada('classe', 'monge'),
+      dados: {
+        ...criarEntrada('classe', 'x').dados,
+        tabela: [
+          { id: 'movimento_sem_armadura', nome: 'Movimento sem armadura (pés)', valores: ['', ...Array(19).fill('10')] },
+          { id: 'pontos_ki', nome: 'Pontos de ki', valores: Array(20).fill('2') },
+        ],
+      },
+    };
+    const lido = desserializarCompendio(JSON.stringify({ versao: 4, entradas: [especie, arco, goblin, monge] }));
+    if (!lido.ok) {
+      throw new Error(lido.erro);
+    }
+    const e = lido.estado.entradas;
+    expect(e.anao.dados).toMatchObject({ deslocamento: 7.5 });
+    expect(e.arco).toMatchObject({ nome: 'Rope, hempen (15 m)', descricao: 'Range 45/180 m' });
+    expect(e.arco.tipo === 'item' && e.arco.dados.arma?.alcance).toEqual({ normal: 45, longo: 180 });
+    expect(e.goblin.dados).toMatchObject({ deslocamento: '9 m, climb 9 m', sentidos: 'darkvision 18 m' });
+    const tabela = e.monge.tipo === 'classe' ? e.monge.dados.tabela : [];
+    expect(tabela[0]).toMatchObject({ nome: 'Movimento sem armadura (m)', valores: ['', ...Array(19).fill('3')] });
+    expect(tabela[1].valores[0]).toBe('2');
+  });
+
   it('confere a tabela da classe', () => {
     const classe = criarEntrada('classe', 'guerreiro');
     const coluna = { id: 'surto_de_acao', nome: 'Surto de ação', valores: Array(20).fill('1') };

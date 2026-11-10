@@ -76,9 +76,10 @@ function fixosDoMonstro(monstro: EntradaDe<'monstro'>, regras: Regras): EntradaD
     pv_maximos: { valor: d.pontosVida, origem: `ficha do monstro (${d.dadosVida})` },
     prof: { valor: proficienciaDoMonstro(d.nivelDesafio), origem: `nível de desafio` },
   };
-  const deslocamento = /\d+/.exec(d.deslocamento);
+  // O primeiro número do texto, como o 10,5 de "10,5 m, fly 18 m".
+  const deslocamento = /\d+(?:[.,]\d+)?/.exec(d.deslocamento);
   if (deslocamento) {
-    fixos.deslocamento = { valor: Number(deslocamento[0]), origem: d.deslocamento };
+    fixos.deslocamento = { valor: Number(deslocamento[0].replace(',', '.')), origem: d.deslocamento };
   }
   for (const [atributo, valor] of Object.entries(d.salvaguardas) as [Atributo, number][]) {
     fixos[idSalvaguarda(atributo)] = { valor, origem };
